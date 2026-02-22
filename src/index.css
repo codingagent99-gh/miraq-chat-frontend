@@ -1,68 +1,1102 @@
-:root {
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
+/* Scoped styles for the WooCommerce widget */
+#silfra-chat-widget-container {
+  --color-primary: #004e64;
+  --color-primary-light: #0089a8;
+  --color-primary-dark: #00384f;
+  --color-surface: #ffffff;
+  --color-background: #f4f6f8;
+  --color-text: #1a1a1a;
+  --color-text-light: #ffffff;
+  --color-border: #e1e8ed;
+  --color-success: #10b981;
+  --color-sale: #ef4444;
 
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
+  --fs-xs: 0.7rem;
+  --fs-sm: 0.8125rem;
+  --fs-md: 0.9375rem;
+  --fs-lg: 1.0625rem;
+
+  --font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  --line-height: 1.5;
+  --font-weight: 400;
+
+  font-family: var(--font-family) !important;
+  line-height: var(--line-height) !important;
+  font-weight: var(--font-weight) !important;
+  color: var(--color-text) !important;
+  text-align: left !important;
+  font-size: 16px !important;
+  direction: ltr !important;
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+
+  z-index: 2147483647 !important;
+  position: relative !important;
 }
 
-a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
-}
-a:hover {
-  color: #535bf2;
+/* Reset */
+#silfra-chat-widget-container *,
+#silfra-chat-widget-container *::before,
+#silfra-chat-widget-container *::after {
+  box-sizing: border-box !important;
+  outline: none;
 }
 
-body {
+#silfra-chat-widget-container h1,
+#silfra-chat-widget-container h2,
+#silfra-chat-widget-container h3,
+#silfra-chat-widget-container h4,
+#silfra-chat-widget-container h5,
+#silfra-chat-widget-container h6,
+#silfra-chat-widget-container p,
+#silfra-chat-widget-container ul,
+#silfra-chat-widget-container li,
+#silfra-chat-widget-container figure,
+#silfra-chat-widget-container blockquote,
+#silfra-chat-widget-container dl,
+#silfra-chat-widget-container dd,
+#silfra-chat-widget-container div,
+#silfra-chat-widget-container span,
+#silfra-chat-widget-container a {
   margin: 0;
-  display: flex;
-  place-items: center;
-  min-width: 320px;
-  min-height: 100vh;
-}
-
-h1 {
-  font-size: 3.2em;
-  line-height: 1.1;
-}
-
-button {
-  border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
-  font-weight: 500;
+  padding: 0;
+  list-style: none;
+  text-decoration: none;
   font-family: inherit;
-  background-color: #1a1a1a;
-  cursor: pointer;
-  transition: border-color 0.25s;
-}
-button:hover {
-  border-color: #646cff;
-}
-button:focus,
-button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
+  font-weight: inherit;
 }
 
-@media (prefers-color-scheme: light) {
-  :root {
-    color: #213547;
-    background-color: #ffffff;
+#silfra-chat-widget-container button {
+  background: none;
+  border: none;
+  font: inherit;
+  cursor: pointer;
+  padding: 0;
+  color: inherit;
+  appearance: none;
+  -webkit-appearance: none;
+  box-shadow: none;
+  text-transform: none;
+  letter-spacing: normal;
+  pointer-events: auto !important;
+}
+
+#silfra-chat-widget-container input,
+#silfra-chat-widget-container textarea {
+  font-family: inherit;
+  margin: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  pointer-events: auto !important;
+}
+
+#silfra-chat-widget-container a {
+  pointer-events: auto !important;
+}
+
+/* --- Floating Button --- */
+#silfra-chat-widget-container .xpert-floating-btn {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: linear-gradient(
+    135deg,
+    var(--color-primary-light) 0%,
+    var(--color-primary) 100%
+  );
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+  transition: all 0.3s ease;
+  z-index: 2147483646;
+  pointer-events: auto !important;
+}
+
+#silfra-chat-widget-container .xpert-floating-btn:hover {
+  transform: scale(1.1);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+}
+
+/* --- Panel --- */
+#silfra-chat-widget-container .xpert-panel {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  width: 400px;
+  height: 600px;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  z-index: 2147483646;
+  pointer-events: auto !important;
+}
+
+#silfra-chat-widget-container .xpert-panel.wide {
+  width: 500px;
+}
+
+@media (max-width: 768px) {
+  #silfra-chat-widget-container .xpert-panel {
+    width: calc(100vw - 32px);
+    height: calc(100vh - 100px);
+    bottom: 16px;
+    right: 16px;
   }
-  a:hover {
-    color: #747bff;
+}
+
+/* --- Home Screen --- */
+#silfra-chat-widget-container .xpert-home-screen {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background-color: #f0f2f5;
+  overflow-y: auto;
+}
+
+#silfra-chat-widget-container .xpert-profile-card {
+  background: linear-gradient(
+    135deg,
+    var(--color-primary-light) 0%,
+    var(--color-primary) 100%
+  );
+  color: white;
+  padding: 1.5rem;
+  margin: 1rem;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  position: relative;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+#silfra-chat-widget-container .xpert-profile-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+}
+
+#silfra-chat-widget-container .xpert-profile-info {
+  flex: 1;
+}
+
+#silfra-chat-widget-container .xpert-profile-label {
+  font-size: var(--fs-xs);
+  opacity: 0.9;
+  margin-bottom: 0;
+}
+
+#silfra-chat-widget-container .xpert-profile-name {
+  font-size: var(--fs-lg);
+  font-weight: 700;
+  margin: 0;
+  line-height: 1.2;
+}
+
+#silfra-chat-widget-container .xpert-profile-sub {
+  font-size: var(--fs-xs);
+  opacity: 0.8;
+  margin-top: 0.2rem;
+}
+
+#silfra-chat-widget-container .xpert-ready-badge {
+  position: absolute;
+  right: 1rem;
+  top: 50%;
+  transform: translateY(-50%);
+  background: rgba(255, 255, 255, 0.2);
+  padding: 0.3rem 0.8rem;
+  border-radius: 20px;
+  font-size: var(--fs-xs);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+#silfra-chat-widget-container .xpert-main-content {
+  background: white;
+  margin: 0 1rem 1rem 1rem;
+  padding: 1.5rem;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+#silfra-chat-widget-container .xpert-content-title {
+  font-size: var(--fs-md);
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 0.5rem;
+}
+
+#silfra-chat-widget-container .xpert-content-desc {
+  font-size: var(--fs-sm);
+  color: #666;
+  margin-bottom: 1.5rem;
+  line-height: 1.4;
+}
+
+#silfra-chat-widget-container .xpert-features-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+#silfra-chat-widget-container .xpert-feature-item {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+}
+
+#silfra-chat-widget-container .xpert-feature-icon {
+  font-size: 1.2rem;
+  margin-top: 2px;
+}
+
+#silfra-chat-widget-container .xpert-feature-text {
+  font-size: var(--fs-sm);
+  margin-top: 5px;
+  color: #444;
+  line-height: 1.4;
+}
+
+#silfra-chat-widget-container .xpert-bottom-actions {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  align-items: stretch;
+}
+
+#silfra-chat-widget-container .xpert-bottom-actions.single-button {
+  align-items: flex-end;
+}
+
+#silfra-chat-widget-container .xpert-start-chat-btn {
+  width: 100%;
+  padding: 1rem;
+  background: linear-gradient(
+    135deg,
+    var(--color-primary-light) 0%,
+    var(--color-primary) 100%
+  );
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+}
+
+#silfra-chat-widget-container .xpert-start-chat-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
+}
+
+/* --- Chat Window --- */
+#silfra-chat-widget-container .xpert-chat-window {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background-color: white;
+}
+
+#silfra-chat-widget-container .xpert-chat-header {
+  background: linear-gradient(
+    135deg,
+    var(--color-primary-light) 0%,
+    var(--color-primary) 100%
+  );
+  color: white;
+  padding: 0.8rem 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  height: auto;
+  min-height: 50px;
+}
+
+#silfra-chat-widget-container .xpert-icon-btn {
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  color: white;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s;
+}
+
+#silfra-chat-widget-container .xpert-icon-btn:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+#silfra-chat-widget-container .xpert-chat-header-info {
+  flex: 1;
+}
+
+#silfra-chat-widget-container .xpert-chat-header-title {
+  font-weight: 600;
+  font-size: var(--fs-md);
+  margin: 0;
+  line-height: normal;
+}
+
+#silfra-chat-widget-container .xpert-chat-header-sub {
+  font-size: var(--fs-xs);
+  opacity: 0.9;
+  margin: 0;
+  line-height: normal;
+}
+
+#silfra-chat-widget-container .xpert-cart-badge {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#silfra-chat-widget-container .xpert-cart-count {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  background: var(--color-sale);
+  color: white;
+  font-size: 0.65rem;
+  font-weight: 700;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid white;
+}
+
+#silfra-chat-widget-container .xpert-chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  background-color: #f9fafb;
+}
+
+#silfra-chat-widget-container .xpert-message-row {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+}
+
+#silfra-chat-widget-container .xpert-message-row.user {
+  flex-direction: row-reverse;
+}
+
+#silfra-chat-widget-container .xpert-bot-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 1.2rem;
+}
+
+#silfra-chat-widget-container .xpert-user-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #6b7280;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 1.2rem;
+}
+
+#silfra-chat-widget-container .xpert-message-content {
+  flex: 1;
+  max-width: 80%;
+}
+
+#silfra-chat-widget-container .xpert-message-bubble {
+  padding: 0.75rem 1rem;
+  border-radius: 12px;
+  line-height: 1.5;
+}
+
+#silfra-chat-widget-container .xpert-message-row.user .xpert-message-bubble {
+  background: var(--color-primary);
+  color: white;
+  border-bottom-right-radius: 4px;
+}
+
+#silfra-chat-widget-container
+  .xpert-message-row.assistant
+  .xpert-message-bubble {
+  background: white;
+  color: #1f2937;
+  border-bottom-left-radius: 4px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+#silfra-chat-widget-container .xpert-bubble-content {
+  font-size: var(--fs-sm);
+  word-wrap: break-word;
+}
+
+#silfra-chat-widget-container .xpert-bubble-content p {
+  margin-bottom: 0.5rem;
+}
+
+#silfra-chat-widget-container .xpert-bubble-content p:last-child {
+  margin-bottom: 0;
+}
+
+/* --- Product Grid --- */
+#silfra-chat-widget-container .xpert-product-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+#silfra-chat-widget-container .xpert-product-card {
+  background: white;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  overflow: hidden;
+  transition: all 0.2s;
+  cursor: pointer;
+  position: relative;
+}
+
+#silfra-chat-widget-container .xpert-product-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+#silfra-chat-widget-container .xpert-product-image {
+  width: 100%;
+  height: 120px;
+  object-fit: cover;
+  background: #f3f4f6;
+}
+
+#silfra-chat-widget-container .xpert-product-info {
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+#silfra-chat-widget-container .xpert-product-name {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #1f2937;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  line-height: 1.3;
+}
+
+#silfra-chat-widget-container .xpert-product-price {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin-top: 0.25rem;
+}
+
+#silfra-chat-widget-container .xpert-price {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--color-primary);
+}
+
+#silfra-chat-widget-container .xpert-price-sale {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--color-sale);
+}
+
+#silfra-chat-widget-container .xpert-price-regular {
+  font-size: 0.75rem;
+  color: #9ca3af;
+  text-decoration: line-through;
+}
+
+#silfra-chat-widget-container .xpert-sale-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: var(--color-sale);
+  color: white;
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+}
+
+/* --- Product Pager (local prev/next within a message) --- */
+#silfra-chat-widget-container .xpert-paginated-products {
+  /* wrapper — no extra styling needed */
+}
+
+#silfra-chat-widget-container .xpert-product-pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 10px;
+}
+
+#silfra-chat-widget-container .xpert-pager-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  color: white;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 6px rgba(0, 78, 100, 0.2);
+  pointer-events: auto !important;
+}
+
+#silfra-chat-widget-container .xpert-pager-btn:hover:not(:disabled) {
+  background: var(--color-primary-dark);
+  transform: translateY(-1px);
+  box-shadow: 0 3px 8px rgba(0, 78, 100, 0.3);
+}
+
+#silfra-chat-widget-container .xpert-pager-btn:disabled {
+  background: #d1d5db;
+  color: #9ca3af;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+#silfra-chat-widget-container .xpert-pager-label {
+  font-size: var(--fs-xs);
+  color: #6b7280;
+  font-weight: 600;
+  min-width: 70px;
+  text-align: center;
+}
+
+/* --- Order Button (on product cards) --- */
+#silfra-chat-widget-container .xpert-order-btn {
+  display: block;
+  width: calc(100% - 1.5rem);
+  margin: 0 0.75rem 0.75rem;
+  padding: 0.5rem 0;
+  background: linear-gradient(
+    135deg,
+    var(--color-primary-light) 0%,
+    var(--color-primary) 100%
+  );
+  color: white !important;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 6px rgba(0, 78, 100, 0.2);
+  pointer-events: auto !important;
+}
+
+#silfra-chat-widget-container .xpert-order-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(0, 78, 100, 0.35);
+}
+
+#silfra-chat-widget-container .xpert-order-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 4px rgba(0, 78, 100, 0.2);
+}
+
+/* --- Cart Display --- */
+#silfra-chat-widget-container .xpert-cart-summary {
+  margin-top: 1rem;
+  background: white;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  padding: 1rem;
+}
+
+#silfra-chat-widget-container .xpert-cart-title {
+  font-size: var(--fs-md);
+  font-weight: 600;
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+#silfra-chat-widget-container .xpert-cart-items {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+#silfra-chat-widget-container .xpert-cart-item {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.5rem;
+  background: #f9fafb;
+  border-radius: 6px;
+}
+
+#silfra-chat-widget-container .xpert-cart-item-image {
+  width: 50px;
+  height: 50px;
+  object-fit: cover;
+  border-radius: 4px;
+  background: #e5e7eb;
+}
+
+#silfra-chat-widget-container .xpert-cart-item-info {
+  flex: 1;
+}
+
+#silfra-chat-widget-container .xpert-cart-item-name {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #1f2937;
+  margin-bottom: 0.25rem;
+}
+
+#silfra-chat-widget-container .xpert-cart-item-meta {
+  font-size: 0.7rem;
+  color: #6b7280;
+}
+
+#silfra-chat-widget-container .xpert-cart-item-total {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--color-primary);
+}
+
+#silfra-chat-widget-container .xpert-cart-totals {
+  border-top: 1px solid #e5e7eb;
+  padding-top: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+#silfra-chat-widget-container .xpert-cart-total-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.85rem;
+  color: #4b5563;
+}
+
+#silfra-chat-widget-container .xpert-cart-total-final {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #1f2937;
+  padding-top: 0.5rem;
+  border-top: 2px solid #e5e7eb;
+  margin-top: 0.25rem;
+}
+
+#silfra-chat-widget-container .xpert-cart-empty {
+  text-align: center;
+  padding: 2rem 1rem;
+  color: #9ca3af;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+/* --- Order Confirmation --- */
+#silfra-chat-widget-container .xpert-order-confirmation {
+  margin-top: 1rem;
+  background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+  border: 2px solid var(--color-success);
+  border-radius: 12px;
+  padding: 1.5rem;
+}
+
+#silfra-chat-widget-container .xpert-order-header {
+  text-align: center;
+  margin-bottom: 1rem;
+}
+
+#silfra-chat-widget-container .xpert-order-header h4 {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #065f46;
+  margin-bottom: 0.5rem;
+}
+
+#silfra-chat-widget-container .xpert-order-number {
+  font-size: 0.9rem;
+  color: #047857;
+  font-weight: 600;
+}
+
+#silfra-chat-widget-container .xpert-order-details {
+  background: white;
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+
+#silfra-chat-widget-container .xpert-order-detail-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+  font-size: 0.85rem;
+}
+
+#silfra-chat-widget-container .xpert-order-detail-row:last-child {
+  margin-bottom: 0;
+}
+
+#silfra-chat-widget-container .xpert-order-status {
+  padding: 0.25rem 0.75rem;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+#silfra-chat-widget-container .xpert-order-status.pending {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+#silfra-chat-widget-container .xpert-order-status.processing {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+#silfra-chat-widget-container .xpert-order-status.completed {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+#silfra-chat-widget-container .xpert-order-total {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--color-primary);
+}
+
+/* --- Payment Section --- */
+#silfra-chat-widget-container .xpert-payment-section {
+  background: white;
+  border-radius: 8px;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+#silfra-chat-widget-container .xpert-payment-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 0.25rem;
+}
+
+#silfra-chat-widget-container .xpert-payment-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.875rem 1.5rem;
+  background: linear-gradient(
+    135deg,
+    var(--color-primary-light) 0%,
+    var(--color-primary) 100%
+  );
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 4px 12px rgba(0, 78, 100, 0.3);
+}
+
+#silfra-chat-widget-container .xpert-payment-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 78, 100, 0.4);
+}
+
+#silfra-chat-widget-container .xpert-copy-link-btn {
+  padding: 0.75rem 1rem;
+  background: transparent;
+  color: var(--color-primary);
+  border: 2px solid var(--color-primary);
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+#silfra-chat-widget-container .xpert-copy-link-btn:hover {
+  background: var(--color-primary);
+  color: white;
+}
+
+/* --- Suggestions --- */
+#silfra-chat-widget-container .xpert-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+#silfra-chat-widget-container .xpert-suggestion-chip {
+  padding: 0.5rem 1rem;
+  background: white;
+  border: 1.5px solid var(--color-primary);
+  color: var(--color-primary);
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+#silfra-chat-widget-container .xpert-suggestion-chip:hover {
+  background: var(--color-primary);
+  color: white;
+  transform: translateY(-1px);
+}
+
+/* --- Flow-prompt action buttons (more prominent) --- */
+#silfra-chat-widget-container .xpert-suggestions--flow {
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 16px;
+}
+
+#silfra-chat-widget-container .xpert-suggestion-chip--flow {
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  color: #ffffff;
+  border: none;
+  border-radius: 10px;
+  padding: 10px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 6px rgba(99, 102, 241, 0.25);
+}
+
+#silfra-chat-widget-container .xpert-suggestion-chip--flow:hover {
+  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.35);
+}
+
+#silfra-chat-widget-container .xpert-suggestion-chip--flow:active {
+  transform: translateY(0);
+}
+
+/* --- Server Pagination Controls (Load More from backend) --- */
+#silfra-chat-widget-container .xpert-pagination-controls {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  margin: 4px 0;
+}
+
+#silfra-chat-widget-container .xpert-pagination-info {
+  font-size: var(--fs-xs);
+  color: #9ca3af;
+  margin: 0;
+  line-height: 1.4;
+}
+
+#silfra-chat-widget-container .xpert-load-more-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 20px;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: #ffffff;
+  background: linear-gradient(
+    135deg,
+    var(--color-primary-light) 0%,
+    var(--color-primary) 100%
+  );
+  border: none;
+  border-radius: 20px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(0, 78, 100, 0.2);
+  pointer-events: auto !important;
+}
+
+#silfra-chat-widget-container .xpert-load-more-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 78, 100, 0.3);
+}
+
+#silfra-chat-widget-container .xpert-load-more-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 4px rgba(0, 78, 100, 0.2);
+}
+
+/* --- Input Area --- */
+#silfra-chat-widget-container .xpert-chat-input-area {
+  padding: 1rem;
+  border-top: 1px solid #e5e7eb;
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-end;
+  background-color: white;
+}
+
+#silfra-chat-widget-container .xpert-chat-input {
+  flex: 1;
+  border: 1.5px solid #d1d5db;
+  border-radius: 8px;
+  padding: 0.75rem;
+  font-size: var(--fs-sm);
+  resize: none;
+  outline: none;
+  font-family: inherit;
+  margin: 0;
+  box-shadow: none;
+  background-color: white;
+  max-height: 100px;
+  transition: border-color 0.2s;
+}
+
+#silfra-chat-widget-container .xpert-chat-input:focus {
+  border-color: var(--color-primary);
+}
+
+#silfra-chat-widget-container .xpert-send-btn {
+  background: linear-gradient(
+    135deg,
+    var(--color-primary-light) 0%,
+    var(--color-primary) 100%
+  );
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  box-shadow: 0 2px 8px rgba(0, 78, 100, 0.2);
+}
+
+#silfra-chat-widget-container .xpert-send-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 78, 100, 0.3);
+}
+
+#silfra-chat-widget-container .xpert-send-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+#silfra-chat-widget-container .xpert-footer-hint {
+  text-align: center;
+  font-size: 10px;
+  color: #9ca3af;
+  padding: 0.5rem;
+  background: white;
+  margin: 0;
+}
+
+/* --- Loader --- */
+#silfra-chat-widget-container .dot-loader {
+  display: inline-flex;
+  gap: 4px;
+}
+
+#silfra-chat-widget-container .dot-loader span {
+  width: 6px;
+  height: 6px;
+  background: currentColor;
+  border-radius: 50%;
+  animation: bounce 1.4s infinite ease-in-out both;
+}
+
+#silfra-chat-widget-container .dot-loader span:nth-child(1) {
+  animation-delay: -0.32s;
+}
+
+#silfra-chat-widget-container .dot-loader span:nth-child(2) {
+  animation-delay: -0.16s;
+}
+
+@keyframes bounce {
+  0%,
+  80%,
+  100% {
+    transform: scale(0);
   }
-  button {
-    background-color: #f9f9f9;
+  40% {
+    transform: scale(1);
   }
+}
+
+/* --- Toastify --- */
+#silfra-chat-widget-container .Toastify__toast {
+  font-family: var(--font-family) !important;
+  border-radius: 8px !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+}
+
+#silfra-chat-widget-container .Toastify__toast--success {
+  background: var(--color-success) !important;
+}
+
+#silfra-chat-widget-container .Toastify__toast--error {
+  background: var(--color-sale) !important;
 }

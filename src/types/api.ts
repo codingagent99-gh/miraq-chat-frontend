@@ -1,5 +1,17 @@
 // ============================================================================
-// Order Types (NEW)
+// Pagination Types
+// ============================================================================
+
+export interface PaginationData {
+  page: number;
+  per_page: number;
+  total_items: number | null;
+  total_pages: number | null;
+  has_more: boolean;
+}
+
+// ============================================================================
+// Order Types
 // ============================================================================
 
 export interface OrderItem {
@@ -35,6 +47,7 @@ export interface Order {
   item_count: number;
   billing?: Record<string, any>;
   shipping?: Record<string, any>;
+  payment_url?: string;
 }
 
 export interface PurchaseInfo {
@@ -45,7 +58,7 @@ export interface PurchaseInfo {
 }
 
 // ============================================================================
-// Product Types (EXISTING)
+// Product Types
 // ============================================================================
 
 export interface Product {
@@ -72,44 +85,156 @@ export interface Product {
 }
 
 // ============================================================================
-// Chat API (UPDATED - added order fields)
+// Cart Types
+// ============================================================================
+
+export interface CartItem {
+  product_id: number;
+  name: string;
+  price: number;
+  quantity: number;
+  image?: string;
+}
+
+export interface CartData {
+  items: CartItem[];
+  totals: {
+    subtotal: number;
+    shipping: number;
+    tax: number;
+    total: number;
+  };
+  item_count: number;
+}
+
+// ============================================================================
+// Flow State — Guided Conversation
+// ============================================================================
+
+/** Must match the FlowState enum values in backend conversation_flow.py */
+export type FlowState =
+  | "idle"
+  | "awaiting_intent_choice"
+  | "awaiting_product_or_category"
+  | "showing_results"
+  | "awaiting_quantity"
+  | "awaiting_order_confirm"
+  | "awaiting_final_confirm"
+  | "awaiting_shipping_confirm"
+  | "awaiting_new_address"
+  | "awaiting_address_confirm"
+  | "order_complete"
+  | "awaiting_anything_else"
+  | "closing"
+  | "awaiting_variant_selection";
+
+/** Context carried across turns for multi-step flows */
+export interface FlowContext {
+  flow_state: FlowState;
+  pending_product_id?: number;
+  pending_product_name?: string;
+  pending_quantity?: number;
+  pending_variation_id?: number;
+  pending_shipping_address?: string;
+  use_existing_address?: boolean;
+  use_new_address?: boolean;
+  /** Variant attributes resolved so far across turns (e.g. {Colors: "ALLSPICE Beleza"}) */
+  resolved_attributes?: Record<string, string>;
+}
+
+// ============================================================================
+// Chat Message — unified UI type
+// ============================================================================
+
+export type MessageRole = "user" | "bot";
+
+export interface ChatMessage {
+  id: string;
+  role: MessageRole;
+  text: string;
+  products?: Product[];
+  orders?: Order[];
+  purchase_info?: PurchaseInfo;
+  intent?: string;
+  suggestions?: string[];
+  cart?: CartData;
+  paymentUrl?: string;
+  timestamp: Date;
+  /** If true, suggestions render as prominent flow-action buttons */
+  isFlowPrompt?: boolean;
+  /** Pagination data from the backend response for this message */
+  pagination?: PaginationData;
+}
+
+// ============================================================================
+// Chat API
 // ============================================================================
 
 export interface ChatRequest {
   message: string;
   session_id?: string;
+  /** Page number for paginated product results (default: 1) */
+  page?: number;
   user_context?: {
-    email?: string; // NEW - for order queries
-    customer_id?: number; // NEW - for order queries
+    email?: string;
+    customer_id?: number;
     preferences?: Record<string, unknown>;
+    flow_state?: FlowState;
+    pending_product_id?: number;
+    pending_product_name?: string;
+    pending_quantity?: number;
+    pending_variation_id?: number;
+    pending_shipping_address?: string;
+    use_existing_address?: boolean;
+    use_new_address?: boolean;
+    resolved_attributes?: Record<string, string>;
+    last_product?: { id: number; name: string };
   };
+}
+
+/** Shape of the metadata object returned inside ChatResponse */
+export interface ChatResponseMetadata {
+  products_count?: number;
+  provider?: string;
+  tokens_used?: number;
+  confidence?: number;
+  timestamp?: string;
+  flow_state?: FlowState;
+  pending_product_name?: string;
+  pending_product_id?: number;
+  pending_quantity?: number;
+  pending_variation_id?: number;
+  pending_shipping_address?: string;
+  use_existing_address?: boolean;
+  use_new_address?: boolean;
+  /** Variant attributes resolved so far across turns */
+  resolved_attributes?: Record<string, string>;
 }
 
 export interface ChatResponse {
   bot_message: string;
-  products?: Product[]; // Made optional (was required array)
-  orders?: Order[]; // NEW - for order_history intent
-  total_orders?: number; // NEW - count of all orders
-  purchase_info?: PurchaseInfo; // NEW - for purchase_check intent
-  product?: Product; // NEW - single product for purchase_check
-  filters_applied?: Record<string, unknown>; // Made optional
-  suggestions?: string[]; // Made optional (was required array)
-  intent?: string; // Made optional (was required)
+  products?: Product[];
+  orders?: Order[];
+  total_orders?: number;
+  purchase_info?: PurchaseInfo;
+  product?: Product;
+  filters_applied?: Record<string, unknown>;
+  suggestions?: string[];
+  intent?: string;
   success: boolean;
   session_id: string;
-  metadata?: {
-    // Made optional
-    products_count?: number;
-    provider?: string;
-    tokens_used?: number;
-    confidence?: number;
-    timestamp?: string;
-  };
+  flow_state?: FlowState;
+  metadata?: ChatResponseMetadata;
+  order?: Order;
+  cart?: CartData;
+  payment_url?: string;
   error?: string;
+  /** Pagination metadata from backend */
+  pagination?: PaginationData;
 }
 
 // ============================================================================
-// History API (EXISTING)
+// History API
 // ============================================================================
 
 export interface HistoryEntry {
@@ -129,22 +254,4 @@ export interface HistoryResponse {
   history: HistoryEntry[];
   message_count: number;
   success: boolean;
-}
-
-// ============================================================================
-// Internal UI (UPDATED - added order fields)
-// ============================================================================
-
-export type MessageRole = "user" | "bot";
-
-export interface ChatMessage {
-  id: string;
-  role: MessageRole;
-  text: string;
-  products?: Product[];
-  orders?: Order[];
-  purchase_info?: PurchaseInfo;
-  intent?: string;
-  suggestions?: string[];
-  timestamp: Date;
 }
