@@ -124,6 +124,7 @@ export function useChat(options: UseChatOptions = {}) {
       use_existing_address: flowRef.current.use_existing_address,
       use_new_address: flowRef.current.use_new_address,
       resolved_attributes: flowRef.current.resolved_attributes,
+      pending_order_id: flowRef.current.pending_order_id,
     };
   }, [userEmail, options.customerId]);
 

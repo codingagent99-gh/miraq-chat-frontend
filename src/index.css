@@ -1100,3 +1100,85 @@
 #silfra-chat-widget-container .Toastify__toast--error {
   background: var(--color-sale) !important;
 }
+
+/* --- Order List Cards --- */
+#silfra-chat-widget-container .xpert-order-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+  width: 100%;
+}
+
+#silfra-chat-widget-container .xpert-order-card {
+  width: 100%;
+  background: #f8fafc;
+  border: 1.5px solid var(--color-border);
+  border-radius: 10px;
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+#silfra-chat-widget-container .xpert-order-card:hover {
+  background: #eef4f7;
+  border-color: var(--color-primary-light);
+  transform: translateY(-1px);
+  box-shadow: 0 3px 10px rgba(0, 78, 100, 0.1);
+}
+
+#silfra-chat-widget-container .xpert-order-card:active {
+  transform: translateY(0);
+  box-shadow: none;
+}
+
+/* Row 1: order number + status badge */
+#silfra-chat-widget-container .xpert-order-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+#silfra-chat-widget-container .xpert-order-card-number {
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  color: var(--color-primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+#silfra-chat-widget-container .xpert-order-card-status {
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  border-radius: 20px;
+  padding: 0.15rem 0.65rem;
+  text-decoration: none !important;
+}
+
+/* Row 2: date */
+#silfra-chat-widget-container .xpert-order-card-date {
+  font-size: var(--fs-xs);
+  color: #6b7280;
+}
+
+/* Row 3: item count + total */
+#silfra-chat-widget-container .xpert-order-card-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: var(--fs-xs);
+  color: #6b7280;
+  padding-top: 0.25rem;
+  border-top: 1px solid var(--color-border);
+  margin-top: 0.1rem;
+}
+
+#silfra-chat-widget-container .xpert-order-card-total {
+  font-weight: 700;
+  color: var(--color-text);
+  font-size: var(--fs-sm);
+}

@@ -140,6 +140,8 @@ export interface FlowContext {
   use_new_address?: boolean;
   /** Variant attributes resolved so far across turns (e.g. {Colors: "ALLSPICE Beleza"}) */
   resolved_attributes?: Record<string, string>;
+  /** Order ID for detail view — set when user clicks an order or asks for a specific order */
+  pending_order_id?: number;
 }
 
 // ============================================================================
@@ -188,6 +190,7 @@ export interface ChatRequest {
     use_existing_address?: boolean;
     use_new_address?: boolean;
     resolved_attributes?: Record<string, string>;
+    pending_order_id?: number;
     last_product?: { id: number; name: string };
   };
 }
@@ -209,6 +212,8 @@ export interface ChatResponseMetadata {
   use_new_address?: boolean;
   /** Variant attributes resolved so far across turns */
   resolved_attributes?: Record<string, string>;
+  /** Order ID when entering order detail flow */
+  pending_order_id?: number;
 }
 
 export interface ChatResponse {

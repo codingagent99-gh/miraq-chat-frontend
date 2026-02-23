@@ -70,5 +70,7 @@ export function buildFlowContext(
       res.metadata?.use_existing_address ?? current.use_existing_address,
     use_new_address: res.metadata?.use_new_address ?? current.use_new_address,
     resolved_attributes: mergedResolved,
+    pending_order_id:
+      res.metadata?.pending_order_id ?? current.pending_order_id,
   };
 }

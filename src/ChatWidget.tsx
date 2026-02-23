@@ -150,6 +150,10 @@ export function ChatWidget({
                 key={message.id}
                 message={message}
                 onSuggestion={handleSuggestionClick}
+                onOrderClick={(orderId, orderNumber) => {
+                  console.log(orderId);
+                  sendMessage(`show me order #${orderNumber}`);
+                }}
                 miraQIcon={MiraQIcon}
               />
             ))}
@@ -247,10 +251,12 @@ export function ChatWidget({
 function MessageRow({
   message,
   onSuggestion,
+  onOrderClick,
   miraQIcon,
 }: {
   message: ChatMessage;
   onSuggestion: (text: string) => void;
+  onOrderClick: (orderId: number, orderNumber: string) => void;
   miraQIcon: string;
 }) {
   return (
@@ -267,13 +273,23 @@ function MessageRow({
 
       <div className="xpert-message-bubble">
         <div className="xpert-bubble-content">
-          <ReactMarkdown>{message.text}</ReactMarkdown>
+          {/* Suppress text when order cards are shown — cards are the UI */}
+          {!(message.orders && message.orders.length > 1) && (
+            <ReactMarkdown>{message.text}</ReactMarkdown>
+          )}
 
           {message.products && message.products.length > 0 && (
             <ProductCards products={message.products} />
           )}
 
           {message.cart && <CartDisplay cart={message.cart} />}
+
+          {message.orders && message.orders.length > 1 && (
+            <OrderListCards
+              orders={message.orders}
+              onOrderClick={onOrderClick}
+            />
+          )}
 
           {message.orders && message.orders.length === 1 && (
             <OrderConfirmation
@@ -439,6 +455,88 @@ function CartDisplay({ cart }: { cart: CartData }) {
 }
 
 // ════════════════════════════════════════════════════════════════
+// Order List Cards — shown when multiple orders are returned
+// ════════════════════════════════════════════════════════════════
+function OrderListCards({
+  orders,
+  onOrderClick,
+}: {
+  orders: Order[];
+  onOrderClick: (orderId: number, orderNumber: string) => void;
+}) {
+  const STATUS_COLOR: Record<string, string> = {
+    completed: "#22c55e",
+    processing: "#3b82f6",
+    "on-hold": "#f59e0b",
+    cancelled: "#ef4444",
+    refunded: "#8b5cf6",
+    pending: "#94a3b8",
+    failed: "#ef4444",
+  };
+
+  const formatDate = (dateStr: string) => {
+    try {
+      return new Date(dateStr).toLocaleDateString("en-IN", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      });
+    } catch {
+      return dateStr;
+    }
+  };
+
+  return (
+    <div className="xpert-order-list">
+      {orders.map((order) => {
+        const statusColor =
+          STATUS_COLOR[order.status?.toLowerCase()] ?? "#94a3b8";
+        const statusBg = statusColor + "18";
+        const itemCount = order.item_count ?? order.items?.length ?? 0;
+        const totalStr =
+          typeof order.total === "number"
+            ? order.total.toFixed(2)
+            : order.total;
+        return (
+          <button
+            key={order.id}
+            className="xpert-order-card"
+            onClick={() => onOrderClick(order.id, order.order_number)}
+            type="button"
+          >
+            {/* Row 1: order number (clickable highlight) + status badge */}
+            <div className="xpert-order-card-header">
+              <span className="xpert-order-card-number">
+                Order #{order.order_number}
+              </span>
+              <span
+                className="xpert-order-card-status"
+                style={{ color: statusColor, background: statusBg }}
+              >
+                {order.status?.charAt(0).toUpperCase() + order.status?.slice(1)}
+              </span>
+            </div>
+            {/* Row 2: date */}
+            <div className="xpert-order-card-date">
+              {formatDate(order.date_created)}
+            </div>
+            {/* Row 3: items + total */}
+            <div className="xpert-order-card-footer">
+              <span>
+                {itemCount} item{itemCount !== 1 ? "s" : ""}
+              </span>
+              <span className="xpert-order-card-total">
+                {order.currency ?? "₹"}
+                {totalStr}
+              </span>
+            </div>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 // Order Confirmation
 // ════════════════════════════════════════════════════════════════
 function OrderConfirmation({
