@@ -49,7 +49,9 @@ export function useChat(options: UseChatOptions = {}) {
   const [pagination, setPagination] = useState<PaginationData | null>(null);
   const lastQueryRef = useRef<string | null>(null);
 
-  const sessionIdRef = useRef<string | undefined>(loadSessionId());
+  const sessionIdRef = useRef<string>(loadSessionId() ?? uuidv4());
+  // Persist the generated session_id immediately so it survives page refresh
+  saveSessionId(sessionIdRef.current);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const flowRef = useRef<FlowContext>({ flow_state: "idle" });
@@ -287,8 +289,9 @@ export function useChat(options: UseChatOptions = {}) {
       }
     }
     setMessages([]);
-    sessionIdRef.current = undefined;
     sessionStorage.removeItem(SESSION_KEY);
+    sessionIdRef.current = uuidv4();
+    saveSessionId(sessionIdRef.current);
     flowRef.current = { flow_state: "idle" };
     setPagination(null);
     lastQueryRef.current = null;

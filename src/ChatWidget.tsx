@@ -82,21 +82,23 @@ export function ChatWidget({
     );
   }
 
-  // Find the last bot message that has products — use ITS pagination data
-  // This is more reliable than the hook-level pagination state because
-  // it's stored directly on the message and doesn't depend on state timing.
-  const lastProductBotMessage = (() => {
+  // Find the most recent bot message
+  const lastBotMessage = (() => {
     for (let i = messages.length - 1; i >= 0; i--) {
-      if (
-        messages[i].role === "bot" &&
-        messages[i].products &&
-        messages[i].products!.length > 0
-      ) {
+      if (messages[i].role === "bot") {
         return messages[i];
       }
     }
     return null;
   })();
+
+  // Load More should only show if the LATEST bot message is a product results message.
+  // If the user has sent any follow-up message since the product search, hide it.
+  // Also hide while a response is loading (bot hasn't replied yet).
+  const lastProductBotMessage =
+    !loading && lastBotMessage?.products && lastBotMessage.products.length > 0
+      ? lastBotMessage
+      : null;
 
   // Use the message's own pagination data OR fall back to hook-level pagination
   const activePagination = lastProductBotMessage?.pagination ?? pagination;
