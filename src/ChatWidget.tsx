@@ -34,6 +34,7 @@ export function ChatWidget({
     messages,
     loading,
     sendMessage,
+    sendFilterSuggestion,
     bottomRef,
     inputRef,
     pagination,
@@ -72,7 +73,10 @@ export function ChatWidget({
     return (
       <div id="silfra-chat-widget-container">
         <WidgetContainer panelOpen={panelOpen} setPanelOpen={setPanelOpen}>
-          <HomeScreen onStartChat={() => setScreen("chat")} miraQIcon={MiraQIcon} />
+          <HomeScreen
+            onStartChat={() => setScreen("chat")}
+            miraQIcon={MiraQIcon}
+          />
         </WidgetContainer>
       </div>
     );
@@ -124,6 +128,7 @@ export function ChatWidget({
                 key={message.id}
                 message={message}
                 onSuggestion={handleSuggestionClick}
+                onFilterSuggestion={sendFilterSuggestion}
                 onOrderClick={(orderId, orderNumber) => {
                   console.log(orderId);
                   sendMessage(`show me order #${orderNumber}`);
@@ -222,7 +227,9 @@ export function ChatWidget({
             </button>
           </div>
 
-          <p className="xpert-footer-hint">Powered by AI • Shopping made simple</p>
+          <p className="xpert-footer-hint">
+            Powered by AI • Shopping made simple
+          </p>
         </div>
 
         <ToastContainer

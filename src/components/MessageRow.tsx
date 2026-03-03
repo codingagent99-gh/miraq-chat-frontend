@@ -1,14 +1,16 @@
 import ReactMarkdown from "react-markdown";
-import type { ChatMessage } from "../types/api";
+import type { ChatMessage, FilterSuggestion } from "../types/api";
 import { ProductCards } from "./ProductCards";
 import { CartDisplay } from "./CartDisplay";
 import { OrderListCards } from "./OrderListCards";
 import { OrderConfirmation } from "./OrderConfirmation";
 import { SuggestionChips } from "./SuggestionChips";
+import { FilterSuggestionChips } from "./FilterSuggestionChips";
 
 interface MessageRowProps {
   message: ChatMessage;
   onSuggestion: (text: string) => void;
+  onFilterSuggestion: (suggestion: FilterSuggestion) => void;
   onOrderClick: (orderId: number, orderNumber: string) => void;
   miraQIcon: string;
 }
@@ -16,6 +18,7 @@ interface MessageRowProps {
 export function MessageRow({
   message,
   onSuggestion,
+  onFilterSuggestion,
   onOrderClick,
   miraQIcon,
 }: MessageRowProps) {
@@ -63,6 +66,15 @@ export function MessageRow({
               <OrderConfirmation
                 order={message.orders[0]}
                 paymentUrl={message.paymentUrl}
+              />
+            )}
+
+          {/* Filter suggestions — shown on zero-result responses, above conversational chips */}
+          {message.filterSuggestions &&
+            message.filterSuggestions.length > 0 && (
+              <FilterSuggestionChips
+                suggestions={message.filterSuggestions}
+                onSelect={onFilterSuggestion}
               />
             )}
 

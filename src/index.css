@@ -448,6 +448,9 @@
   padding: 0.75rem 1rem;
   border-radius: 12px;
   line-height: 1.5;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 #silfra-chat-widget-container .xpert-message-row.user .xpert-message-bubble {
@@ -1181,4 +1184,122 @@
   font-weight: 700;
   color: var(--color-text);
   font-size: var(--fs-sm);
+}
+
+/* --- Filter Suggestion Chips --- */
+#silfra-chat-widget-container .xpert-filter-suggestions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+  min-width: 0;
+  max-width: 100%;
+  width: 100%;
+}
+
+#silfra-chat-widget-container .xpert-filter-suggestions-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #94a3b8;
+}
+
+#silfra-chat-widget-container .xpert-filter-suggestions-row {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: visible;
+  padding-bottom: 4px;
+  scrollbar-width: none;
+}
+
+#silfra-chat-widget-container .xpert-filter-suggestions-row::-webkit-scrollbar {
+  display: none;
+}
+
+#silfra-chat-widget-container .xpert-filter-chip {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 5px !important;
+  padding: 4px 10px !important;
+  border-radius: 20px !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  cursor: pointer !important;
+  white-space: nowrap !important;
+  flex-shrink: 0 !important;
+  transition:
+    background 0.15s,
+    border-color 0.15s,
+    transform 0.1s !important;
+  border: 1.5px solid #cbd5e1 !important;
+  background: #f8fafc !important;
+  color: #475569 !important;
+  line-height: 1.4 !important;
+}
+
+#silfra-chat-widget-container .xpert-filter-chip:hover {
+  background: #f1f5f9 !important;
+  border-color: #94a3b8 !important;
+  transform: translateY(-1px) !important;
+}
+
+#silfra-chat-widget-container .xpert-filter-chip:active {
+  transform: translateY(0) !important;
+}
+
+#silfra-chat-widget-container .xpert-filter-chip-icon {
+  display: flex !important;
+  align-items: center !important;
+  opacity: 0.7;
+  flex-shrink: 0;
+}
+
+#silfra-chat-widget-container .xpert-filter-chip-label {
+  color: inherit;
+}
+
+#silfra-chat-widget-container .xpert-filter-chip--tag {
+  border-color: #bfdbfe !important;
+  color: #1d4ed8 !important;
+  background: #eff6ff !important;
+}
+#silfra-chat-widget-container .xpert-filter-chip--tag:hover {
+  background: #dbeafe !important;
+  border-color: #93c5fd !important;
+}
+
+#silfra-chat-widget-container .xpert-filter-chip--category {
+  border-color: #bbf7d0 !important;
+  color: #15803d !important;
+  background: #f0fdf4 !important;
+}
+#silfra-chat-widget-container .xpert-filter-chip--category:hover {
+  background: #dcfce7 !important;
+  border-color: #86efac !important;
+}
+
+#silfra-chat-widget-container .xpert-filter-chip--attribute {
+  border-color: #e9d5ff !important;
+  color: #7e22ce !important;
+  background: #faf5ff !important;
+}
+#silfra-chat-widget-container .xpert-filter-chip--attribute:hover {
+  background: #f3e8ff !important;
+  border-color: #d8b4fe !important;
+}
+
+#silfra-chat-widget-container .xpert-filter-chip--broaden {
+  border-color: #fed7aa !important;
+  color: #c2410c !important;
+  background: #fff7ed !important;
+}
+#silfra-chat-widget-container .xpert-filter-chip--broaden:hover {
+  background: #ffedd5 !important;
+  border-color: #fdba74 !important;
 }

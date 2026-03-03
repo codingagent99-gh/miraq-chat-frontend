@@ -108,6 +108,19 @@ export interface CartData {
 }
 
 // ============================================================================
+// Filter Suggestion Types
+// ============================================================================
+
+export interface FilterSuggestion {
+  label: string;
+  type: "tag" | "category" | "attribute" | "broaden";
+  tag_slugs: string[];
+  category_slug: string;
+  extra_category_slugs: string[];
+  attributes: Record<string, string>;
+}
+
+// ============================================================================
 // Flow State — Guided Conversation
 // ============================================================================
 
@@ -159,6 +172,8 @@ export interface ChatMessage {
   purchase_info?: PurchaseInfo;
   intent?: string;
   suggestions?: string[];
+  /** Filter suggestions for zero-result searches */
+  filterSuggestions?: FilterSuggestion[];
   cart?: CartData;
   paymentUrl?: string;
   timestamp: Date;
@@ -179,6 +194,8 @@ export interface ChatRequest {
   session_id?: string;
   /** Page number for paginated product results (default: 1) */
   page?: number;
+  /** Full filter suggestion object to retry a zero-result search */
+  suggestion_retry?: FilterSuggestion;
   user_context?: {
     email?: string;
     customer_id?: number;
@@ -227,6 +244,8 @@ export interface ChatResponse {
   product?: Product;
   filters_applied?: Record<string, unknown>;
   suggestions?: string[];
+  /** Filter suggestions for zero-result searches — empty array when results exist */
+  filter_suggestions?: FilterSuggestion[];
   intent?: string;
   success: boolean;
   session_id: string;

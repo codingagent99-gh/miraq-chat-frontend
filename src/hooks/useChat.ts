@@ -5,6 +5,7 @@ import type {
   FlowContext,
   ChatResponse,
   PaginationData,
+  FilterSuggestion,
 } from "../types/api";
 import { createApiClient } from "../services/api";
 import { isFlowPrompt, buildFlowContext } from "../utils/flow";
@@ -111,6 +112,9 @@ export function useChat(options: UseChatOptions = {}) {
       purchase_info: res.purchase_info,
       intent: res.intent,
       suggestions: res.suggestions?.length ? res.suggestions : undefined,
+      filterSuggestions: res.filter_suggestions?.length
+        ? res.filter_suggestions
+        : undefined,
       cart: res.cart,
       paymentUrl: res.payment_url,
       timestamp: new Date(),
@@ -162,6 +166,53 @@ export function useChat(options: UseChatOptions = {}) {
           message: text.trim(),
           session_id: sessionIdRef.current,
           page: 1,
+          user_context: buildUserContext(),
+        });
+
+        const botMsg = processChatResponse(res);
+        setMessages((prev) => [...prev, botMsg]);
+      } catch (err) {
+        const detail =
+          err instanceof Error ? err.message : "Something went wrong.";
+        setError(detail);
+        setPagination(null);
+        const errMsg: ChatMessage = {
+          id: uuidv4(),
+          role: "bot",
+          text: `Oops – ${detail}. Please try again.`,
+          timestamp: new Date(),
+        };
+        setMessages((prev) => [...prev, errMsg]);
+      } finally {
+        setLoading(false);
+        focusInput();
+      }
+    },
+    [buildUserContext, processChatResponse, focusInput],
+  );
+
+  /* ── send filter suggestion retry ── */
+  const sendFilterSuggestion = useCallback(
+    async (suggestion: FilterSuggestion) => {
+      setError(null);
+
+      const userMsg: ChatMessage = {
+        id: uuidv4(),
+        role: "user",
+        text: suggestion.label,
+        timestamp: new Date(),
+      };
+      setMessages((prev) => [...prev, userMsg]);
+      setLoading(true);
+
+      lastQueryRef.current = suggestion.label;
+
+      try {
+        const res: ChatResponse = await apiRef.current.sendChat({
+          message: suggestion.label,
+          session_id: sessionIdRef.current,
+          page: 1,
+          suggestion_retry: suggestion,
           user_context: buildUserContext(),
         });
 
@@ -361,6 +412,7 @@ export function useChat(options: UseChatOptions = {}) {
     userEmail,
     updateEmail,
     sendMessage,
+    sendFilterSuggestion,
     handleOrderProduct,
     clearAll,
     bottomRef,
