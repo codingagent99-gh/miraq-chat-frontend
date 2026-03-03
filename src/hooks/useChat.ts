@@ -47,6 +47,9 @@ export function useChat(options: UseChatOptions = {}) {
 
   // ── Pagination state ──
   const [pagination, setPagination] = useState<PaginationData | null>(null);
+  const [orderPagination, setOrderPagination] = useState<PaginationData | null>(
+    null,
+  );
   const lastQueryRef = useRef<string | null>(null);
 
   const sessionIdRef = useRef<string>(loadSessionId() ?? uuidv4());
@@ -92,6 +95,13 @@ export function useChat(options: UseChatOptions = {}) {
       setPagination(null);
     }
 
+    // Update order pagination state
+    if (res.order_pagination) {
+      setOrderPagination(res.order_pagination);
+    } else {
+      setOrderPagination(null);
+    }
+
     const botMsg: ChatMessage = {
       id: uuidv4(),
       role: "bot",
@@ -106,6 +116,7 @@ export function useChat(options: UseChatOptions = {}) {
       timestamp: new Date(),
       isFlowPrompt: isFlowPrompt(res.intent, res.flow_state),
       pagination: res.pagination,
+      orderPagination: res.order_pagination,
     };
     return botMsg;
   }, []);
@@ -212,6 +223,49 @@ export function useChat(options: UseChatOptions = {}) {
     }
   }, [pagination, loading, buildUserContext, processChatResponse, focusInput]);
 
+  /* ── load more orders (next page) ── */
+  const loadMoreOrders = useCallback(async () => {
+    if (!orderPagination || !orderPagination.has_more || !lastQueryRef.current)
+      return;
+    if (loading) return;
+
+    const nextPage = orderPagination.page + 1;
+    setLoading(true);
+    setError(null);
+
+    try {
+      const res: ChatResponse = await apiRef.current.sendChat({
+        message: lastQueryRef.current,
+        session_id: sessionIdRef.current,
+        page: nextPage,
+        user_context: buildUserContext(),
+      });
+
+      const botMsg = processChatResponse(res);
+      setMessages((prev) => [...prev, botMsg]);
+    } catch (err) {
+      const detail =
+        err instanceof Error ? err.message : "Failed to load more orders.";
+      setError(detail);
+      const errMsg: ChatMessage = {
+        id: uuidv4(),
+        role: "bot",
+        text: `Oops – ${detail}. Please try again.`,
+        timestamp: new Date(),
+      };
+      setMessages((prev) => [...prev, errMsg]);
+    } finally {
+      setLoading(false);
+      focusInput();
+    }
+  }, [
+    orderPagination,
+    loading,
+    buildUserContext,
+    processChatResponse,
+    focusInput,
+  ]);
+
   /* ── place order ── */
   const handleOrderProduct = useCallback(
     async (productId: number) => {
@@ -295,6 +349,7 @@ export function useChat(options: UseChatOptions = {}) {
     saveSessionId(sessionIdRef.current);
     flowRef.current = { flow_state: "idle" };
     setPagination(null);
+    setOrderPagination(null);
     lastQueryRef.current = null;
     focusInput();
   }, [focusInput]);
@@ -312,5 +367,7 @@ export function useChat(options: UseChatOptions = {}) {
     inputRef,
     pagination,
     loadMore,
+    orderPagination,
+    loadMoreOrders,
   };
 }

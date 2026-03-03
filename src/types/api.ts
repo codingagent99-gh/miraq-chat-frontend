@@ -164,8 +164,10 @@ export interface ChatMessage {
   timestamp: Date;
   /** If true, suggestions render as prominent flow-action buttons */
   isFlowPrompt?: boolean;
-  /** Pagination data from the backend response for this message */
+  /** Pagination data for product results */
   pagination?: PaginationData;
+  /** Pagination data for order results */
+  orderPagination?: PaginationData;
 }
 
 // ============================================================================
@@ -234,8 +236,10 @@ export interface ChatResponse {
   cart?: CartData;
   payment_url?: string;
   error?: string;
-  /** Pagination metadata from backend */
+  /** Pagination metadata for product results */
   pagination?: PaginationData;
+  /** Pagination metadata for order results */
+  order_pagination?: PaginationData;
 }
 
 // ============================================================================
