@@ -16,13 +16,13 @@ interface WidgetOptions {
   apiUrl?: string;
   customerId?: string | number;
   customerEmail?: string;
+  customerName?: string;
+  customerRole?: string;
 }
 
 // Capture the script element immediately (only available at parse time)
 const _currentScript = document.currentScript as HTMLScriptElement | null;
 
-// Derive asset base URL from the widget script's own src so images always
-// load from silfratech.in regardless of which site embeds the widget.
 function getAssetBaseUrl(script: HTMLScriptElement | null): string {
   if (!script?.src) return "https://silfratech.in/chatbot/";
   const src = script.src;
@@ -40,6 +40,7 @@ function mountWidget(options?: WidgetOptions, assetBaseUrl?: string) {
 
   const apiKey = options?.apiKey || "";
   const apiUrl = options?.apiUrl || "";
+  const customerName = options?.customerName || "";
 
   const customerId = options?.customerId
     ? typeof options.customerId === "string"
@@ -48,12 +49,13 @@ function mountWidget(options?: WidgetOptions, assetBaseUrl?: string) {
     : undefined;
 
   const customerEmail = options?.customerEmail || "";
+  const customerRole = options?.customerRole || "";
 
   console.log("Widget initialized with:", {
     apiUrl,
     customerId,
-    customerIdType: typeof customerId,
     customerEmail,
+    customerName,
     assetBaseUrl,
   });
 
@@ -63,6 +65,8 @@ function mountWidget(options?: WidgetOptions, assetBaseUrl?: string) {
       apiUrl={apiUrl}
       customerId={customerId}
       customerEmail={customerEmail}
+      customerName={customerName}
+      customerRole={customerRole}
       assetBaseUrl={assetBaseUrl}
     />,
   );
@@ -84,6 +88,8 @@ window.SilfraChatWidget = {
   const apiUrl = script.dataset.apiUrl;
   const customerId = script.dataset.customerId;
   const customerEmail = script.dataset.customerEmail;
+  const customerName = script.dataset.customerName;
+  const customerRole = script.dataset.customerRole;
 
   const assetBaseUrl = getAssetBaseUrl(script);
 
@@ -92,8 +98,8 @@ window.SilfraChatWidget = {
     apiKey,
     apiUrl,
     customerId,
-    customerIdType: typeof customerId,
     customerEmail,
+    customerName,
     assetBaseUrl,
   });
 
@@ -113,6 +119,8 @@ window.SilfraChatWidget = {
       apiUrl,
       customerId,
       customerEmail,
+      customerName,
+      customerRole,
     },
     assetBaseUrl,
   );

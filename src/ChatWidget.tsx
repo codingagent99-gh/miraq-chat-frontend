@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { FiSend } from "react-icons/fi";
+import { useState, useCallback } from "react";
+import { FiSend, FiX } from "react-icons/fi";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { useChat } from "./hooks/useChat";
@@ -13,7 +13,8 @@ interface ChatWidgetProps {
   apiUrl?: string;
   customerId?: number;
   customerEmail?: string;
-  /** Base URL of the folder that hosts the widget assets (e.g. "https://silfratech.in/chatbot/"). */
+  customerName?: string;
+  customerRole?: string;
   assetBaseUrl?: string;
 }
 
@@ -22,6 +23,8 @@ export function ChatWidget({
   apiUrl,
   customerId,
   customerEmail,
+  customerName,
+  customerRole,
   assetBaseUrl = "https://silfratech.in/chatbot/",
 }: ChatWidgetProps) {
   const MiraQIcon = `${assetBaseUrl}MiraQ-icon.png`;
@@ -29,11 +32,13 @@ export function ChatWidget({
   const [screen, setScreen] = useState<"home" | "chat">("home");
   const [panelOpen, setPanelOpen] = useState(false);
   const [inputValue, setInputValue] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   const {
     messages,
     loading,
     sendMessage,
+    editMessage,
     sendFilterSuggestion,
     bottomRef,
     inputRef,
@@ -41,9 +46,8 @@ export function ChatWidget({
     loadMore,
     orderPagination,
     loadMoreOrders,
-  } = useChat({ apiUrl, apiKey, customerId, customerEmail });
+  } = useChat({ apiUrl, apiKey, customerId, customerEmail, customerRole });
 
-  // Derive cart count from the most recent message that contains cart data
   const cartCount = (() => {
     for (let i = messages.length - 1; i >= 0; i--) {
       if (messages[i].cart) return messages[i].cart!.item_count;
@@ -51,23 +55,57 @@ export function ChatWidget({
     return 0;
   })();
 
-  const handleSend = () => {
+  const handleSend = useCallback(() => {
     if (!inputValue.trim() || loading) return;
-    sendMessage(inputValue);
+    if (editingId) {
+      editMessage(editingId, inputValue);
+      setEditingId(null);
+    } else {
+      sendMessage(inputValue);
+    }
     setInputValue("");
-  };
+  }, [inputValue, loading, editingId, editMessage, sendMessage]);
 
-  const handleKeyPress = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSend();
     }
+    if (e.key === "Escape" && editingId) {
+      handleCancelEdit();
+    }
   };
 
   const handleSuggestionClick = (text: string) => {
+    if (editingId) {
+      setEditingId(null);
+      setInputValue("");
+    }
     sendMessage(text);
     setTimeout(() => inputRef.current?.focus(), 50);
   };
+
+  const handleEditClick = useCallback(
+    (id: string, text: string) => {
+      if (loading) return;
+      setEditingId(id);
+      setInputValue(text);
+      setTimeout(() => {
+        if (inputRef.current) {
+          inputRef.current.focus();
+          const len = text.length;
+          inputRef.current.setSelectionRange(len, len);
+        }
+      }, 50);
+    },
+    [loading, inputRef],
+  );
+
+  const handleCancelEdit = useCallback(() => {
+    setEditingId(null);
+    setInputValue("");
+    setTimeout(() => inputRef.current?.focus(), 50);
+  }, [inputRef]);
 
   if (screen === "home") {
     return (
@@ -76,13 +114,13 @@ export function ChatWidget({
           <HomeScreen
             onStartChat={() => setScreen("chat")}
             miraQIcon={MiraQIcon}
+            customerName={customerName}
           />
         </WidgetContainer>
       </div>
     );
   }
 
-  // Find the most recent bot message
   const lastBotMessage = (() => {
     for (let i = messages.length - 1; i >= 0; i--) {
       if (messages[i].role === "bot") return messages[i];
@@ -96,7 +134,6 @@ export function ChatWidget({
       : null;
 
   const activePagination = lastProductBotMessage?.pagination ?? pagination;
-
   const showServerLoadMore =
     activePagination?.has_more && !loading && lastProductBotMessage != null;
 
@@ -107,7 +144,6 @@ export function ChatWidget({
 
   const activeOrderPagination =
     lastOrderBotMessage?.orderPagination ?? orderPagination;
-
   const showOrderLoadMore =
     activeOrderPagination?.has_more && !loading && lastOrderBotMessage != null;
 
@@ -117,27 +153,28 @@ export function ChatWidget({
         <div className="xpert-chat-window">
           <ChatHeader
             cartCount={cartCount}
+            customerName={customerName}
+            customerRole={customerRole}
             onBack={() => setScreen("home")}
             onClose={() => setPanelOpen(false)}
           />
 
-          {/* Messages */}
           <div className="xpert-chat-messages">
             {messages.map((message) => (
               <MessageRow
                 key={message.id}
                 message={message}
+                isBeingEdited={message.id === editingId}
                 onSuggestion={handleSuggestionClick}
                 onFilterSuggestion={sendFilterSuggestion}
-                onOrderClick={(orderId, orderNumber) => {
-                  console.log(orderId);
+                onEdit={handleEditClick}
+                onOrderClick={(_orderId, orderNumber) => {
                   sendMessage(`show me order #${orderNumber}`);
                 }}
                 miraQIcon={MiraQIcon}
               />
             ))}
 
-            {/* Load More Products */}
             {showServerLoadMore && (
               <div className="xpert-pagination-controls">
                 {activePagination!.total_items != null &&
@@ -158,7 +195,6 @@ export function ChatWidget({
               </div>
             )}
 
-            {/* Load More Orders */}
             {showOrderLoadMore && (
               <div className="xpert-pagination-controls">
                 {activeOrderPagination!.total_items != null &&
@@ -203,24 +239,46 @@ export function ChatWidget({
             <div ref={bottomRef} />
           </div>
 
-          {/* Input */}
-          <div className="xpert-chat-input-area">
+          {editingId && (
+            <div className="xpert-edit-indicator">
+              <span className="xpert-edit-indicator-label">
+                ✏️ Editing message
+              </span>
+              <button
+                className="xpert-edit-cancel-btn"
+                onClick={handleCancelEdit}
+                aria-label="Cancel edit"
+                type="button"
+              >
+                <FiX size={14} /> Cancel
+              </button>
+            </div>
+          )}
+
+          <div
+            className={`xpert-chat-input-area${editingId ? " xpert-chat-input-area--editing" : ""}`}
+          >
             <textarea
               ref={inputRef}
               className="xpert-chat-input"
-              placeholder="Ask about products, orders, or your cart..."
+              placeholder={
+                editingId
+                  ? "Edit your message… (Enter to send, Esc to cancel)"
+                  : "Ask about products, orders, or your cart..."
+              }
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
-              onKeyPress={handleKeyPress}
+              onKeyDown={handleKeyDown}
               rows={1}
               disabled={loading}
               autoFocus
+              spellCheck={true}
             />
             <button
               className="xpert-send-btn"
               onClick={handleSend}
               disabled={!inputValue.trim() || loading}
-              aria-label="Send message"
+              aria-label={editingId ? "Send edited message" : "Send message"}
               type="button"
             >
               <FiSend size={18} />

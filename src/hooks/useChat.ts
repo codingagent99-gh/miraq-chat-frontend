@@ -28,25 +28,28 @@ function saveEmail(email: string) {
 }
 
 export interface UseChatOptions {
-  /** Runtime API base URL (from data-api-url or prop). Overrides VITE_BASE. */
   apiUrl?: string;
-  /** API key for Authorization header */
   apiKey?: string;
-  /** Pre-configured customer ID */
   customerId?: number;
-  /** Pre-configured customer email */
   customerEmail?: string;
+  customerRole?: string;
 }
 
+const WELCOME_MESSAGE: ChatMessage = {
+  id: "welcome",
+  role: "bot",
+  text: "How can I help?",
+  timestamp: new Date(),
+};
+
 export function useChat(options: UseChatOptions = {}) {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>([WELCOME_MESSAGE]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [userEmail, setUserEmail] = useState<string | undefined>(
     options.customerEmail || loadEmail(),
   );
 
-  // ── Pagination state ──
   const [pagination, setPagination] = useState<PaginationData | null>(null);
   const [orderPagination, setOrderPagination] = useState<PaginationData | null>(
     null,
@@ -54,13 +57,16 @@ export function useChat(options: UseChatOptions = {}) {
   const lastQueryRef = useRef<string | null>(null);
 
   const sessionIdRef = useRef<string>(loadSessionId() ?? uuidv4());
-  // Persist the generated session_id immediately so it survives page refresh
   saveSessionId(sessionIdRef.current);
+
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const flowRef = useRef<FlowContext>({ flow_state: "idle" });
 
-  // Create the API client once using the runtime apiUrl (falls back to VITE_BASE)
+  // Always-current snapshot of messages — avoids stale closure in editMessage
+  const messagesRef = useRef<ChatMessage[]>([]);
+  messagesRef.current = messages;
+
   const apiRef = useRef(createApiClient(options.apiUrl, options.apiKey));
 
   useEffect(() => {
@@ -72,15 +78,13 @@ export function useChat(options: UseChatOptions = {}) {
     saveEmail(email);
   }, []);
 
-  /** Focus the chat input */
   const focusInput = useCallback(() => {
-    // Small delay to ensure DOM updates (loading state change) have rendered
     setTimeout(() => {
       inputRef.current?.focus();
     }, 50);
   }, []);
 
-  /* ── helper: process a chat API response into a bot message ── */
+  /* ── process a chat API response into a bot message ── */
   const processChatResponse = useCallback((res: ChatResponse) => {
     if (res.session_id) {
       sessionIdRef.current = res.session_id;
@@ -89,14 +93,12 @@ export function useChat(options: UseChatOptions = {}) {
 
     flowRef.current = buildFlowContext(flowRef.current, res);
 
-    // Update pagination state
     if (res.pagination) {
       setPagination(res.pagination);
     } else {
       setPagination(null);
     }
 
-    // Update order pagination state
     if (res.order_pagination) {
       setOrderPagination(res.order_pagination);
     } else {
@@ -130,6 +132,7 @@ export function useChat(options: UseChatOptions = {}) {
     return {
       ...(userEmail ? { email: userEmail } : {}),
       ...(options.customerId ? { customer_id: options.customerId } : {}),
+      ...(options.customerRole ? { role: options.customerRole } : {}),
       flow_state: flowRef.current.flow_state,
       pending_product_id: flowRef.current.pending_product_id,
       pending_product_name: flowRef.current.pending_product_name,
@@ -141,7 +144,7 @@ export function useChat(options: UseChatOptions = {}) {
       resolved_attributes: flowRef.current.resolved_attributes,
       pending_order_id: flowRef.current.pending_order_id,
     };
-  }, [userEmail, options.customerId]);
+  }, [userEmail, options.customerId, options.customerRole]);
 
   /* ── send message ── */
   const sendMessage = useCallback(
@@ -157,8 +160,6 @@ export function useChat(options: UseChatOptions = {}) {
       };
       setMessages((prev) => [...prev, userMsg]);
       setLoading(true);
-
-      // Store the last query for pagination (load more)
       lastQueryRef.current = text.trim();
 
       try {
@@ -191,6 +192,64 @@ export function useChat(options: UseChatOptions = {}) {
     [buildUserContext, processChatResponse, focusInput],
   );
 
+  /* ── edit a previous user message — truncates history from that point ── */
+  const editMessage = useCallback(
+    async (messageId: string, newText: string) => {
+      if (!newText.trim() || loading) return;
+
+      // Find the message to edit in the current snapshot
+      const currentMessages = messagesRef.current;
+      const idx = currentMessages.findIndex((m) => m.id === messageId);
+      if (idx === -1) return;
+
+      setError(null);
+
+      // Reset flow context — we're rewinding to an earlier point
+      flowRef.current = { flow_state: "idle" };
+      setPagination(null);
+      setOrderPagination(null);
+      lastQueryRef.current = newText.trim();
+
+      const userMsg: ChatMessage = {
+        id: uuidv4(),
+        role: "user",
+        text: newText.trim(),
+        timestamp: new Date(),
+      };
+
+      // Replace everything from the edited message onward with the new user msg
+      setMessages([...currentMessages.slice(0, idx), userMsg]);
+      setLoading(true);
+
+      try {
+        const res: ChatResponse = await apiRef.current.sendChat({
+          message: newText.trim(),
+          session_id: sessionIdRef.current,
+          page: 1,
+          user_context: buildUserContext(),
+        });
+
+        const botMsg = processChatResponse(res);
+        setMessages((prev) => [...prev, botMsg]);
+      } catch (err) {
+        const detail =
+          err instanceof Error ? err.message : "Something went wrong.";
+        setError(detail);
+        const errMsg: ChatMessage = {
+          id: uuidv4(),
+          role: "bot",
+          text: `Oops – ${detail}. Please try again.`,
+          timestamp: new Date(),
+        };
+        setMessages((prev) => [...prev, errMsg]);
+      } finally {
+        setLoading(false);
+        focusInput();
+      }
+    },
+    [loading, buildUserContext, processChatResponse, focusInput],
+  );
+
   /* ── send filter suggestion retry ── */
   const sendFilterSuggestion = useCallback(
     async (suggestion: FilterSuggestion) => {
@@ -204,7 +263,6 @@ export function useChat(options: UseChatOptions = {}) {
       };
       setMessages((prev) => [...prev, userMsg]);
       setLoading(true);
-
       lastQueryRef.current = suggestion.label;
 
       try {
@@ -238,7 +296,7 @@ export function useChat(options: UseChatOptions = {}) {
     [buildUserContext, processChatResponse, focusInput],
   );
 
-  /* ── load more (next page) ── */
+  /* ── load more products (next page) ── */
   const loadMore = useCallback(async () => {
     if (!pagination || !pagination.has_more || !lastQueryRef.current) return;
     if (loading) return;
@@ -342,6 +400,7 @@ export function useChat(options: UseChatOptions = {}) {
           user_context: {
             email: userEmail,
             ...(options.customerId ? { customer_id: options.customerId } : {}),
+            ...(options.customerRole ? { role: options.customerRole } : {}),
           },
         });
 
@@ -394,7 +453,7 @@ export function useChat(options: UseChatOptions = {}) {
         /* best-effort */
       }
     }
-    setMessages([]);
+    setMessages([WELCOME_MESSAGE]);
     sessionStorage.removeItem(SESSION_KEY);
     sessionIdRef.current = uuidv4();
     saveSessionId(sessionIdRef.current);
@@ -412,6 +471,7 @@ export function useChat(options: UseChatOptions = {}) {
     userEmail,
     updateEmail,
     sendMessage,
+    editMessage,
     sendFilterSuggestion,
     handleOrderProduct,
     clearAll,

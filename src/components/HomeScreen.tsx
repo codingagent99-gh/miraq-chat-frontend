@@ -1,9 +1,17 @@
 interface HomeScreenProps {
   onStartChat: () => void;
   miraQIcon: string;
+  customerName?: string;
 }
 
-export function HomeScreen({ onStartChat, miraQIcon }: HomeScreenProps) {
+export function HomeScreen({
+  onStartChat,
+  miraQIcon,
+  customerName,
+}: HomeScreenProps) {
+  // Use only the first word of the name so "John Doe" becomes "John"
+  const firstName = customerName?.trim().split(/\s+/)[0];
+
   return (
     <div className="xpert-home-screen">
       <div className="xpert-profile-card">
@@ -23,11 +31,25 @@ export function HomeScreen({ onStartChat, miraQIcon }: HomeScreenProps) {
       </div>
 
       <div className="xpert-main-content">
-        <h3 className="xpert-content-title">How can I help you today?</h3>
-        <p className="xpert-content-desc">
-          I can help you find products, manage your cart, track orders, and
-          more!
-        </p>
+        {firstName ? (
+          <>
+            <h3 className="xpert-content-title">
+              Hey {firstName}! 👋 How can I help you today?
+            </h3>
+            <p className="xpert-content-desc">
+              Good to see you. I can help you find products, manage your cart,
+              track orders, and more!
+            </p>
+          </>
+        ) : (
+          <>
+            <h3 className="xpert-content-title">How can I help you today?</h3>
+            <p className="xpert-content-desc">
+              I can help you find products, manage your cart, track orders, and
+              more!
+            </p>
+          </>
+        )}
 
         <div className="xpert-features-list">
           <div className="xpert-feature-item">
