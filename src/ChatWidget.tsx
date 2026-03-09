@@ -29,6 +29,9 @@ export function ChatWidget({
 }: ChatWidgetProps) {
   const MiraQIcon = `${assetBaseUrl}MiraQ-icon.png`;
 
+  // Widget is only functional when customer info is present
+  const isLoggedIn = !!(customerId || customerEmail);
+
   const [screen, setScreen] = useState<"home" | "chat">("home");
   const [panelOpen, setPanelOpen] = useState(false);
   const [inputValue, setInputValue] = useState("");
@@ -112,9 +115,11 @@ export function ChatWidget({
       <div id="silfra-chat-widget-container">
         <WidgetContainer panelOpen={panelOpen} setPanelOpen={setPanelOpen}>
           <HomeScreen
-            onStartChat={() => setScreen("chat")}
+            onStartChat={() => isLoggedIn && setScreen("chat")}
+            onClose={() => setPanelOpen(false)}
             miraQIcon={MiraQIcon}
             customerName={customerName}
+            isLoggedIn={isLoggedIn}
           />
         </WidgetContainer>
       </div>

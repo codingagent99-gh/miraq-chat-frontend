@@ -1303,3 +1303,36 @@
   background: #ffedd5 !important;
   border-color: #fdba74 !important;
 }
+
+/* --- Locked / logged-out state --- */
+#silfra-chat-widget-container .xpert-locked-state {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 2rem 1rem;
+  gap: 0.75rem;
+}
+
+#silfra-chat-widget-container .xpert-locked-icon {
+  font-size: 2.5rem;
+  line-height: 1;
+  margin-bottom: 0.25rem;
+}
+
+#silfra-chat-widget-container .xpert-locked-title {
+  font-size: var(--fs-md);
+  font-weight: 700;
+  color: #374151;
+  margin: 0;
+}
+
+#silfra-chat-widget-container .xpert-locked-desc {
+  font-size: var(--fs-sm);
+  color: #6b7280;
+  line-height: 1.5;
+  max-width: 280px;
+  margin: 0;
+}
