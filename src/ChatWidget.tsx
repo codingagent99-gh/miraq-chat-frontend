@@ -1,12 +1,15 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { FiSend, FiX } from "react-icons/fi";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { useChat } from "./hooks/useChat";
+import { createApiClient } from "./services/api";
 import { WidgetContainer } from "./components/WidgetContainer";
 import { HomeScreen } from "./components/HomeScreen";
 import { ChatHeader } from "./components/ChatHeader";
 import { MessageRow } from "./components/MessageRow";
+import { ProductDetailPanel } from "./components/ProductDetailPanel";
+import type { Product } from "./types/api";
 
 interface ChatWidgetProps {
   apiKey?: string;
@@ -36,6 +39,12 @@ export function ChatWidget({
   const [panelOpen, setPanelOpen] = useState(false);
   const [inputValue, setInputValue] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
+
+  // ── Product detail state ──
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+
+  // Keep a stable reference to the API client for product fetches
+  const apiClientRef = useRef(createApiClient(apiUrl, apiKey));
 
   const {
     messages,
@@ -110,6 +119,36 @@ export function ChatWidget({
     setTimeout(() => inputRef.current?.focus(), 50);
   }, [inputRef]);
 
+  // ── Product click handler ──
+  const handleProductClick = useCallback((product: Product) => {
+    setSelectedProduct(product);
+  }, []);
+
+  const handleProductDetailClose = useCallback(() => {
+    setSelectedProduct(null);
+  }, []);
+
+  const handleAskAbout = useCallback(
+    (productName: string) => {
+      setSelectedProduct(null);
+      sendMessage(`Tell me more about ${productName}`);
+    },
+    [sendMessage],
+  );
+
+  const handleOrderProduct = useCallback(
+    (productName: string) => {
+      setSelectedProduct(null);
+      sendMessage(`I want to order ${productName}`);
+    },
+    [sendMessage],
+  );
+
+  const fetchProductDetail = useCallback(
+    (id: number) => apiClientRef.current.fetchProduct(id),
+    [],
+  );
+
   if (screen === "home") {
     return (
       <div id="silfra-chat-widget-container">
@@ -176,6 +215,7 @@ export function ChatWidget({
                 onOrderClick={(_orderId, orderNumber) => {
                   sendMessage(`show me order #${orderNumber}`);
                 }}
+                onProductClick={handleProductClick}
                 miraQIcon={MiraQIcon}
               />
             ))}
@@ -293,6 +333,18 @@ export function ChatWidget({
           <p className="xpert-footer-hint">
             Powered by AI • Shopping made simple
           </p>
+
+          {/* ── Product Detail Overlay ── */}
+          {selectedProduct && (
+            <ProductDetailPanel
+              productId={selectedProduct.id}
+              initialProduct={selectedProduct}
+              fetchProduct={fetchProductDetail}
+              onClose={handleProductDetailClose}
+              onAskAbout={handleAskAbout}
+              onOrder={handleOrderProduct}
+            />
+          )}
         </div>
 
         <ToastContainer

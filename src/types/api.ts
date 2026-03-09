@@ -283,3 +283,46 @@ export interface HistoryResponse {
   message_count: number;
   success: boolean;
 }
+
+// ============================================================================
+// Product Types
+// ============================================================================
+
+/** Product attribute (e.g. Finish → ["Matte", "Polished"]) */
+export interface ProductAttribute {
+  name: string;
+  options: string[];
+}
+
+export interface Product {
+  id: number;
+  name: string;
+  slug: string;
+  description: string;
+  short_description: string;
+  price: number;
+  regular_price: number;
+  sale_price: number | null;
+  on_sale: boolean;
+  stock_status: string;
+  in_stock: boolean;
+  images: string[];
+  categories: string[];
+  permalink: string;
+  average_rating: string;
+  rating_count: number;
+  sku: string;
+  weight: string;
+  dimensions: { height: string; length: string; width: string };
+  total_sales: number;
+  /** Product attributes — available when fetched via /products/:id detail */
+  attributes?: ProductAttribute[];
+  /** Tag names */
+  tags?: string[];
+  /** Variation IDs (for variable products) */
+  variations?: number[];
+  /** Product type: "simple" | "variable" | "variation" etc. */
+  type?: string;
+  /** Stock quantity (may be null if not tracked) */
+  stock_quantity?: number | null;
+}

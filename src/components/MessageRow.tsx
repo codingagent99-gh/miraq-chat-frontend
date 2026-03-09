@@ -1,6 +1,6 @@
 import ReactMarkdown from "react-markdown";
 import { FiEdit2 } from "react-icons/fi";
-import type { ChatMessage, FilterSuggestion } from "../types/api";
+import type { ChatMessage, FilterSuggestion, Product } from "../types/api";
 import { ProductCards } from "./ProductCards";
 import { CartDisplay } from "./CartDisplay";
 import { OrderListCards } from "./OrderListCards";
@@ -16,6 +16,7 @@ interface MessageRowProps {
   onFilterSuggestion: (suggestion: FilterSuggestion) => void;
   onEdit: (id: string, text: string) => void;
   onOrderClick: (orderId: number, orderNumber: string) => void;
+  onProductClick?: (product: Product) => void;
   miraQIcon: string;
 }
 
@@ -26,6 +27,7 @@ export function MessageRow({
   onFilterSuggestion,
   onEdit,
   onOrderClick,
+  onProductClick,
   miraQIcon,
 }: MessageRowProps) {
   if (message.role === "user") {
@@ -76,7 +78,10 @@ export function MessageRow({
           ) && <ReactMarkdown>{message.text}</ReactMarkdown>}
 
           {message.products && message.products.length > 0 && (
-            <ProductCards products={message.products} />
+            <ProductCards
+              products={message.products}
+              onProductClick={onProductClick}
+            />
           )}
 
           {message.cart && <CartDisplay cart={message.cart} />}
