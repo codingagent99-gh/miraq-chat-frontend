@@ -9,6 +9,12 @@ import type {
 } from "../types/api";
 import { createApiClient } from "../services/api";
 import { isFlowPrompt, buildFlowContext } from "../utils/flow";
+import {
+  loadChatHistory,
+  saveChatHistory,
+  clearChatHistory,
+  enqueuMessages,
+} from "../utils/chatHistory";
 
 const SESSION_KEY = "shop_chat_session_id";
 const EMAIL_KEY = "shop_chat_email";
@@ -43,7 +49,10 @@ const WELCOME_MESSAGE: ChatMessage = {
 };
 
 export function useChat(options: UseChatOptions = {}) {
-  const [messages, setMessages] = useState<ChatMessage[]>([WELCOME_MESSAGE]);
+  const [messages, setMessages] = useState<ChatMessage[]>(() => {
+    const persisted = loadChatHistory();
+    return persisted.length > 0 ? persisted : [WELCOME_MESSAGE];
+  });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [userEmail, setUserEmail] = useState<string | undefined>(
@@ -72,6 +81,10 @@ export function useChat(options: UseChatOptions = {}) {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
+
+  useEffect(() => {
+    saveChatHistory(messages);
+  }, [messages]);
 
   const updateEmail = useCallback((email: string) => {
     setUserEmail(email);
@@ -158,7 +171,7 @@ export function useChat(options: UseChatOptions = {}) {
         text: text.trim(),
         timestamp: new Date(),
       };
-      setMessages((prev) => [...prev, userMsg]);
+      setMessages((prev) => enqueuMessages(prev, userMsg));
       setLoading(true);
       lastQueryRef.current = text.trim();
 
@@ -171,7 +184,7 @@ export function useChat(options: UseChatOptions = {}) {
         });
 
         const botMsg = processChatResponse(res);
-        setMessages((prev) => [...prev, botMsg]);
+        setMessages((prev) => enqueuMessages(prev, botMsg));
       } catch (err) {
         const detail =
           err instanceof Error ? err.message : "Something went wrong.";
@@ -183,7 +196,7 @@ export function useChat(options: UseChatOptions = {}) {
           text: `Oops – ${detail}. Please try again.`,
           timestamp: new Date(),
         };
-        setMessages((prev) => [...prev, errMsg]);
+        setMessages((prev) => enqueuMessages(prev, errMsg));
       } finally {
         setLoading(false);
         focusInput();
@@ -217,8 +230,9 @@ export function useChat(options: UseChatOptions = {}) {
         timestamp: new Date(),
       };
 
-      // Replace everything from the edited message onward with the new user msg
-      setMessages([...currentMessages.slice(0, idx), userMsg]);
+      // Replace everything from the edited message onward with the new user msg,
+      // then apply the FIFO cap
+      setMessages(enqueuMessages(currentMessages.slice(0, idx), userMsg));
       setLoading(true);
 
       try {
@@ -230,7 +244,7 @@ export function useChat(options: UseChatOptions = {}) {
         });
 
         const botMsg = processChatResponse(res);
-        setMessages((prev) => [...prev, botMsg]);
+        setMessages((prev) => enqueuMessages(prev, botMsg));
       } catch (err) {
         const detail =
           err instanceof Error ? err.message : "Something went wrong.";
@@ -241,7 +255,7 @@ export function useChat(options: UseChatOptions = {}) {
           text: `Oops – ${detail}. Please try again.`,
           timestamp: new Date(),
         };
-        setMessages((prev) => [...prev, errMsg]);
+        setMessages((prev) => enqueuMessages(prev, errMsg));
       } finally {
         setLoading(false);
         focusInput();
@@ -261,7 +275,7 @@ export function useChat(options: UseChatOptions = {}) {
         text: suggestion.label,
         timestamp: new Date(),
       };
-      setMessages((prev) => [...prev, userMsg]);
+      setMessages((prev) => enqueuMessages(prev, userMsg));
       setLoading(true);
       lastQueryRef.current = suggestion.label;
 
@@ -275,7 +289,7 @@ export function useChat(options: UseChatOptions = {}) {
         });
 
         const botMsg = processChatResponse(res);
-        setMessages((prev) => [...prev, botMsg]);
+        setMessages((prev) => enqueuMessages(prev, botMsg));
       } catch (err) {
         const detail =
           err instanceof Error ? err.message : "Something went wrong.";
@@ -287,7 +301,7 @@ export function useChat(options: UseChatOptions = {}) {
           text: `Oops – ${detail}. Please try again.`,
           timestamp: new Date(),
         };
-        setMessages((prev) => [...prev, errMsg]);
+        setMessages((prev) => enqueuMessages(prev, errMsg));
       } finally {
         setLoading(false);
         focusInput();
@@ -314,7 +328,7 @@ export function useChat(options: UseChatOptions = {}) {
       });
 
       const botMsg = processChatResponse(res);
-      setMessages((prev) => [...prev, botMsg]);
+      setMessages((prev) => enqueuMessages(prev, botMsg));
     } catch (err) {
       const detail =
         err instanceof Error ? err.message : "Failed to load more results.";
@@ -325,7 +339,7 @@ export function useChat(options: UseChatOptions = {}) {
         text: `Oops – ${detail}. Please try again.`,
         timestamp: new Date(),
       };
-      setMessages((prev) => [...prev, errMsg]);
+      setMessages((prev) => enqueuMessages(prev, errMsg));
     } finally {
       setLoading(false);
       focusInput();
@@ -351,7 +365,7 @@ export function useChat(options: UseChatOptions = {}) {
       });
 
       const botMsg = processChatResponse(res);
-      setMessages((prev) => [...prev, botMsg]);
+      setMessages((prev) => enqueuMessages(prev, botMsg));
     } catch (err) {
       const detail =
         err instanceof Error ? err.message : "Failed to load more orders.";
@@ -362,7 +376,7 @@ export function useChat(options: UseChatOptions = {}) {
         text: `Oops – ${detail}. Please try again.`,
         timestamp: new Date(),
       };
-      setMessages((prev) => [...prev, errMsg]);
+      setMessages((prev) => enqueuMessages(prev, errMsg));
     } finally {
       setLoading(false);
       focusInput();
@@ -385,7 +399,7 @@ export function useChat(options: UseChatOptions = {}) {
           text: "⚠️ Please set your email address first (click the 📧 button in the header) to place an order.",
           timestamp: new Date(),
         };
-        setMessages((prev) => [...prev, errMsg]);
+        setMessages((prev) => enqueuMessages(prev, errMsg));
         return;
       }
 
@@ -424,7 +438,7 @@ export function useChat(options: UseChatOptions = {}) {
           ],
           isFlowPrompt: true,
         };
-        setMessages((prev) => [...prev, botMsg]);
+        setMessages((prev) => enqueuMessages(prev, botMsg));
       } catch (err) {
         const detail =
           err instanceof Error ? err.message : "Failed to place order.";
@@ -435,7 +449,7 @@ export function useChat(options: UseChatOptions = {}) {
           text: `❌ Order failed: ${detail}`,
           timestamp: new Date(),
         };
-        setMessages((prev) => [...prev, errMsg]);
+        setMessages((prev) => enqueuMessages(prev, errMsg));
       } finally {
         setLoading(false);
         focusInput();
@@ -453,6 +467,7 @@ export function useChat(options: UseChatOptions = {}) {
         /* best-effort */
       }
     }
+    clearChatHistory();
     setMessages([WELCOME_MESSAGE]);
     sessionStorage.removeItem(SESSION_KEY);
     sessionIdRef.current = uuidv4();
