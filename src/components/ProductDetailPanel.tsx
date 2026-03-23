@@ -107,6 +107,7 @@ export function ProductDetailPanel({
               onClick={onClose}
               aria-label="Close"
               type="button"
+              style={{ color: "black" }}
             >
               <FiX size={20} />
             </button>
@@ -144,6 +145,7 @@ export function ProductDetailPanel({
               onClick={onClose}
               aria-label="Close"
               type="button"
+              style={{ color: "black" }}
             >
               <FiX size={20} />
             </button>
@@ -192,6 +194,7 @@ export function ProductDetailPanel({
             onClick={onClose}
             aria-label="Back"
             type="button"
+            style={{ color: "black" }}
           >
             <FiArrowLeft size={20} />
           </button>
@@ -387,10 +390,17 @@ export function ProductDetailPanel({
         <div className="xpert-detail-actions">
           <button
             className="xpert-detail-action-btn xpert-detail-action-btn--primary"
-            onClick={() => onOrder(product.name)}
+            onClick={() => product.in_stock !== false && onOrder(product.name)}
             type="button"
+            disabled={product.in_stock === false}
+            style={
+              product.in_stock === false
+                ? { opacity: 0.5, cursor: "not-allowed" }
+                : {}
+            }
           >
-            <FiShoppingCart size={16} /> Order This
+            <FiShoppingCart size={16} />{" "}
+            {product.in_stock === false ? "Out of Stock" : "Order This"}
           </button>
           <button
             className="xpert-detail-action-btn xpert-detail-action-btn--secondary"

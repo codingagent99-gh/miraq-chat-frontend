@@ -28,7 +28,7 @@ export function ChatWidget({
   customerEmail,
   customerName,
   customerRole,
-  assetBaseUrl = "https://silfratech.in/chatbot/",
+  assetBaseUrl,
 }: ChatWidgetProps) {
   const MiraQIcon = `${assetBaseUrl}MiraQ-icon.png`;
 
@@ -152,14 +152,88 @@ export function ChatWidget({
   if (screen === "home") {
     return (
       <div id="silfra-chat-widget-container">
-        <WidgetContainer panelOpen={panelOpen} setPanelOpen={setPanelOpen}>
-          <HomeScreen
-            onStartChat={() => isLoggedIn && setScreen("chat")}
-            onClose={() => setPanelOpen(false)}
-            miraQIcon={MiraQIcon}
-            customerName={customerName}
-            isLoggedIn={isLoggedIn}
-          />
+        <WidgetContainer
+          panelOpen={panelOpen}
+          setPanelOpen={setPanelOpen}
+          assetBaseUrl={assetBaseUrl || ""}
+        >
+          {!isLoggedIn ? (
+            /* ── THE GUEST "LOGIN REQUIRED" SCREEN ── */
+            <div
+              style={{
+                position: "relative",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                height: "100%",
+                padding: "2rem",
+                textAlign: "center",
+                backgroundColor: "#fff",
+              }}
+            >
+              {/* ── Close Button ── */}
+              <button
+                onClick={() => setPanelOpen(false)}
+                style={{
+                  position: "absolute",
+                  top: "16px",
+                  right: "16px",
+                  background: "transparent",
+                  border: "none",
+                  cursor: "pointer",
+                  color: "#666",
+                  padding: "4px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+                aria-label="Close widget"
+              >
+                <FiX size={20} />
+              </button>
+
+              <img
+                src={MiraQIcon}
+                alt="MiraQ"
+                style={{
+                  width: "64px",
+                  height: "64px",
+                  marginBottom: "1.5rem",
+                  borderRadius: "50%",
+                }}
+              />
+              <h3
+                style={{
+                  margin: "0 0 0.5rem 0",
+                  color: "#111",
+                  fontSize: "18px",
+                }}
+              >
+                Welcome! 👋
+              </h3>
+              <p
+                style={{
+                  margin: "0",
+                  color: "#666",
+                  fontSize: "14px",
+                  lineHeight: "1.5",
+                }}
+              >
+                Please log in to your account to use our AI shopping assistant,
+                track your orders, and get personalized recommendations.
+              </p>
+            </div>
+          ) : (
+            /* ── THE LOGGED-IN HOME SCREEN ── */
+            <HomeScreen
+              onStartChat={() => setScreen("chat")}
+              onClose={() => setPanelOpen(false)}
+              miraQIcon={MiraQIcon}
+              customerName={customerName}
+              isLoggedIn={isLoggedIn}
+            />
+          )}
         </WidgetContainer>
       </div>
     );
@@ -193,16 +267,19 @@ export function ChatWidget({
 
   return (
     <div id="silfra-chat-widget-container">
-      <WidgetContainer panelOpen={panelOpen} setPanelOpen={setPanelOpen}>
+      <WidgetContainer
+        panelOpen={panelOpen}
+        setPanelOpen={setPanelOpen}
+        assetBaseUrl={assetBaseUrl || ""}
+      >
         <div className="xpert-chat-window">
           <ChatHeader
             cartCount={cartCount}
             customerName={customerName}
             customerRole={customerRole}
             onBack={() => setScreen("home")}
-            onClose={() => setPanelOpen(false)}
+            onClose={() => false}
           />
-
           <div className="xpert-chat-messages">
             {messages.map((message) => (
               <MessageRow
@@ -283,7 +360,6 @@ export function ChatWidget({
 
             <div ref={bottomRef} />
           </div>
-
           {editingId && (
             <div className="xpert-edit-indicator">
               <span className="xpert-edit-indicator-label">
@@ -299,7 +375,6 @@ export function ChatWidget({
               </button>
             </div>
           )}
-
           <div
             className={`xpert-chat-input-area${editingId ? " xpert-chat-input-area--editing" : ""}`}
           >
@@ -329,11 +404,9 @@ export function ChatWidget({
               <FiSend size={18} />
             </button>
           </div>
-
           <p className="xpert-footer-hint">
             Powered by AI • Shopping made simple
           </p>
-
           {/* ── Product Detail Overlay ── */}
           {selectedProduct && (
             <ProductDetailPanel

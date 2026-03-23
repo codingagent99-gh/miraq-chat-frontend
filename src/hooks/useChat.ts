@@ -16,14 +16,19 @@ import {
   enqueuMessages,
 } from "../utils/chatHistory";
 
-const SESSION_KEY = "shop_chat_session_id";
+const SESSION_KEY_PREFIX = "shop_chat_session_id";
 const EMAIL_KEY = "shop_chat_email";
 
-function loadSessionId(): string | undefined {
-  return sessionStorage.getItem(SESSION_KEY) ?? undefined;
+/** Build a user-scoped session key. */
+function sessionKey(userId?: string | number): string {
+  return userId ? `${SESSION_KEY_PREFIX}_${userId}` : SESSION_KEY_PREFIX;
 }
-function saveSessionId(id: string) {
-  sessionStorage.setItem(SESSION_KEY, id);
+
+function loadSessionId(userId?: string | number): string | undefined {
+  return sessionStorage.getItem(sessionKey(userId)) ?? undefined;
+}
+function saveSessionId(id: string, userId?: string | number) {
+  sessionStorage.setItem(sessionKey(userId), id);
 }
 
 function loadEmail(): string | undefined {
@@ -49,8 +54,11 @@ const WELCOME_MESSAGE: ChatMessage = {
 };
 
 export function useChat(options: UseChatOptions = {}) {
+  // Stable user identifier used to scope storage keys
+  const userId = options.customerId ?? options.customerEmail;
+
   const [messages, setMessages] = useState<ChatMessage[]>(() => {
-    const persisted = loadChatHistory();
+    const persisted = loadChatHistory(userId);
     return persisted.length > 0 ? persisted : [WELCOME_MESSAGE];
   });
   const [loading, setLoading] = useState(false);
@@ -65,8 +73,11 @@ export function useChat(options: UseChatOptions = {}) {
   );
   const lastQueryRef = useRef<string | null>(null);
 
-  const sessionIdRef = useRef<string>(loadSessionId() ?? uuidv4());
-  saveSessionId(sessionIdRef.current);
+  const sessionIdRef = useRef<string>(loadSessionId(userId) ?? uuidv4());
+  saveSessionId(sessionIdRef.current, userId);
+
+  // Track the previous userId so we can detect user switches
+  const prevUserIdRef = useRef<string | number | undefined>(userId);
 
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
@@ -78,13 +89,34 @@ export function useChat(options: UseChatOptions = {}) {
 
   const apiRef = useRef(createApiClient(options.apiUrl, options.apiKey));
 
+  // ── Detect user change and reset session ──
+  useEffect(() => {
+    const prevUserId = prevUserIdRef.current;
+    if (prevUserId === userId) return;
+
+    // User has changed — load the new user's data (or start fresh)
+    prevUserIdRef.current = userId;
+
+    const persisted = loadChatHistory(userId);
+    setMessages(persisted.length > 0 ? persisted : [WELCOME_MESSAGE]);
+
+    sessionIdRef.current = loadSessionId(userId) ?? uuidv4();
+    saveSessionId(sessionIdRef.current, userId);
+
+    flowRef.current = { flow_state: "idle" };
+    setPagination(null);
+    setOrderPagination(null);
+    lastQueryRef.current = null;
+    setError(null);
+  }, [userId]);
+
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
 
   useEffect(() => {
-    saveChatHistory(messages);
-  }, [messages]);
+    saveChatHistory(messages, userId);
+  }, [messages, userId]);
 
   const updateEmail = useCallback((email: string) => {
     setUserEmail(email);
@@ -98,47 +130,50 @@ export function useChat(options: UseChatOptions = {}) {
   }, []);
 
   /* ── process a chat API response into a bot message ── */
-  const processChatResponse = useCallback((res: ChatResponse) => {
-    if (res.session_id) {
-      sessionIdRef.current = res.session_id;
-      saveSessionId(res.session_id);
-    }
+  const processChatResponse = useCallback(
+    (res: ChatResponse) => {
+      if (res.session_id) {
+        sessionIdRef.current = res.session_id;
+        saveSessionId(res.session_id, userId);
+      }
 
-    flowRef.current = buildFlowContext(flowRef.current, res);
+      flowRef.current = buildFlowContext(flowRef.current, res);
 
-    if (res.pagination) {
-      setPagination(res.pagination);
-    } else {
-      setPagination(null);
-    }
+      if (res.pagination) {
+        setPagination(res.pagination);
+      } else {
+        setPagination(null);
+      }
 
-    if (res.order_pagination) {
-      setOrderPagination(res.order_pagination);
-    } else {
-      setOrderPagination(null);
-    }
+      if (res.order_pagination) {
+        setOrderPagination(res.order_pagination);
+      } else {
+        setOrderPagination(null);
+      }
 
-    const botMsg: ChatMessage = {
-      id: uuidv4(),
-      role: "bot",
-      text: res.bot_message,
-      products: res.products?.length ? res.products : undefined,
-      orders: res.orders?.length ? res.orders : undefined,
-      purchase_info: res.purchase_info,
-      intent: res.intent,
-      suggestions: res.suggestions?.length ? res.suggestions : undefined,
-      filterSuggestions: res.filter_suggestions?.length
-        ? res.filter_suggestions
-        : undefined,
-      cart: res.cart,
-      paymentUrl: res.payment_url,
-      timestamp: new Date(),
-      isFlowPrompt: isFlowPrompt(res.intent, res.flow_state),
-      pagination: res.pagination,
-      orderPagination: res.order_pagination,
-    };
-    return botMsg;
-  }, []);
+      const botMsg: ChatMessage = {
+        id: uuidv4(),
+        role: "bot",
+        text: res.bot_message,
+        products: res.products?.length ? res.products : undefined,
+        orders: res.orders?.length ? res.orders : undefined,
+        purchase_info: res.purchase_info,
+        intent: res.intent,
+        suggestions: res.suggestions?.length ? res.suggestions : undefined,
+        filterSuggestions: res.filter_suggestions?.length
+          ? res.filter_suggestions
+          : undefined,
+        cart: res.cart,
+        paymentUrl: res.payment_url,
+        timestamp: new Date(),
+        isFlowPrompt: isFlowPrompt(res.intent, res.flow_state),
+        pagination: res.pagination,
+        orderPagination: res.order_pagination,
+      };
+      return botMsg;
+    },
+    [userId],
+  );
 
   /* ── build the user_context payload ── */
   const buildUserContext = useCallback(() => {
@@ -420,7 +455,7 @@ export function useChat(options: UseChatOptions = {}) {
 
         if (res.session_id) {
           sessionIdRef.current = res.session_id;
-          saveSessionId(res.session_id);
+          saveSessionId(res.session_id, userId);
         }
 
         flowRef.current = { flow_state: "awaiting_anything_else" };
@@ -455,7 +490,7 @@ export function useChat(options: UseChatOptions = {}) {
         focusInput();
       }
     },
-    [userEmail, options.customerId, focusInput],
+    [userEmail, options.customerId, focusInput, userId],
   );
 
   /* ── clear ── */
@@ -467,17 +502,17 @@ export function useChat(options: UseChatOptions = {}) {
         /* best-effort */
       }
     }
-    clearChatHistory();
+    clearChatHistory(userId);
     setMessages([WELCOME_MESSAGE]);
-    sessionStorage.removeItem(SESSION_KEY);
+    sessionStorage.removeItem(sessionKey(userId));
     sessionIdRef.current = uuidv4();
-    saveSessionId(sessionIdRef.current);
+    saveSessionId(sessionIdRef.current, userId);
     flowRef.current = { flow_state: "idle" };
     setPagination(null);
     setOrderPagination(null);
     lastQueryRef.current = null;
     focusInput();
-  }, [focusInput]);
+  }, [focusInput, userId]);
 
   return {
     messages,

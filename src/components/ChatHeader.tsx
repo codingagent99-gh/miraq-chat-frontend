@@ -1,4 +1,4 @@
-import { FiMinus, FiShoppingCart, FiX } from "react-icons/fi";
+import { FiMinus, FiShoppingCart } from "react-icons/fi";
 
 interface ChatHeaderProps {
   cartCount: number;
@@ -13,7 +13,6 @@ export function ChatHeader({
   customerName,
   customerRole,
   onBack,
-  onClose,
 }: ChatHeaderProps) {
   // Capitalise role: "customer" → "Customer"
   const displayRole = customerRole
@@ -48,14 +47,6 @@ export function ChatHeader({
           <span className="xpert-cart-count">{cartCount}</span>
         </div>
       )}
-
-      <button
-        className="xpert-icon-btn"
-        onClick={onClose}
-        aria-label="Close chat"
-      >
-        <FiX size={20} />
-      </button>
     </div>
   );
 }

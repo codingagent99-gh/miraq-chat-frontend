@@ -52,7 +52,24 @@ export function ProductCards({ products, onProductClick }: ProductCardsProps) {
                 )
               )}
             </div>
-            {product.on_sale && <span className="xpert-sale-badge">SALE</span>}
+
+            {/* ── Badges Container ── */}
+            <div
+              style={{
+                display: "flex",
+                gap: "6px",
+                marginTop: "4px",
+                flexWrap: "wrap",
+              }}
+            >
+              {/* If out of stock, show ONLY the Out of Stock badge */}
+              {product.in_stock === false ? (
+                <span className="xpert-sale-badge">OUT OF STOCK</span>
+              ) : product.on_sale ? (
+                /* Otherwise, if it is in stock AND on sale, show the Sale badge */
+                <span className="xpert-sale-badge">SALE</span>
+              ) : null}
+            </div>
           </div>
         </div>
       ))}

@@ -1,6 +1,6 @@
 import type { ChatMessage } from "../types/api";
 
-const HISTORY_KEY = "shop_chat_history";
+const HISTORY_KEY_PREFIX = "shop_chat_history";
 const MAX_MESSAGES = 20;
 const FULL_PAYLOAD_TAIL = 4; // keep rich data on last N messages only
 
@@ -16,6 +16,14 @@ const HEAVY_FIELDS: (keyof ChatMessage)[] = [
   "suggestions",
   "paymentUrl",
 ];
+
+/**
+ * Build a user-scoped storage key.
+ * If no userId is provided, falls back to the bare prefix (legacy / anonymous).
+ */
+function historyKey(userId?: string | number): string {
+  return userId ? `${HISTORY_KEY_PREFIX}_${userId}` : HISTORY_KEY_PREFIX;
+}
 
 /** Returns true when sessionStorage is accessible (guards against SSR / private browsing). */
 export function isSessionStorageAvailable(): boolean {
@@ -34,10 +42,10 @@ export function isSessionStorageAvailable(): boolean {
  * Returns [] on missing or corrupt data.
  * Revives `timestamp` strings back to Date objects.
  */
-export function loadChatHistory(): ChatMessage[] {
+export function loadChatHistory(userId?: string | number): ChatMessage[] {
   if (!isSessionStorageAvailable()) return [];
   try {
-    const raw = sessionStorage.getItem(HISTORY_KEY);
+    const raw = sessionStorage.getItem(historyKey(userId));
     if (!raw) return [];
     const parsed = JSON.parse(raw) as ChatMessage[];
     if (!Array.isArray(parsed)) return [];
@@ -56,7 +64,10 @@ export function loadChatHistory(): ChatMessage[] {
  * to keep storage compact.
  * Silently ignores QuotaExceededError and other storage errors.
  */
-export function saveChatHistory(messages: ChatMessage[]): void {
+export function saveChatHistory(
+  messages: ChatMessage[],
+  userId?: string | number,
+): void {
   if (!isSessionStorageAvailable()) return;
   try {
     const capped = messages.slice(-MAX_MESSAGES);
@@ -71,7 +82,7 @@ export function saveChatHistory(messages: ChatMessage[]): void {
       // All HEAVY_FIELDS are optional in ChatMessage, so the cast is safe
       return slim as ChatMessage;
     });
-    sessionStorage.setItem(HISTORY_KEY, JSON.stringify(toStore));
+    sessionStorage.setItem(historyKey(userId), JSON.stringify(toStore));
   } catch (err) {
     // Silently suppress all storage errors (QuotaExceededError, SecurityError,
     // InvalidStateError, etc.) — chat history is best-effort and non-critical.
@@ -80,10 +91,10 @@ export function saveChatHistory(messages: ChatMessage[]): void {
 }
 
 /** Remove the history key from sessionStorage. */
-export function clearChatHistory(): void {
+export function clearChatHistory(userId?: string | number): void {
   if (!isSessionStorageAvailable()) return;
   try {
-    sessionStorage.removeItem(HISTORY_KEY);
+    sessionStorage.removeItem(historyKey(userId));
   } catch {
     // ignore
   }

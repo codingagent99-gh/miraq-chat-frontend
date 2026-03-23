@@ -1,8 +1,9 @@
-import { FiShoppingCart } from "react-icons/fi";
+// import { FiShoppingCart } from "react-icons/fi";
 
 interface WidgetContainerProps {
   panelOpen: boolean;
   setPanelOpen: (open: boolean) => void;
+  assetBaseUrl: string;
   children: React.ReactNode;
 }
 
@@ -10,7 +11,10 @@ export function WidgetContainer({
   panelOpen,
   setPanelOpen,
   children,
+  assetBaseUrl,
 }: WidgetContainerProps) {
+  const MiraQIcon = `${assetBaseUrl}MiraQ-icon.png`;
+
   return (
     <>
       {!panelOpen && (
@@ -19,7 +23,8 @@ export function WidgetContainer({
           onClick={() => setPanelOpen(true)}
           aria-label="Open chat"
         >
-          <FiShoppingCart size={24} />
+          <img src={MiraQIcon} height={24} width={24} />
+          {/* <FiShoppingCart size={24} /> */}
         </button>
       )}
 
