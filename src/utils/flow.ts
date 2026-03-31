@@ -18,6 +18,7 @@ const FLOW_STATES: Set<FlowState> = new Set([
   "awaiting_address_confirm",
   "awaiting_anything_else",
   "awaiting_variant_selection",
+  "awaiting_filter_clarification",
 ]);
 
 /**
@@ -72,5 +73,7 @@ export function buildFlowContext(
     resolved_attributes: mergedResolved,
     pending_order_id:
       res.metadata?.pending_order_id ?? current.pending_order_id,
+    pending_semantic_match:
+      res.metadata?.pending_semantic_match ?? current.pending_semantic_match,
   };
 }

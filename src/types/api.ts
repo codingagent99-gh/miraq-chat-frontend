@@ -139,7 +139,8 @@ export type FlowState =
   | "order_complete"
   | "awaiting_anything_else"
   | "closing"
-  | "awaiting_variant_selection";
+  | "awaiting_variant_selection"
+  | "awaiting_filter_clarification";
 
 /** Context carried across turns for multi-step flows */
 export interface FlowContext {
@@ -155,6 +156,7 @@ export interface FlowContext {
   resolved_attributes?: Record<string, string>;
   /** Order ID for detail view — set when user clicks an order or asks for a specific order */
   pending_order_id?: number;
+  pending_semantic_match?: Record<string, any>;
 }
 
 // ============================================================================
@@ -210,6 +212,7 @@ export interface ChatRequest {
     use_new_address?: boolean;
     resolved_attributes?: Record<string, string>;
     pending_order_id?: number;
+    pending_semantic_match?: Record<string, any>;
     last_product?: { id: number; name: string };
   };
 }
@@ -233,6 +236,7 @@ export interface ChatResponseMetadata {
   resolved_attributes?: Record<string, string>;
   /** Order ID when entering order detail flow */
   pending_order_id?: number;
+  pending_semantic_match?: Record<string, any>;
 }
 
 export interface ChatResponse {
