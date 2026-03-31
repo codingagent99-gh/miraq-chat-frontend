@@ -250,10 +250,8 @@ export function ProductDetailPanel({
               )}
             </div>
           )}
-
           {/* Name */}
           <h3 className="xpert-detail-name">{product.name}</h3>
-
           {/* Price */}
           <div className="xpert-detail-price">
             {product.on_sale &&
@@ -278,7 +276,6 @@ export function ProductDetailPanel({
               )
             )}
           </div>
-
           {/* Stock + SKU row */}
           <div className="xpert-detail-meta-row">
             <span className={`xpert-detail-stock ${stockClass}`}>
@@ -288,7 +285,6 @@ export function ProductDetailPanel({
               <span className="xpert-detail-sku">SKU: {product.sku}</span>
             )}
           </div>
-
           {/* Rating */}
           {ratingNum > 0 && (
             <div className="xpert-detail-rating">
@@ -303,25 +299,80 @@ export function ProductDetailPanel({
               </span>
             </div>
           )}
-
           {/* Categories */}
           {product.categories && product.categories.length > 0 && (
-            <div className="xpert-detail-categories">
-              {product.categories.map((cat, idx) => (
+            <div
+              className="xpert-detail-categories"
+              style={{
+                display: "flex",
+                flexWrap: "wrap",
+                gap: "6px",
+                marginBottom: "12px",
+                alignItems: "center", // Keeps the text vertically aligned with the chips
+              }}
+            >
+              <span
+                style={{
+                  fontSize: "0.85rem",
+                  fontWeight: "bold",
+                  color: "#333",
+                  marginRight: "4px",
+                }}
+              >
+                Categories:
+              </span>
+              {product.categories.map((cat: any, idx) => (
                 <span key={idx} className="xpert-detail-category-chip">
-                  {cat}
+                  {cat.name || cat}
                 </span>
               ))}
             </div>
           )}
-
+          {/* Tags Section */}
+          {product.tags && product.tags.length > 0 && (
+            <div
+              className="xpert-detail-tags"
+              style={{
+                display: "flex",
+                flexWrap: "wrap",
+                gap: "6px",
+                marginBottom: "16px",
+                alignItems: "center", // Align the label and chips nicely
+              }}
+            >
+              <span
+                style={{
+                  fontSize: "0.85rem",
+                  fontWeight: "bold",
+                  color: "#333",
+                  marginRight: "4px",
+                }}
+              >
+                Tags:
+              </span>
+              {product.tags.map((tag, idx) => (
+                <span
+                  key={idx}
+                  className="xpert-detail-tag-chip"
+                  style={{
+                    fontSize: "0.8rem",
+                    backgroundColor: "#f1f5f9",
+                    color: "#475569",
+                    padding: "2px 8px",
+                    borderRadius: "12px",
+                  }}
+                >
+                  {tag}
+                </span>
+              ))}
+            </div>
+          )}
           {/* Short description */}
           {product.short_description && (
             <div className="xpert-detail-short-desc">
               <p>{product.short_description}</p>
             </div>
           )}
-
           {/* Attributes */}
           {product.attributes && product.attributes.length > 0 && (
             <div className="xpert-detail-attributes">
@@ -336,7 +387,6 @@ export function ProductDetailPanel({
               ))}
             </div>
           )}
-
           {/* Full description (collapsible) */}
           {product.description && (
             <div className="xpert-detail-full-desc">
@@ -354,7 +404,6 @@ export function ProductDetailPanel({
               )}
             </div>
           )}
-
           {/* Dimensions / Weight */}
           {(product.weight ||
             (product.dimensions &&
