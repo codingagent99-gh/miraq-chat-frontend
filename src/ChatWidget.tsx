@@ -1,5 +1,4 @@
-import { useState, useCallback, useRef } from "react";
-import { FiSend, FiX } from "react-icons/fi";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { useChat } from "./hooks/useChat";
@@ -10,6 +9,8 @@ import { ChatHeader } from "./components/ChatHeader";
 import { MessageRow } from "./components/MessageRow";
 import { ProductDetailPanel } from "./components/ProductDetailPanel";
 import type { Product } from "./types/api";
+import { FiSend, FiX, FiMic, FiMicOff } from "react-icons/fi";
+import { useSpeechRecognition } from "./hooks/useSpeechRecognition";
 
 interface ChatWidgetProps {
   apiKey?: string;
@@ -39,12 +40,15 @@ export function ChatWidget({
   const [panelOpen, setPanelOpen] = useState(false);
   const [inputValue, setInputValue] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
-
+  const originalInputRef = useRef("");
   // ── Product detail state ──
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
-  // Keep a stable reference to the API client for product fetches
-  const apiClientRef = useRef(createApiClient(apiUrl, apiKey));
+  // Lazy initialize the API client so it only ever runs once!
+  const apiClientRef = useRef<any>(null);
+  if (!apiClientRef.current) {
+    apiClientRef.current = createApiClient(apiUrl, apiKey);
+  }
 
   const {
     messages,
@@ -60,6 +64,25 @@ export function ChatWidget({
     loadMoreOrders,
   } = useChat({ apiUrl, apiKey, customerId, customerEmail, customerRole });
 
+  // Voice Recognition setup
+  const { isListening, isSupported, transcript, toggleListening } =
+    useSpeechRecognition();
+
+  // Safely append spoken words to the existing typed text
+  useEffect(() => {
+    if (isListening) {
+      setInputValue(originalInputRef.current + transcript);
+    }
+  }, [transcript, isListening]);
+
+  const handleMicClick = () => {
+    if (!isListening) {
+      // Snapshot existing text so voice is appended, not overwritten
+      originalInputRef.current = inputValue + (inputValue.trim() ? " " : "");
+    }
+    toggleListening();
+  };
+
   const cartCount = (() => {
     for (let i = messages.length - 1; i >= 0; i--) {
       if (messages[i].cart) return messages[i].cart!.item_count;
@@ -69,6 +92,9 @@ export function ChatWidget({
 
   const handleSend = useCallback(() => {
     if (!inputValue.trim() || loading) return;
+    // Stop mic if active before sending
+    if (isListening) toggleListening();
+    originalInputRef.current = ""; // Clear the base text ref
     if (editingId) {
       editMessage(editingId, inputValue);
       setEditingId(null);
@@ -76,7 +102,15 @@ export function ChatWidget({
       sendMessage(inputValue);
     }
     setInputValue("");
-  }, [inputValue, loading, editingId, editMessage, sendMessage]);
+  }, [
+    inputValue,
+    loading,
+    editingId,
+    isListening,
+    toggleListening,
+    editMessage,
+    sendMessage,
+  ]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -377,14 +411,17 @@ export function ChatWidget({
           )}
           <div
             className={`xpert-chat-input-area${editingId ? " xpert-chat-input-area--editing" : ""}`}
+            style={{ display: "flex", alignItems: "center", gap: "8px" }}
           >
             <textarea
               ref={inputRef}
               className="xpert-chat-input"
               placeholder={
-                editingId
-                  ? "Edit your message… (Enter to send, Esc to cancel)"
-                  : "Ask about products, orders, or your cart..."
+                isListening
+                  ? "Listening... Speak now"
+                  : editingId
+                    ? "Edit your message… (Enter to send, Esc to cancel)"
+                    : "Ask about products, orders, or your cart..."
               }
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
@@ -393,7 +430,34 @@ export function ChatWidget({
               disabled={loading}
               autoFocus
               spellCheck={true}
+              style={{ flex: 1 }}
             />
+
+            {/* Microphone Button */}
+            {isSupported && !editingId && (
+              <button
+                className={`xpert-mic-btn ${isListening ? "listening" : ""}`}
+                onClick={handleMicClick}
+                type="button"
+                aria-label={
+                  isListening ? "Stop listening" : "Start voice typing"
+                }
+                style={{
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  padding: "8px",
+                  color: isListening ? "#ef4444" : "#64748b",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  transition: "color 0.2s ease",
+                }}
+              >
+                {isListening ? <FiMicOff size={20} /> : <FiMic size={20} />}
+              </button>
+            )}
+
             <button
               className="xpert-send-btn"
               onClick={handleSend}
