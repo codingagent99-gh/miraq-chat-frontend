@@ -20,6 +20,49 @@ interface MessageRowProps {
   miraQIcon: string;
 }
 
+/** Formats a Date into a human-readable chat timestamp.
+ *  - Today      → "9:41 AM"
+ *  - Yesterday  → "Yesterday 9:41 AM"
+ *  - Older      → "Mar 25, 9:41 AM"
+ */
+function formatTimestamp(date: Date): string {
+  const now = new Date();
+
+  const isToday =
+    date.getFullYear() === now.getFullYear() &&
+    date.getMonth() === now.getMonth() &&
+    date.getDate() === now.getDate();
+
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  const isYesterday =
+    date.getFullYear() === yesterday.getFullYear() &&
+    date.getMonth() === yesterday.getMonth() &&
+    date.getDate() === yesterday.getDate();
+
+  const timeStr = date.toLocaleTimeString([], {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+
+  if (isToday) return timeStr;
+  if (isYesterday) return `Yesterday ${timeStr}`;
+
+  const dateStr = date.toLocaleDateString([], {
+    month: "short",
+    day: "numeric",
+  });
+  return `${dateStr}, ${timeStr}`;
+}
+
+const timestampStyle: React.CSSProperties = {
+  fontSize: "11px",
+  color: "#94a3b8",
+  marginTop: "4px",
+  lineHeight: 1,
+  userSelect: "none",
+};
+
 export function MessageRow({
   message,
   isBeingEdited = false,
@@ -30,6 +73,8 @@ export function MessageRow({
   onProductClick,
   miraQIcon,
 }: MessageRowProps) {
+  const formattedTime = formatTimestamp(new Date(message.timestamp));
+
   if (message.role === "user") {
     return (
       <div
@@ -51,6 +96,9 @@ export function MessageRow({
             <div className="xpert-bubble-content">
               <ReactMarkdown>{message.text}</ReactMarkdown>
             </div>
+            <p style={{ ...timestampStyle, textAlign: "right" }}>
+              {formattedTime}
+            </p>
           </div>
         </div>
       </div>
@@ -120,6 +168,7 @@ export function MessageRow({
             />
           )}
         </div>
+        <p style={{ ...timestampStyle, textAlign: "left" }}>{formattedTime}</p>
       </div>
     </div>
   );
