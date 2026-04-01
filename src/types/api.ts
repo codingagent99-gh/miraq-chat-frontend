@@ -270,22 +270,15 @@ export interface ChatResponse {
 // ============================================================================
 
 export interface HistoryEntry {
+  role: "user" | "bot";
+  message: string;
+  intent?: string;
   timestamp: string;
-  user: string;
-  bot: string;
-  metadata: {
-    products_count?: number;
-    filters?: Record<string, unknown>;
-    intent?: string;
-    confidence?: number;
-  };
 }
 
 export interface HistoryResponse {
-  session_id: string;
-  history: HistoryEntry[];
-  message_count: number;
-  success: boolean;
+  // The new Postgres backend endpoint returns { "messages": [...] }
+  messages: HistoryEntry[];
 }
 
 // ============================================================================

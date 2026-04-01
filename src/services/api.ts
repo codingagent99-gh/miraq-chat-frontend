@@ -4,24 +4,24 @@ import type {
   ChatResponse,
   HistoryResponse,
   Product,
-  Order,
 } from "../types/api";
 
-/**
- * Create an API client with a runtime baseURL.
- *
- * Resolution order:
- *   1. Runtime `baseURL` param (from <script data-api-url="...">)
- *   2. Build-time VITE_BASE env var (from .env)
- *   3. Empty string (relative URLs — same origin)
- */
+// Helper to scrape WooCommerce session from cookies
+function getWooCommerceSession() {
+  const cookies = document.cookie.split(";");
+  for (let i = 0; i < cookies.length; i++) {
+    const cookie = cookies[i].trim();
+    if (cookie.startsWith("wp_woocommerce_session_")) {
+      return cookie.split("=")[1];
+    }
+  }
+  return "";
+}
+
 export function createApiClient(baseURL?: string, apiKey?: string) {
   const resolvedBase = baseURL || import.meta.env.VITE_BASE || "";
 
-  console.log("[MiraQ API] baseURL resolved to:", resolvedBase, {
-    runtimeParam: baseURL,
-    envVar: import.meta.env.VITE_BASE,
-  });
+  console.log("[MiraQ API] baseURL resolved to:", resolvedBase);
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -37,16 +37,27 @@ export function createApiClient(baseURL?: string, apiKey?: string) {
   });
 
   /* ── /chat ── */
-  async function sendChat(body: ChatRequest): Promise<ChatResponse> {
-    const { data } = await client.post<ChatResponse>("/chat", body);
+  async function sendChat(
+    body: ChatRequest,
+    sessionId: string,
+  ): Promise<ChatResponse> {
+    const { data } = await client.post<ChatResponse>("/chat", body, {
+      headers: {
+        "X-MiraQ-Session": sessionId,
+        "X-WC-Session": getWooCommerceSession(),
+      },
+    });
     return data;
   }
 
-  /* ── /chat/history/:id ── */
+  /* ── /chat/history ── */
   async function fetchHistory(sessionId: string): Promise<HistoryResponse> {
-    const { data } = await client.get<HistoryResponse>(
-      `/chat/history/${sessionId}`,
-    );
+    const { data } = await client.get<HistoryResponse>("/chat/history", {
+      headers: {
+        "X-MiraQ-Session": sessionId,
+        "X-WC-Session": getWooCommerceSession(),
+      },
+    });
     return data;
   }
 
@@ -56,8 +67,8 @@ export function createApiClient(baseURL?: string, apiKey?: string) {
   }
 
   /* ── /products/categories ── */
-  async function fetchCategories(): Promise<Category[]> {
-    const { data } = await client.get<{ categories: Category[] }>(
+  async function fetchCategories(): Promise<any[]> {
+    const { data } = await client.get<{ categories: any[] }>(
       "/products/categories",
     );
     return data.categories;
@@ -70,21 +81,18 @@ export function createApiClient(baseURL?: string, apiKey?: string) {
   }
 
   /* ── /order/place ── */
-  async function placeOrder(
-    body: PlaceOrderRequest,
-  ): Promise<PlaceOrderResponse> {
-    const { data } = await client.post<PlaceOrderResponse>(
-      "/order/place",
-      body,
-    );
+  async function placeOrder(body: any, sessionId: string): Promise<any> {
+    const { data } = await client.post<any>("/order/place", body, {
+      headers: {
+        "X-MiraQ-Session": sessionId,
+        "X-WC-Session": getWooCommerceSession(),
+      },
+    });
     return data;
   }
 
   /* ── /health ── */
-  async function healthCheck(): Promise<{
-    status: string;
-    woocommerce_connected: boolean;
-  }> {
+  async function healthCheck(): Promise<any> {
     const { data } = await client.get("/health");
     return data;
   }
@@ -98,31 +106,4 @@ export function createApiClient(baseURL?: string, apiKey?: string) {
     placeOrder,
     healthCheck,
   };
-}
-
-// ── Shared request/response types ──
-
-export interface Category {
-  id: number;
-  name: string;
-  slug: string;
-  count: number;
-}
-
-export interface PlaceOrderRequest {
-  product_id: number;
-  quantity?: number;
-  session_id?: string;
-  user_context?: {
-    email?: string;
-    customer_id?: number;
-  };
-}
-
-export interface PlaceOrderResponse {
-  success: boolean;
-  order?: Order;
-  bot_message: string;
-  error?: string;
-  session_id?: string;
 }

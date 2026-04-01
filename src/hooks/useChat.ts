@@ -9,26 +9,21 @@ import type {
 } from "../types/api";
 import { createApiClient } from "../services/api";
 import { isFlowPrompt, buildFlowContext } from "../utils/flow";
-import {
-  loadChatHistory,
-  saveChatHistory,
-  clearChatHistory,
-  enqueuMessages,
-} from "../utils/chatHistory";
+import { enqueuMessages } from "../utils/chatHistory";
 
+// 🚀 Shifted to localStorage so sessions survive tab closes
 const SESSION_KEY_PREFIX = "shop_chat_session_id";
 const EMAIL_KEY = "shop_chat_email";
 
-/** Build a user-scoped session key. */
 function sessionKey(userId?: string | number): string {
   return userId ? `${SESSION_KEY_PREFIX}_${userId}` : SESSION_KEY_PREFIX;
 }
 
 function loadSessionId(userId?: string | number): string | undefined {
-  return sessionStorage.getItem(sessionKey(userId)) ?? undefined;
+  return localStorage.getItem(sessionKey(userId)) ?? undefined;
 }
 function saveSessionId(id: string, userId?: string | number) {
-  sessionStorage.setItem(sessionKey(userId), id);
+  localStorage.setItem(sessionKey(userId), id);
 }
 
 function loadEmail(): string | undefined {
@@ -54,13 +49,10 @@ const WELCOME_MESSAGE: ChatMessage = {
 };
 
 export function useChat(options: UseChatOptions = {}) {
-  // Stable user identifier used to scope storage keys
   const userId = options.customerId ?? options.customerEmail;
 
-  const [messages, setMessages] = useState<ChatMessage[]>(() => {
-    const persisted = loadChatHistory(userId);
-    return persisted.length > 0 ? persisted : [WELCOME_MESSAGE];
-  });
+  // 🚀 Start with an empty array. The useEffect will load the history.
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [userEmail, setUserEmail] = useState<string | undefined>(
@@ -74,49 +66,69 @@ export function useChat(options: UseChatOptions = {}) {
   const lastQueryRef = useRef<string | null>(null);
 
   const sessionIdRef = useRef<string>(loadSessionId(userId) ?? uuidv4());
-  saveSessionId(sessionIdRef.current, userId);
 
-  // Track the previous userId so we can detect user switches
   const prevUserIdRef = useRef<string | number | undefined>(userId);
-
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const flowRef = useRef<FlowContext>({ flow_state: "idle" });
 
-  // Always-current snapshot of messages — avoids stale closure in editMessage
   const messagesRef = useRef<ChatMessage[]>([]);
   messagesRef.current = messages;
 
   const apiRef = useRef(createApiClient(options.apiUrl, options.apiKey));
 
-  // ── Detect user change and reset session ──
+  // ── 🚀 HYDRATE CHAT HISTORY FROM POSTGRES DATABASE ──
   useEffect(() => {
     const prevUserId = prevUserIdRef.current;
-    if (prevUserId === userId) return;
 
-    // User has changed — load the new user's data (or start fresh)
-    prevUserIdRef.current = userId;
+    // If the user changed (e.g., they logged in), reset the session anchor
+    if (prevUserId !== userId) {
+      prevUserIdRef.current = userId;
+      sessionIdRef.current = loadSessionId(userId) ?? uuidv4();
+      saveSessionId(sessionIdRef.current, userId);
+      flowRef.current = { flow_state: "idle" };
+      setPagination(null);
+      setOrderPagination(null);
+      lastQueryRef.current = null;
+      setError(null);
+    } else {
+      // Ensure the current ID is saved
+      saveSessionId(sessionIdRef.current, userId);
+    }
 
-    const persisted = loadChatHistory(userId);
-    setMessages(persisted.length > 0 ? persisted : [WELCOME_MESSAGE]);
+    async function fetchDatabaseHistory() {
+      setLoading(true);
+      try {
+        const res = await apiRef.current.fetchHistory(sessionIdRef.current);
+        if (res.messages && res.messages.length > 0) {
+          // Rebuild React message objects from DB rows
+          const formattedHistory: ChatMessage[] = res.messages.map(
+            (m: any) => ({
+              id: uuidv4(),
+              role: m.role,
+              text: m.message,
+              intent: m.intent,
+              timestamp: new Date(m.timestamp),
+            }),
+          );
+          setMessages(formattedHistory);
+        } else {
+          setMessages([WELCOME_MESSAGE]); // Fresh chat
+        }
+      } catch (err) {
+        console.error("Failed to fetch database history", err);
+        setMessages([WELCOME_MESSAGE]); // Fallback on network error
+      } finally {
+        setLoading(false);
+      }
+    }
 
-    sessionIdRef.current = loadSessionId(userId) ?? uuidv4();
-    saveSessionId(sessionIdRef.current, userId);
-
-    flowRef.current = { flow_state: "idle" };
-    setPagination(null);
-    setOrderPagination(null);
-    lastQueryRef.current = null;
-    setError(null);
+    fetchDatabaseHistory();
   }, [userId]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
-
-  useEffect(() => {
-    saveChatHistory(messages, userId);
-  }, [messages, userId]);
 
   const updateEmail = useCallback((email: string) => {
     setUserEmail(email);
@@ -129,7 +141,6 @@ export function useChat(options: UseChatOptions = {}) {
     }, 50);
   }, []);
 
-  /* ── process a chat API response into a bot message ── */
   const processChatResponse = useCallback(
     (res: ChatResponse) => {
       if (res.session_id) {
@@ -139,17 +150,8 @@ export function useChat(options: UseChatOptions = {}) {
 
       flowRef.current = buildFlowContext(flowRef.current, res);
 
-      if (res.pagination) {
-        setPagination(res.pagination);
-      } else {
-        setPagination(null);
-      }
-
-      if (res.order_pagination) {
-        setOrderPagination(res.order_pagination);
-      } else {
-        setOrderPagination(null);
-      }
+      setPagination(res.pagination || null);
+      setOrderPagination(res.order_pagination || null);
 
       const botMsg: ChatMessage = {
         id: uuidv4(),
@@ -175,7 +177,6 @@ export function useChat(options: UseChatOptions = {}) {
     [userId],
   );
 
-  /* ── build the user_context payload ── */
   const buildUserContext = useCallback(() => {
     return {
       ...(userEmail ? { email: userEmail } : {}),
@@ -195,7 +196,6 @@ export function useChat(options: UseChatOptions = {}) {
     };
   }, [userEmail, options.customerId, options.customerRole]);
 
-  /* ── send message ── */
   const sendMessage = useCallback(
     async (text: string) => {
       if (!text.trim()) return;
@@ -212,12 +212,15 @@ export function useChat(options: UseChatOptions = {}) {
       lastQueryRef.current = text.trim();
 
       try {
-        const res: ChatResponse = await apiRef.current.sendChat({
-          message: text.trim(),
-          session_id: sessionIdRef.current,
-          page: 1,
-          user_context: buildUserContext(),
-        });
+        const res: ChatResponse = await apiRef.current.sendChat(
+          {
+            message: text.trim(),
+            session_id: sessionIdRef.current,
+            page: 1,
+            user_context: buildUserContext(),
+          },
+          sessionIdRef.current,
+        ); // 🚀 Pass Session ID to api wrapper!
 
         const botMsg = processChatResponse(res);
         setMessages((prev) => enqueuMessages(prev, botMsg));
@@ -241,19 +244,15 @@ export function useChat(options: UseChatOptions = {}) {
     [buildUserContext, processChatResponse, focusInput],
   );
 
-  /* ── edit a previous user message — truncates history from that point ── */
   const editMessage = useCallback(
     async (messageId: string, newText: string) => {
       if (!newText.trim() || loading) return;
 
-      // Find the message to edit in the current snapshot
       const currentMessages = messagesRef.current;
       const idx = currentMessages.findIndex((m) => m.id === messageId);
       if (idx === -1) return;
 
       setError(null);
-
-      // Reset flow context — we're rewinding to an earlier point
       flowRef.current = { flow_state: "idle" };
       setPagination(null);
       setOrderPagination(null);
@@ -266,18 +265,19 @@ export function useChat(options: UseChatOptions = {}) {
         timestamp: new Date(),
       };
 
-      // Replace everything from the edited message onward with the new user msg,
-      // then apply the FIFO cap
       setMessages(enqueuMessages(currentMessages.slice(0, idx), userMsg));
       setLoading(true);
 
       try {
-        const res: ChatResponse = await apiRef.current.sendChat({
-          message: newText.trim(),
-          session_id: sessionIdRef.current,
-          page: 1,
-          user_context: buildUserContext(),
-        });
+        const res: ChatResponse = await apiRef.current.sendChat(
+          {
+            message: newText.trim(),
+            session_id: sessionIdRef.current,
+            page: 1,
+            user_context: buildUserContext(),
+          },
+          sessionIdRef.current,
+        ); // 🚀 Pass Session ID!
 
         const botMsg = processChatResponse(res);
         setMessages((prev) => enqueuMessages(prev, botMsg));
@@ -300,7 +300,6 @@ export function useChat(options: UseChatOptions = {}) {
     [loading, buildUserContext, processChatResponse, focusInput],
   );
 
-  /* ── send filter suggestion retry ── */
   const sendFilterSuggestion = useCallback(
     async (suggestion: FilterSuggestion) => {
       setError(null);
@@ -316,13 +315,16 @@ export function useChat(options: UseChatOptions = {}) {
       lastQueryRef.current = suggestion.label;
 
       try {
-        const res: ChatResponse = await apiRef.current.sendChat({
-          message: suggestion.label,
-          session_id: sessionIdRef.current,
-          page: 1,
-          suggestion_retry: suggestion,
-          user_context: buildUserContext(),
-        });
+        const res: ChatResponse = await apiRef.current.sendChat(
+          {
+            message: suggestion.label,
+            session_id: sessionIdRef.current,
+            page: 1,
+            suggestion_retry: suggestion,
+            user_context: buildUserContext(),
+          },
+          sessionIdRef.current,
+        ); // 🚀 Pass Session ID!
 
         const botMsg = processChatResponse(res);
         setMessages((prev) => enqueuMessages(prev, botMsg));
@@ -346,22 +348,24 @@ export function useChat(options: UseChatOptions = {}) {
     [buildUserContext, processChatResponse, focusInput],
   );
 
-  /* ── load more products (next page) ── */
   const loadMore = useCallback(async () => {
-    if (!pagination || !pagination.has_more || !lastQueryRef.current) return;
-    if (loading) return;
+    if (!pagination || !pagination.has_more || !lastQueryRef.current || loading)
+      return;
 
     const nextPage = pagination.page + 1;
     setLoading(true);
     setError(null);
 
     try {
-      const res: ChatResponse = await apiRef.current.sendChat({
-        message: lastQueryRef.current,
-        session_id: sessionIdRef.current,
-        page: nextPage,
-        user_context: buildUserContext(),
-      });
+      const res: ChatResponse = await apiRef.current.sendChat(
+        {
+          message: lastQueryRef.current,
+          session_id: sessionIdRef.current,
+          page: nextPage,
+          user_context: buildUserContext(),
+        },
+        sessionIdRef.current,
+      ); // 🚀 Pass Session ID!
 
       const botMsg = processChatResponse(res);
       setMessages((prev) => enqueuMessages(prev, botMsg));
@@ -382,23 +386,29 @@ export function useChat(options: UseChatOptions = {}) {
     }
   }, [pagination, loading, buildUserContext, processChatResponse, focusInput]);
 
-  /* ── load more orders (next page) ── */
   const loadMoreOrders = useCallback(async () => {
-    if (!orderPagination || !orderPagination.has_more || !lastQueryRef.current)
+    if (
+      !orderPagination ||
+      !orderPagination.has_more ||
+      !lastQueryRef.current ||
+      loading
+    )
       return;
-    if (loading) return;
 
     const nextPage = orderPagination.page + 1;
     setLoading(true);
     setError(null);
 
     try {
-      const res: ChatResponse = await apiRef.current.sendChat({
-        message: lastQueryRef.current,
-        session_id: sessionIdRef.current,
-        page: nextPage,
-        user_context: buildUserContext(),
-      });
+      const res: ChatResponse = await apiRef.current.sendChat(
+        {
+          message: lastQueryRef.current,
+          session_id: sessionIdRef.current,
+          page: nextPage,
+          user_context: buildUserContext(),
+        },
+        sessionIdRef.current,
+      ); // 🚀 Pass Session ID!
 
       const botMsg = processChatResponse(res);
       setMessages((prev) => enqueuMessages(prev, botMsg));
@@ -425,7 +435,6 @@ export function useChat(options: UseChatOptions = {}) {
     focusInput,
   ]);
 
-  /* ── place order ── */
   const handleOrderProduct = useCallback(
     async (productId: number) => {
       if (!userEmail) {
@@ -443,16 +452,21 @@ export function useChat(options: UseChatOptions = {}) {
       setError(null);
 
       try {
-        const res = await apiRef.current.placeOrder({
-          product_id: productId,
-          quantity: 1,
-          session_id: sessionIdRef.current,
-          user_context: {
-            email: userEmail,
-            ...(options.customerId ? { customer_id: options.customerId } : {}),
-            ...(options.customerRole ? { role: options.customerRole } : {}),
+        const res = await apiRef.current.placeOrder(
+          {
+            product_id: productId,
+            quantity: 1,
+            session_id: sessionIdRef.current,
+            user_context: {
+              email: userEmail,
+              ...(options.customerId
+                ? { customer_id: options.customerId }
+                : {}),
+              ...(options.customerRole ? { role: options.customerRole } : {}),
+            },
           },
-        });
+          sessionIdRef.current,
+        ); // 🚀 Pass Session ID!
 
         if (res.session_id) {
           sessionIdRef.current = res.session_id;
@@ -494,7 +508,6 @@ export function useChat(options: UseChatOptions = {}) {
     [userEmail, options.customerId, focusInput, userId],
   );
 
-  /* ── clear ── */
   const clearAll = useCallback(async () => {
     if (sessionIdRef.current) {
       try {
@@ -503,9 +516,8 @@ export function useChat(options: UseChatOptions = {}) {
         /* best-effort */
       }
     }
-    clearChatHistory(userId);
     setMessages([WELCOME_MESSAGE]);
-    sessionStorage.removeItem(sessionKey(userId));
+    localStorage.removeItem(sessionKey(userId)); // 🚀 Clear from localStorage
     sessionIdRef.current = uuidv4();
     saveSessionId(sessionIdRef.current, userId);
     flowRef.current = { flow_state: "idle" };
