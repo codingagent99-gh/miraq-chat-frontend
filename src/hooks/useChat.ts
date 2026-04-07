@@ -65,6 +65,11 @@ export function useChat(options: UseChatOptions = {}) {
   );
   const lastQueryRef = useRef<string | null>(null);
 
+  // 🚀 New State Variables for History Pagination
+  const [historyPage, setHistoryPage] = useState(1);
+  const [hasMoreHistory, setHasMoreHistory] = useState(false);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+
   const sessionIdRef = useRef<string>(loadSessionId(userId) ?? uuidv4());
 
   const prevUserIdRef = useRef<string | number | undefined>(userId);
@@ -77,7 +82,7 @@ export function useChat(options: UseChatOptions = {}) {
 
   const apiRef = useRef(createApiClient(options.apiUrl, options.apiKey));
 
-  // ── 🚀 HYDRATE CHAT HISTORY FROM POSTGRES DATABASE ──
+  // ── 🚀 HYDRATE INITIAL CHAT HISTORY FROM POSTGRES ──
   useEffect(() => {
     const prevUserId = prevUserIdRef.current;
 
@@ -91,6 +96,7 @@ export function useChat(options: UseChatOptions = {}) {
       setOrderPagination(null);
       lastQueryRef.current = null;
       setError(null);
+      setHistoryPage(1); // Reset history page
     } else {
       // Ensure the current ID is saved
       saveSessionId(sessionIdRef.current, userId);
@@ -99,7 +105,7 @@ export function useChat(options: UseChatOptions = {}) {
     async function fetchDatabaseHistory() {
       setLoading(true);
       try {
-        const res = await apiRef.current.fetchHistory(sessionIdRef.current);
+        const res = await apiRef.current.fetchHistory(sessionIdRef.current, 1);
         if (res.messages && res.messages.length > 0) {
           // Rebuild React message objects from DB rows
           const formattedHistory: ChatMessage[] = res.messages.map(
@@ -112,6 +118,8 @@ export function useChat(options: UseChatOptions = {}) {
             }),
           );
           setMessages(formattedHistory);
+          setHasMoreHistory(res.has_more);
+          if (res.next_page) setHistoryPage(res.next_page);
         } else {
           setMessages([WELCOME_MESSAGE]); // Fresh chat
         }
@@ -126,9 +134,43 @@ export function useChat(options: UseChatOptions = {}) {
     fetchDatabaseHistory();
   }, [userId]);
 
+  // ── 🚀 LOAD OLDER HISTORY (Triggered on Scroll Up) ──
+  const loadMoreHistory = useCallback(async () => {
+    if (loadingHistory || !hasMoreHistory) return;
+
+    setLoadingHistory(true);
+    try {
+      const res = await apiRef.current.fetchHistory(
+        sessionIdRef.current,
+        historyPage,
+      );
+      if (res.messages && res.messages.length > 0) {
+        const olderMessages: ChatMessage[] = res.messages.map((m: any) => ({
+          id: uuidv4(),
+          role: m.role,
+          text: m.message,
+          intent: m.intent,
+          timestamp: new Date(m.timestamp),
+        }));
+
+        // Prepend older messages to the top of the array
+        setMessages((prev) => [...olderMessages, ...prev]);
+        setHasMoreHistory(res.has_more);
+        if (res.next_page) setHistoryPage(res.next_page);
+      }
+    } catch (err) {
+      console.error("Failed to load more history", err);
+    } finally {
+      setLoadingHistory(false);
+    }
+  }, [historyPage, hasMoreHistory, loadingHistory]);
+
+  // Scroll to bottom when a NEW message arrives (but NOT when loading older history)
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, loading]);
+    if (!loadingHistory) {
+      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages.length, loading, loadingHistory]);
 
   const updateEmail = useCallback((email: string) => {
     setUserEmail(email);
@@ -408,7 +450,7 @@ export function useChat(options: UseChatOptions = {}) {
           user_context: buildUserContext(),
         },
         sessionIdRef.current,
-      ); // 🚀 Pass Session ID!
+      );
 
       const botMsg = processChatResponse(res);
       setMessages((prev) => enqueuMessages(prev, botMsg));
@@ -517,7 +559,7 @@ export function useChat(options: UseChatOptions = {}) {
       }
     }
     setMessages([WELCOME_MESSAGE]);
-    localStorage.removeItem(sessionKey(userId)); // 🚀 Clear from localStorage
+    localStorage.removeItem(sessionKey(userId));
     sessionIdRef.current = uuidv4();
     saveSessionId(sessionIdRef.current, userId);
     flowRef.current = { flow_state: "idle" };
@@ -544,5 +586,8 @@ export function useChat(options: UseChatOptions = {}) {
     loadMore,
     orderPagination,
     loadMoreOrders,
+    loadMoreHistory,
+    hasMoreHistory,
+    loadingHistory,
   };
 }

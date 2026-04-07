@@ -51,13 +51,20 @@ export function createApiClient(baseURL?: string, apiKey?: string) {
   }
 
   /* ── /chat/history ── */
-  async function fetchHistory(sessionId: string): Promise<HistoryResponse> {
-    const { data } = await client.get<HistoryResponse>("/chat/history", {
-      headers: {
-        "X-MiraQ-Session": sessionId,
-        "X-WC-Session": getWooCommerceSession(),
+  async function fetchHistory(
+    sessionId: string,
+    page: number = 1,
+    limit: number = 20,
+  ): Promise<HistoryResponse> {
+    const { data } = await client.get<HistoryResponse>(
+      `/chat/history?page=${page}&limit=${limit}`,
+      {
+        headers: {
+          "X-MiraQ-Session": sessionId,
+          "X-WC-Session": getWooCommerceSession(),
+        },
       },
-    });
+    );
     return data;
   }
 

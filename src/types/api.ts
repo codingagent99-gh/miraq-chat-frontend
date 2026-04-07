@@ -277,8 +277,9 @@ export interface HistoryEntry {
 }
 
 export interface HistoryResponse {
-  // The new Postgres backend endpoint returns { "messages": [...] }
   messages: HistoryEntry[];
+  has_more: boolean;
+  next_page: number | null;
 }
 
 // ============================================================================
