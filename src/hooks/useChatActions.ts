@@ -19,6 +19,7 @@ export interface ActionHandlerDeps {
   /** Current cart items — used to resolve product_id/variation_id → cart item key */
   cartItems: WCCartItem[] | undefined;
   setIsCartOpen: (open: boolean) => void;
+  setIsCheckoutOpen: (open: boolean) => void;
 }
 
 // ── Resolve a cart item key from optional key / product_id / variation_id ────
@@ -84,7 +85,7 @@ async function handleSingleAction(
     }
 
     case "OPEN_CHECKOUT_PANEL": {
-      console.info("[ChatAction] OPEN_CHECKOUT_PANEL received — handler arrives in PR 3");
+      deps.setIsCheckoutOpen(true);
       break;
     }
 
@@ -110,6 +111,7 @@ export function useChatActions({
   fetchCart,
   cartItems,
   setIsCartOpen,
+  setIsCheckoutOpen,
 }: ActionHandlerDeps) {
   const dispatchActions = useCallback(
     async (actions: ChatAction[] | undefined) => {
@@ -122,6 +124,7 @@ export function useChatActions({
         fetchCart,
         cartItems,
         setIsCartOpen,
+        setIsCheckoutOpen,
       };
 
       for (const action of actions) {
@@ -135,7 +138,7 @@ export function useChatActions({
         }
       }
     },
-    [addItem, updateQuantity, removeItem, fetchCart, cartItems, setIsCartOpen],
+    [addItem, updateQuantity, removeItem, fetchCart, cartItems, setIsCartOpen, setIsCheckoutOpen],
   );
 
   return { dispatchActions };
