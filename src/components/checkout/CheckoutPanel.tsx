@@ -1,13 +1,15 @@
-import { useEffect } from "react";
+import { useState, useEffect } from "react";
 import { FiX, FiPackage } from "react-icons/fi";
 import type { WCCart } from "../../hooks/useCart";
 import type { StoreApiFetch } from "../../hooks/useStoreApi";
-import type { CheckoutStep } from "../../types/checkout";
+import type { CheckoutStep, PaymentPayload } from "../../types/checkout";
 import { useCheckout } from "../../hooks/useCheckout";
 import { AddressStep } from "./steps/AddressStep";
 import { ShippingStep } from "./steps/ShippingStep";
-import { PaymentStepPlaceholder } from "./steps/PaymentStepPlaceholder";
+import { PaymentStep } from "./steps/PaymentStep";
 import { ReviewStep } from "./steps/ReviewStep";
+import { ConfirmationStep } from "./steps/ConfirmationStep";
+import { getPaymentAdapter } from "./payment/PaymentGatewayAdapter";
 import "./CheckoutPanel.css";
 
 interface CheckoutPanelProps {
@@ -15,7 +17,9 @@ interface CheckoutPanelProps {
   cart: WCCart | null;
   onCartUpdate: (cart: WCCart) => void;
   cartToken: string | null;
+  siteOrigin: string;
   onClose: () => void;
+  onPostBotMessage: (text: string) => void;
 }
 
 // ── Step indicator metadata ──────────────────────────────────────────────────
@@ -65,9 +69,14 @@ export function CheckoutPanel({
   cart,
   onCartUpdate,
   cartToken,
+  siteOrigin,
   onClose,
+  onPostBotMessage,
 }: CheckoutPanelProps) {
-  const checkout = useCheckout({ storeApiFetch, cart, onCartUpdate });
+  const checkout = useCheckout({ storeApiFetch, cart, onCartUpdate, cartToken });
+
+  // Panel-level payment payload — lives here so ReviewStep can consume it
+  const [paymentPayload, setPaymentPayload] = useState<PaymentPayload | null>(null);
 
   // Transition from idle → collecting_address on mount
   useEffect(() => {
@@ -87,6 +96,18 @@ export function CheckoutPanel({
   }
 
   function renderActiveStep() {
+    // Confirmation screen overrides the normal step body
+    if (checkout.step === "complete" && checkout.order) {
+      return (
+        <ConfirmationStep
+          order={checkout.order}
+          siteOrigin={siteOrigin}
+          onBackToChat={onClose}
+          onPostBotMessage={onPostBotMessage}
+        />
+      );
+    }
+
     switch (checkout.step) {
       case "idle":
       case "collecting_address":
@@ -113,10 +134,21 @@ export function CheckoutPanel({
           />
         );
       case "awaiting_payment":
-        return <PaymentStepPlaceholder />;
+        return cart ? (
+          <PaymentStep
+            cart={cart}
+            onPaymentPayloadChange={setPaymentPayload}
+            isPayloadReady={paymentPayload !== null}
+            onBack={() => checkout.setStep("selecting_rate")}
+            onContinue={() => checkout.setStep("placing_order")}
+          />
+        ) : null;
       case "placing_order":
-      case "complete":
-      case "error":
+      case "error": {
+        // Derive the currently-selected adapter from the payload (for validate())
+        const selectedAdapter = paymentPayload
+          ? (getPaymentAdapter(paymentPayload.payment_method) ?? null)
+          : null;
         return (
           <ReviewStep
             cart={cart}
@@ -124,8 +156,18 @@ export function CheckoutPanel({
             order={checkout.order}
             isLoading={checkout.isLoading}
             error={checkout.step === "error" ? checkout.error : null}
+            paymentPayload={paymentPayload}
+            selectedAdapter={selectedAdapter}
+            onPlaceOrder={async (payload) => {
+              await checkout.placeOrder(payload);
+            }}
+            onSetStep={checkout.setStep}
+            onClearError={checkout.clearError}
           />
         );
+      }
+      default:
+        return null;
     }
   }
 
@@ -139,7 +181,12 @@ export function CheckoutPanel({
         </div>
         <button
           className="miraq-checkout-close"
-          onClick={onClose}
+          onClick={() => {
+            if (checkout.step === "complete") {
+              checkout.reset();
+            }
+            onClose();
+          }}
           aria-label="Close checkout"
         >
           <FiX size={16} />

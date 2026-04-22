@@ -676,6 +676,18 @@ export function useChat(options: UseChatOptions = {}) {
     focusInput();
   }, [focusInput, userId]);
 
+  const appendBotMessage = useCallback((text: string) => {
+    const syntheticMsg: ChatMessage = {
+      id: uuidv4(),
+      role: "bot",
+      text,
+      timestamp: new Date(),
+      intent: "system",
+      metadata: { synthetic: true },
+    };
+    setMessages((prev) => enqueuMessages(prev, syntheticMsg));
+  }, []);
+
   return {
     messages,
     loading,
@@ -687,6 +699,7 @@ export function useChat(options: UseChatOptions = {}) {
     sendFilterSuggestion,
     handleOrderProduct,
     clearAll,
+    appendBotMessage,
     bottomRef,
     inputRef,
     pagination,

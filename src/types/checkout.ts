@@ -81,6 +81,7 @@ export interface UseCheckoutReturn {
   placeOrder: (payment: PaymentPayload) => Promise<OrderConfirmation>;
 
   setStep: (step: CheckoutStep) => void;
+  clearError: () => void;
   reset: () => void;
 }
 
@@ -92,4 +93,5 @@ export interface UseCheckoutOptions {
   storeApiFetch: StoreApiFetch;
   cart: WCCart | null;
   onCartUpdate: (cart: WCCart) => void;
+  cartToken?: string | null;
 }

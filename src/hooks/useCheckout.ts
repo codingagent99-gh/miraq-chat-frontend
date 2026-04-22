@@ -9,6 +9,7 @@ import type {
   UseCheckoutOptions,
 } from "../types/checkout";
 import type { WCCart } from "./useCart";
+import { clearAddressDraft } from "../utils/addressDraft";
 
 // ── Helper: extract the first field-level error from a Woo Store API error ──
 
@@ -68,6 +69,7 @@ export function useCheckout({
   storeApiFetch,
   cart,
   onCartUpdate,
+  cartToken,
 }: UseCheckoutOptions): UseCheckoutReturn {
   const [step, setStep] = useState<CheckoutStep>("idle");
   const [customer, setCustomer] = useState<{
@@ -170,11 +172,11 @@ export function useCheckout({
   );
 
   // ── placeOrder ─────────────────────────────────────────────────────────────
-  // Wired but not invoked from any UI button in PR 3.
   const placeOrder = useCallback(
     async (payment: PaymentPayload): Promise<OrderConfirmation> => {
       setIsLoading(true);
       setError(null);
+      setStep("placing_order");
       try {
         const billing = customer?.billing ?? cart?.billing_address ?? {};
         const shipping = customer?.shipping ?? cart?.shipping_address ?? {};
@@ -203,13 +205,26 @@ export function useCheckout({
         setOrder(confirmation);
         setStep("complete");
 
+        // Clear address draft — order is done
+        clearAddressDraft(cartToken ?? null);
+
+        // Update cart in parent (Woo returns the new empty cart on checkout)
+        if ((body as { cart?: WCCart }).cart) {
+          onCartUpdate((body as { cart: WCCart }).cart);
+        }
+
         return confirmation;
       } finally {
         setIsLoading(false);
       }
     },
-    [storeApiFetch, customer, cart],
+    [storeApiFetch, customer, cart, cartToken, onCartUpdate],
   );
+
+  // ── clearError ──────────────────────────────────────────────────────────────
+  const clearError = useCallback(() => {
+    setError(null);
+  }, []);
 
   // ── reset ──────────────────────────────────────────────────────────────────
   const reset = useCallback(() => {
@@ -234,6 +249,7 @@ export function useCheckout({
     selectShippingRate,
     placeOrder,
     setStep,
+    clearError,
     reset,
   };
 }

@@ -1,6 +1,7 @@
 import type { WCCart } from "../../../hooks/useCart";
 import type { AddressDict } from "../../../types/actions";
-import type { OrderConfirmation } from "../../../types/checkout";
+import type { OrderConfirmation, PaymentPayload, CheckoutStep } from "../../../types/checkout";
+import type { PaymentGatewayAdapter } from "../payment/PaymentGatewayAdapter";
 import { FiCheck } from "react-icons/fi";
 
 interface ReviewStepProps {
@@ -9,6 +10,11 @@ interface ReviewStepProps {
   order: OrderConfirmation | null;
   isLoading: boolean;
   error: { code: string; message: string; field?: string } | null;
+  paymentPayload: PaymentPayload | null;
+  selectedAdapter: PaymentGatewayAdapter | null;
+  onPlaceOrder: (payload: PaymentPayload) => Promise<void>;
+  onSetStep: (step: CheckoutStep) => void;
+  onClearError: () => void;
 }
 
 function formatPrice(
@@ -55,7 +61,7 @@ function AddressSummary({
   );
 }
 
-export function ReviewStep({ cart, customer, order, isLoading, error }: ReviewStepProps) {
+export function ReviewStep({ cart, customer, order, isLoading, error, paymentPayload, selectedAdapter, onPlaceOrder, onSetStep, onClearError }: ReviewStepProps) {
   const symbol = cart?.totals.currency_symbol ?? "₹";
   const minorUnit = cart?.totals.currency_minor_unit ?? 2;
 
@@ -189,20 +195,107 @@ export function ReviewStep({ cart, customer, order, isLoading, error }: ReviewSt
       )}
 
       {error && (
-        <p style={{ fontSize: "12px", color: "#ef4444", margin: "0 0 8px 0" }}>
-          {error.message}
-        </p>
+        <div
+          style={{
+            background: "#fef2f2",
+            border: "1px solid #fecaca",
+            borderRadius: "11px",
+            padding: "10px 12px",
+            marginBottom: "10px",
+          }}
+        >
+          <p style={{ fontSize: "12px", color: "#ef4444", margin: "0 0 6px 0" }}>
+            ⚠️ {error.message}
+          </p>
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+            {error.field &&
+              /^(billing_|shipping_)/.test(error.field) && (
+                <button
+                  type="button"
+                  onClick={() => { onClearError(); onSetStep("collecting_address"); }}
+                  style={{
+                    fontSize: "11px",
+                    color: "#ef4444",
+                    background: "none",
+                    border: "1px solid #fecaca",
+                    borderRadius: "6px",
+                    padding: "3px 8px",
+                    cursor: "pointer",
+                    fontFamily: "inherit",
+                  }}
+                >
+                  Edit address
+                </button>
+              )}
+            {error.field &&
+              (error.field === "shipping_method" ||
+                error.field === "shipping_rate") && (
+                <button
+                  type="button"
+                  onClick={() => { onClearError(); onSetStep("selecting_rate"); }}
+                  style={{
+                    fontSize: "11px",
+                    color: "#ef4444",
+                    background: "none",
+                    border: "1px solid #fecaca",
+                    borderRadius: "6px",
+                    padding: "3px 8px",
+                    cursor: "pointer",
+                    fontFamily: "inherit",
+                  }}
+                >
+                  Edit shipping
+                </button>
+              )}
+            {(!error.field ||
+              (!/^(billing_|shipping_)/.test(error.field) &&
+                error.field !== "shipping_method" &&
+                error.field !== "shipping_rate")) && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClearError();
+                  if (paymentPayload) onPlaceOrder(paymentPayload);
+                }}
+                style={{
+                  fontSize: "11px",
+                  color: "#ef4444",
+                  background: "none",
+                  border: "1px solid #fecaca",
+                  borderRadius: "6px",
+                  padding: "3px 8px",
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                }}
+              >
+                Try again
+              </button>
+            )}
+          </div>
+        </div>
       )}
 
-      {/* Place Order button — disabled in PR 3; payment integration arrives in PR 4 */}
+      {/* Place Order button */}
       <button
         type="button"
-        disabled
-        title="Payment integration coming in next release"
+        disabled={!paymentPayload || isLoading}
+        onClick={async () => {
+          if (!paymentPayload) return;
+          // Run adapter's validate() if present
+          if (selectedAdapter?.validate) {
+            try {
+              const ok = await selectedAdapter.validate(cart!);
+              if (ok === false) return;
+            } catch {
+              return;
+            }
+          }
+          await onPlaceOrder(paymentPayload);
+        }}
         style={{
           width: "100%",
           padding: "12px",
-          background: "#ccc",
+          background: paymentPayload && !isLoading ? "#1c1c1a" : "#ccc",
           color: "#fff",
           border: "none",
           borderRadius: "11px",
@@ -210,23 +303,12 @@ export function ReviewStep({ cart, customer, order, isLoading, error }: ReviewSt
           fontSize: "13px",
           fontWeight: 600,
           letterSpacing: "0.04em",
-          cursor: "not-allowed",
+          cursor: paymentPayload && !isLoading ? "pointer" : "not-allowed",
           opacity: isLoading ? 0.65 : 1,
         }}
       >
-        Place Order
+        {isLoading ? "Placing Order…" : "Place Order"}
       </button>
-      <p
-        style={{
-          fontSize: "11px",
-          color: "#999",
-          textAlign: "center",
-          marginTop: "6px",
-          marginBottom: 0,
-        }}
-      >
-        Payment integration coming in next release
-      </p>
     </div>
   );
 }
