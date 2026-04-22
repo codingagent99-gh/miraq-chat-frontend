@@ -7,6 +7,7 @@ import type {
   PaginationData,
   FilterSuggestion,
 } from "../types/api";
+import type { ChatAction } from "../types/actions";
 import { createApiClient } from "../services/api";
 import { isFlowPrompt, buildFlowContext } from "../utils/flow";
 import { enqueuMessages } from "../utils/chatHistory";
@@ -49,6 +50,9 @@ export interface UseChatOptions {
     variationId?: number,
     variationAttributes?: { attribute: string; value: string }[],
   ) => Promise<void>;
+  /** New actions envelope callback — called when `response.actions` is non-empty.
+   *  When this fires, the legacy `trigger_frontend_*` handling is skipped. */
+  onActions?: (actions: ChatAction[]) => void;
 }
 
 const WELCOME_MESSAGE: ChatMessage = {
@@ -258,32 +262,41 @@ export function useChat(options: UseChatOptions = {}) {
       setPagination(res.pagination || null);
       setOrderPagination(res.order_pagination || null);
 
-      if (res.action === "trigger_frontend_view_cart") {
-        options.onViewCart?.();
-      }
+      // ── New actions envelope (PR 2) ──────────────────────────────────────
+      // If the backend sends a non-empty `actions[]` array, dispatch it via
+      // onActions and skip the legacy trigger_frontend_* handling entirely.
+      // This prevents double-fires while both backends co-exist during rollout.
+      if (res.actions && res.actions.length > 0) {
+        options.onActions?.(res.actions);
+      } else {
+        // ── Legacy trigger_frontend_* fallback ──────────────────────────────
+        if (res.action === "trigger_frontend_view_cart") {
+          options.onViewCart?.();
+        }
 
-      // ADD the parallel block:
-      if (res.action === "trigger_frontend_cart_add") {
-        const { product_id, quantity, variation_id, variation_attributes } =
-          res.metadata ?? {};
-        if (product_id) {
-          try {
-            await options.onAddToCart?.(
-              product_id,
-              quantity ?? 1,
-              variation_id,
-              variation_attributes ?? [],
-            );
-          } catch (e) {
-            // Cart add failed — return an error message instead of the success message
-            return {
-              id: uuidv4(),
-              role: "bot" as const,
-              text: "❌ Sorry, I couldn't add that item to your cart. Please try selecting the item again.",
-              timestamp: new Date(),
-              // suggestions: ["Try again", "View cart", "Browse products"],
-              isFlowPrompt: false,
-            };
+        // ADD the parallel block:
+        if (res.action === "trigger_frontend_cart_add") {
+          const { product_id, quantity, variation_id, variation_attributes } =
+            res.metadata ?? {};
+          if (product_id) {
+            try {
+              await options.onAddToCart?.(
+                product_id,
+                quantity ?? 1,
+                variation_id,
+                variation_attributes ?? [],
+              );
+            } catch (e) {
+              // Cart add failed — return an error message instead of the success message
+              return {
+                id: uuidv4(),
+                role: "bot" as const,
+                text: "❌ Sorry, I couldn't add that item to your cart. Please try selecting the item again.",
+                timestamp: new Date(),
+                // suggestions: ["Try again", "View cart", "Browse products"],
+                isFlowPrompt: false,
+              };
+            }
           }
         }
       }
