@@ -14,6 +14,7 @@ import { FiSend, FiX, FiMic, FiMicOff } from "react-icons/fi";
 import { useSpeechRecognition } from "./hooks/useSpeechRecognition";
 import { useCart } from "./hooks/useCart";
 import { CartPanel } from "./components/CartPanel";
+import { CheckoutPanel } from "./components/checkout/CheckoutPanel";
 import { useStoreApi } from "./hooks/useStoreApi";
 
 export interface ChatWidgetInterface extends WidgetOptions {
@@ -42,6 +43,7 @@ export function ChatWidget({
   const [inputValue, setInputValue] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isCartOpen, setIsCartOpen] = useState(false); // ← cart panel toggle
+  const [isCheckoutOpen, setIsCheckoutOpen] = useState(false); // ← checkout panel toggle
   const originalInputRef = useRef("");
 
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -63,6 +65,7 @@ export function ChatWidget({
     addItem,
     removeItem,
     updateQuantity,
+    setCart,
   } = useCart(storeApiFetch);
 
   // ── Action dispatcher (new actions[] envelope) ────────────────────────────
@@ -73,6 +76,7 @@ export function ChatWidget({
     fetchCart,
     cartItems: cart?.items,
     setIsCartOpen,
+    setIsCheckoutOpen,
   });
 
   // ── Chat ──────────────────────────────────────────────────────────────────
@@ -530,6 +534,21 @@ export function ChatWidget({
               onClose={() => setIsCartOpen(false)}
               onRemove={removeItem}
               onUpdateQuantity={updateQuantity}
+              onCheckout={() => {
+                setIsCartOpen(false);
+                setIsCheckoutOpen(true);
+              }}
+            />
+          )}
+
+          {/* ── Checkout Panel Overlay ── */}
+          {isCheckoutOpen && (
+            <CheckoutPanel
+              storeApiFetch={storeApiFetch}
+              cart={cart}
+              onCartUpdate={setCart}
+              cartToken={cartToken ?? null}
+              onClose={() => setIsCheckoutOpen(false)}
             />
           )}
         </div>

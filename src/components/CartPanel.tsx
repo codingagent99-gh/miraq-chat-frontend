@@ -17,6 +17,8 @@ interface CartPanelProps {
   onClose: () => void;
   onRemove: (key: string) => void;
   onUpdateQuantity: (key: string, quantity: number) => void;
+  /** When provided, renders a "Checkout" CTA that opens the checkout panel. */
+  onCheckout?: () => void;
 }
 
 function formatPrice(
@@ -46,6 +48,7 @@ export function CartPanel({
   onClose,
   onRemove,
   onUpdateQuantity,
+  onCheckout,
 }: CartPanelProps) {
   const isEmpty = !cart || cart.items.length === 0;
   const minorUnit = cart?.totals.currency_minor_unit ?? 2;
@@ -222,6 +225,18 @@ export function CartPanel({
           >
             Proceed to Checkout <FiArrowRight size={14} />
           </a>
+
+          {onCheckout && (
+            <button
+              className="miraq-cart-checkout-btn"
+              onClick={onCheckout}
+              disabled={cart.items_count === 0}
+              style={{ marginTop: 0, cursor: cart.items_count === 0 ? "not-allowed" : "pointer" }}
+              type="button"
+            >
+              Checkout <FiArrowRight size={14} />
+            </button>
+          )}
 
           <button className="miraq-cart-continue-btn" onClick={onClose}>
             Continue Shopping

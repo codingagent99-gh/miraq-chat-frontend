@@ -1,0 +1,228 @@
+@import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Serif+Display&display=swap");
+
+/* ── CheckoutPanel — slides over the chat window ────────────────────────── */
+
+.miraq-checkout-panel {
+  position: absolute;
+  inset: 0;
+  background: #fafaf8;
+  display: flex;
+  flex-direction: column;
+  z-index: 10;
+  font-family: "DM Sans", sans-serif;
+  border-radius: 12px;
+  overflow: hidden;
+  animation: miraq-checkout-slide-in 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes miraq-checkout-slide-in {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+/* ── Header ── */
+.miraq-checkout-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 18px !important;
+  background: #fff;
+  border-bottom: 1px solid #ececea;
+  flex-shrink: 0;
+}
+
+.miraq-checkout-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.miraq-checkout-title-text {
+  font-family: "DM Serif Display", serif;
+  font-size: 17px;
+  font-weight: 400;
+  color: #1c1c1a;
+  letter-spacing: 0.01em;
+}
+
+.miraq-checkout-close {
+  background: #f5f4f1;
+  border: none;
+  cursor: pointer;
+  color: #777;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  transition:
+    background 0.18s,
+    color 0.18s,
+    transform 0.18s;
+}
+.miraq-checkout-close:hover {
+  background: #1c1c1a;
+  color: #fff;
+  transform: rotate(90deg);
+}
+
+/* ── Step indicator ── */
+.miraq-checkout-steps {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  padding: 10px 12px !important;
+  background: #fff;
+  border-bottom: 1px solid #ececea;
+  flex-shrink: 0;
+  gap: 4px;
+}
+
+.miraq-checkout-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  background: none;
+  border: none;
+  padding: 4px 6px !important;
+  cursor: default;
+  opacity: 0.45;
+  transition: opacity 0.2s;
+  flex: 1;
+}
+
+.miraq-checkout-step.completed {
+  cursor: pointer;
+  opacity: 0.65;
+}
+.miraq-checkout-step.completed:hover {
+  opacity: 1;
+}
+
+.miraq-checkout-step.active {
+  opacity: 1;
+  cursor: default;
+}
+
+.miraq-checkout-step-dot {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #e8e6e0;
+  color: #888;
+  font-size: 10px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s, color 0.2s;
+}
+
+.miraq-checkout-step.active .miraq-checkout-step-dot {
+  background: #1c1c1a;
+  color: #fff;
+}
+
+.miraq-checkout-step.completed .miraq-checkout-step-dot {
+  background: #10b981;
+  color: #fff;
+}
+
+.miraq-checkout-step-label {
+  font-size: 9.5px;
+  font-weight: 600;
+  color: #888;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.miraq-checkout-step.active .miraq-checkout-step-label {
+  color: #1c1c1a;
+}
+
+/* ── Body ── */
+.miraq-checkout-body {
+  flex: 1;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #ddd transparent;
+}
+.miraq-checkout-body::-webkit-scrollbar {
+  width: 4px;
+}
+.miraq-checkout-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+.miraq-checkout-body::-webkit-scrollbar-thumb {
+  background: #ddd;
+  border-radius: 99px;
+}
+
+/* ── Order Summary ── */
+.miraq-checkout-summary {
+  border-top: 1px solid #eeede8;
+  padding: 12px 16px 14px !important;
+  background: #fff;
+  flex-shrink: 0;
+}
+
+.miraq-checkout-summary-title {
+  font-family: "DM Serif Display", serif;
+  font-size: 13px;
+  font-weight: 400;
+  color: #1c1c1a;
+  margin: 0 0 6px 0 !important;
+  letter-spacing: 0.01em;
+}
+
+.miraq-checkout-summary-divider {
+  height: 1px;
+  background: #eeede8;
+  margin: 4px 0 !important;
+}
+
+.miraq-checkout-summary-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 11.5px;
+  color: #777;
+  padding: 2px 0 !important;
+}
+
+.miraq-checkout-summary-item {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 65%;
+  color: #555;
+}
+
+.miraq-checkout-summary-total {
+  font-size: 13px;
+  font-weight: 700;
+  color: #1c1c1a;
+  padding-top: 6px !important;
+  border-top: 1px dashed #ddd;
+  margin-top: 4px !important;
+}
+
+/* ── Mobile: fullscreen on viewports ≤768px ── */
+@media (max-width: 768px) {
+  .miraq-checkout-panel {
+    border-radius: 0;
+    position: fixed;
+    inset: 0;
+  }
+}

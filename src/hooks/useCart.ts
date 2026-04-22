@@ -1,5 +1,7 @@
 import { useState, useCallback, useEffect } from "react";
 import type { StoreApiFetch } from "./useStoreApi";
+import type { AddressDict } from "../types/actions";
+import type { ShippingPackage } from "../types/checkout";
 
 // ── WooCommerce Store API cart shape ──────────────────────────────────────────
 // Prices are in minor currency units (e.g. paise for INR, cents for USD).
@@ -39,6 +41,12 @@ export interface WCCart {
     currency_symbol: string;
     currency_minor_unit: number;
   };
+  /** Customer billing address — present in Store API /cart response */
+  billing_address?: AddressDict;
+  /** Customer shipping address — present in Store API /cart response */
+  shipping_address?: AddressDict;
+  /** Shipping packages with available rates — present in Store API /cart response */
+  shipping_rates?: ShippingPackage[];
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -168,5 +176,6 @@ export function useCart(storeApiFetch: StoreApiFetch) {
     addItem,
     removeItem,
     updateQuantity,
+    setCart,
   };
 }
