@@ -1,3 +1,5 @@
+import type { ChatAction } from "./actions";
+
 // ============================================================================
 // Pagination Types
 // ============================================================================
@@ -186,6 +188,8 @@ export interface ChatMessage {
   pagination?: PaginationData;
   /** Pagination data for order results */
   orderPagination?: PaginationData;
+  /** Actions dispatched by this message (only set for live responses, never history) */
+  actions?: ChatAction[];
 }
 
 // ============================================================================
@@ -272,6 +276,8 @@ export interface ChatResponse {
   /** Pagination metadata for order results */
   order_pagination?: PaginationData;
   action?: string;
+  /** New actions envelope — primary signal channel (supersedes legacy `action` field) */
+  actions?: ChatAction[];
 }
 
 // ============================================================================

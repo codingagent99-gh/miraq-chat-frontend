@@ -2,6 +2,7 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { useChat } from "./hooks/useChat";
+import { useChatActions } from "./hooks/useChatActions";
 import { createApiClient } from "./services/api";
 import { WidgetContainer } from "./components/WidgetContainer";
 import { HomeScreen } from "./components/HomeScreen";
@@ -64,6 +65,16 @@ export function ChatWidget({
     updateQuantity,
   } = useCart(storeApiFetch);
 
+  // ── Action dispatcher (new actions[] envelope) ────────────────────────────
+  const { dispatchActions } = useChatActions({
+    addItem,
+    updateQuantity,
+    removeItem,
+    fetchCart,
+    cartItems: cart?.items,
+    setIsCartOpen,
+  });
+
   // ── Chat ──────────────────────────────────────────────────────────────────
   const {
     messages,
@@ -84,6 +95,8 @@ export function ChatWidget({
       typeof customerId === "string" ? parseInt(customerId, 10) : customerId,
     customerEmail,
     customerRole,
+    // New actions envelope — primary signal channel
+    onActions: dispatchActions,
     // Backend fires "trigger_frontend_view_cart" → open panel + fetch latest
     onViewCart: () => {
       setIsCartOpen(true);
