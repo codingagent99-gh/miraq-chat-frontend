@@ -6,7 +6,7 @@ interface CartDisplayProps {
 }
 
 export function CartDisplay({ cart }: CartDisplayProps) {
-  if (cart.item_count === 0) {
+  if (!cart || !cart.items || cart.items.length === 0) {
     return (
       <div className="xpert-cart-empty">
         <FiShoppingCart size={32} />

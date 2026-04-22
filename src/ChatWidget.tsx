@@ -8,18 +8,15 @@ import { HomeScreen } from "./components/HomeScreen";
 import { ChatHeader } from "./components/ChatHeader";
 import { MessageRow } from "./components/MessageRow";
 import { ProductDetailPanel } from "./components/ProductDetailPanel";
-import type { Product } from "./types/api";
+import type { Product, WidgetOptions } from "./types/api";
 import { FiSend, FiX, FiMic, FiMicOff } from "react-icons/fi";
 import { useSpeechRecognition } from "./hooks/useSpeechRecognition";
+import { useCart } from "./hooks/useCart";
+import { CartPanel } from "./components/CartPanel";
+import { useStoreApi } from "./hooks/useStoreApi";
 
-interface ChatWidgetProps {
-  apiKey?: string;
-  apiUrl?: string;
-  customerId?: number;
-  customerEmail?: string;
-  customerName?: string;
-  customerRole?: string;
-  assetBaseUrl?: string;
+export interface ChatWidgetInterface extends WidgetOptions {
+  onViewCart?: () => void;
 }
 
 export function ChatWidget({
@@ -30,26 +27,44 @@ export function ChatWidget({
   customerName,
   customerRole,
   assetBaseUrl,
-}: ChatWidgetProps) {
+  nonce,
+  cartToken,
+  nonceExpires,
+}: ChatWidgetInterface) {
   const MiraQIcon = `${assetBaseUrl}MiraQ-icon.png`;
+  const siteOrigin = import.meta.env.VITE_WP_BASE_URL || window.location.origin;
 
-  // Widget is only functional when customer info is present
   const isLoggedIn = !!(customerId || customerEmail);
 
   const [screen, setScreen] = useState<"home" | "chat">("home");
   const [panelOpen, setPanelOpen] = useState(false);
   const [inputValue, setInputValue] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [isCartOpen, setIsCartOpen] = useState(false); // ← cart panel toggle
   const originalInputRef = useRef("");
-  // ── Product detail state ──
+
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
-  // Lazy initialize the API client so it only ever runs once!
   const apiClientRef = useRef<any>(null);
   if (!apiClientRef.current) {
     apiClientRef.current = createApiClient(apiUrl, apiKey);
   }
 
+  // ── Store API (shared nonce + fetch) ──────────────────────────────────────
+  const { storeApiFetch } = useStoreApi({ nonce, nonceExpires, cartToken });
+
+  // ── Cart state ────────────────────────────────────────────────────────────
+  const {
+    cart,
+    loading: cartLoading,
+    error: cartError,
+    fetchCart,
+    addItem,
+    removeItem,
+    updateQuantity,
+  } = useCart(storeApiFetch);
+
+  // ── Chat ──────────────────────────────────────────────────────────────────
   const {
     messages,
     loading,
@@ -62,13 +77,33 @@ export function ChatWidget({
     loadMore,
     orderPagination,
     loadMoreOrders,
-  } = useChat({ apiUrl, apiKey, customerId, customerEmail, customerRole });
+  } = useChat({
+    apiUrl,
+    apiKey,
+    customerId:
+      typeof customerId === "string" ? parseInt(customerId, 10) : customerId,
+    customerEmail,
+    customerRole,
+    // Backend fires "trigger_frontend_view_cart" → open panel + fetch latest
+    onViewCart: () => {
+      setIsCartOpen(true);
+      fetchCart();
+    },
+    // Backend fires "trigger_frontend_cart_add" → add to real WC cart
+    onAddToCart: async (
+      productId,
+      quantity,
+      variationId,
+      variationAttributes,
+    ) => {
+      await addItem(productId, quantity, variationId, variationAttributes);
+    },
+  });
 
-  // Voice Recognition setup
+  // Voice
   const { isListening, isSupported, transcript, toggleListening } =
     useSpeechRecognition();
 
-  // Safely append spoken words to the existing typed text
   useEffect(() => {
     if (isListening) {
       setInputValue(originalInputRef.current + transcript);
@@ -77,13 +112,14 @@ export function ChatWidget({
 
   const handleMicClick = () => {
     if (!isListening) {
-      // Snapshot existing text so voice is appended, not overwritten
       originalInputRef.current = inputValue + (inputValue.trim() ? " " : "");
     }
     toggleListening();
   };
 
+  // Cart item count — prefer live cart, fall back to last message cart
   const cartCount = (() => {
+    if (cart) return cart.items_count;
     for (let i = messages.length - 1; i >= 0; i--) {
       if (messages[i].cart) return messages[i].cart!.item_count;
     }
@@ -92,9 +128,8 @@ export function ChatWidget({
 
   const handleSend = useCallback(() => {
     if (!inputValue.trim() || loading) return;
-    // Stop mic if active before sending
     if (isListening) toggleListening();
-    originalInputRef.current = ""; // Clear the base text ref
+    originalInputRef.current = "";
     if (editingId) {
       editMessage(editingId, inputValue);
       setEditingId(null);
@@ -139,8 +174,7 @@ export function ChatWidget({
       setTimeout(() => {
         if (inputRef.current) {
           inputRef.current.focus();
-          const len = text.length;
-          inputRef.current.setSelectionRange(len, len);
+          inputRef.current.setSelectionRange(text.length, text.length);
         }
       }, 50);
     },
@@ -153,14 +187,14 @@ export function ChatWidget({
     setTimeout(() => inputRef.current?.focus(), 50);
   }, [inputRef]);
 
-  // ── Product click handler ──
-  const handleProductClick = useCallback((product: Product) => {
-    setSelectedProduct(product);
-  }, []);
-
-  const handleProductDetailClose = useCallback(() => {
-    setSelectedProduct(null);
-  }, []);
+  const handleProductClick = useCallback(
+    (product: Product) => setSelectedProduct(product),
+    [],
+  );
+  const handleProductDetailClose = useCallback(
+    () => setSelectedProduct(null),
+    [],
+  );
 
   const handleAskAbout = useCallback(
     (productName: string) => {
@@ -183,6 +217,7 @@ export function ChatWidget({
     [],
   );
 
+  // ── Home screen ──────────────────────────────────────────────────────────
   if (screen === "home") {
     return (
       <div id="silfra-chat-widget-container">
@@ -192,7 +227,6 @@ export function ChatWidget({
           assetBaseUrl={assetBaseUrl || ""}
         >
           {!isLoggedIn ? (
-            /* ── THE GUEST "LOGIN REQUIRED" SCREEN ── */
             <div
               style={{
                 position: "relative",
@@ -206,7 +240,6 @@ export function ChatWidget({
                 backgroundColor: "#fff",
               }}
             >
-              {/* ── Close Button ── */}
               <button
                 onClick={() => setPanelOpen(false)}
                 style={{
@@ -226,7 +259,6 @@ export function ChatWidget({
               >
                 <FiX size={20} />
               </button>
-
               <img
                 src={MiraQIcon}
                 alt="MiraQ"
@@ -237,15 +269,7 @@ export function ChatWidget({
                   borderRadius: "50%",
                 }}
               />
-              <h3
-                style={{
-                  margin: "0 0 0.5rem 0",
-                  color: "#111",
-                  fontSize: "18px",
-                }}
-              >
-                Welcome! 👋
-              </h3>
+              <h3 style={{ margin: "0 0 0.5rem 0" }}>Login Required</h3>
               <p
                 style={{
                   margin: "0",
@@ -259,7 +283,6 @@ export function ChatWidget({
               </p>
             </div>
           ) : (
-            /* ── THE LOGGED-IN HOME SCREEN ── */
             <HomeScreen
               onStartChat={() => setScreen("chat")}
               onClose={() => setPanelOpen(false)}
@@ -273,6 +296,7 @@ export function ChatWidget({
     );
   }
 
+  // ── Chat screen ──────────────────────────────────────────────────────────
   const lastBotMessage = (() => {
     for (let i = messages.length - 1; i >= 0; i--) {
       if (messages[i].role === "bot") return messages[i];
@@ -284,7 +308,6 @@ export function ChatWidget({
     !loading && lastBotMessage?.products && lastBotMessage.products.length > 0
       ? lastBotMessage
       : null;
-
   const activePagination = lastProductBotMessage?.pagination ?? pagination;
   const showServerLoadMore =
     activePagination?.has_more && !loading && lastProductBotMessage != null;
@@ -293,7 +316,6 @@ export function ChatWidget({
     !loading && lastBotMessage?.orders && lastBotMessage.orders.length > 1
       ? lastBotMessage
       : null;
-
   const activeOrderPagination =
     lastOrderBotMessage?.orderPagination ?? orderPagination;
   const showOrderLoadMore =
@@ -306,7 +328,7 @@ export function ChatWidget({
         setPanelOpen={setPanelOpen}
         assetBaseUrl={assetBaseUrl || ""}
       >
-        <div className="xpert-chat-window">
+        <div className="xpert-chat-window" style={{ position: "relative" }}>
           <ChatHeader
             cartCount={cartCount}
             customerName={customerName}
@@ -314,6 +336,7 @@ export function ChatWidget({
             onBack={() => setScreen("home")}
             onClose={() => false}
           />
+
           <div className="xpert-chat-messages">
             {messages.map((message) => (
               <MessageRow
@@ -323,9 +346,9 @@ export function ChatWidget({
                 onSuggestion={handleSuggestionClick}
                 onFilterSuggestion={sendFilterSuggestion}
                 onEdit={handleEditClick}
-                onOrderClick={(_orderId, orderNumber) => {
-                  sendMessage(`show me order #${orderNumber}`);
-                }}
+                onOrderClick={(_orderId, orderNumber) =>
+                  sendMessage(`show me order #${orderNumber}`)
+                }
                 onProductClick={handleProductClick}
                 miraQIcon={MiraQIcon}
               />
@@ -383,9 +406,9 @@ export function ChatWidget({
                 <div className="xpert-message-bubble">
                   <div className="xpert-bubble-content">
                     <div className="dot-loader">
-                      <span></span>
-                      <span></span>
-                      <span></span>
+                      <span />
+                      <span />
+                      <span />
                     </div>
                   </div>
                 </div>
@@ -394,6 +417,7 @@ export function ChatWidget({
 
             <div ref={bottomRef} />
           </div>
+
           {editingId && (
             <div className="xpert-edit-indicator">
               <span className="xpert-edit-indicator-label">
@@ -409,6 +433,7 @@ export function ChatWidget({
               </button>
             </div>
           )}
+
           <div
             className={`xpert-chat-input-area${editingId ? " xpert-chat-input-area--editing" : ""}`}
             style={{ display: "flex", alignItems: "center", gap: "8px" }}
@@ -432,8 +457,6 @@ export function ChatWidget({
               spellCheck={true}
               style={{ flex: 1 }}
             />
-
-            {/* Microphone Button */}
             {isSupported && !editingId && (
               <button
                 className={`xpert-mic-btn ${isListening ? "listening" : ""}`}
@@ -457,7 +480,6 @@ export function ChatWidget({
                 {isListening ? <FiMicOff size={20} /> : <FiMic size={20} />}
               </button>
             )}
-
             <button
               className="xpert-send-btn"
               onClick={handleSend}
@@ -468,9 +490,11 @@ export function ChatWidget({
               <FiSend size={18} />
             </button>
           </div>
+
           <p className="xpert-footer-hint">
             Powered by AI • Shopping made simple
           </p>
+
           {/* ── Product Detail Overlay ── */}
           {selectedProduct && (
             <ProductDetailPanel
@@ -480,6 +504,19 @@ export function ChatWidget({
               onClose={handleProductDetailClose}
               onAskAbout={handleAskAbout}
               onOrder={handleOrderProduct}
+            />
+          )}
+
+          {/* ── Cart Panel Overlay ── */}
+          {isCartOpen && (
+            <CartPanel
+              cart={cart}
+              loading={cartLoading}
+              error={cartError}
+              siteOrigin={siteOrigin}
+              onClose={() => setIsCartOpen(false)}
+              onRemove={removeItem}
+              onUpdateQuantity={updateQuantity}
             />
           )}
         </div>

@@ -80,6 +80,13 @@ export function ProductDetailPanel({
   });
 
   const images = product?.images ?? [];
+
+  const getSafeImgSrc = (img: any) => {
+    if (typeof img === "string") return img;
+    if (img && typeof img === "object" && img.src) return img.src;
+    return "";
+  };
+
   const nextImage = useCallback(() => {
     setImageIndex((i) => (i + 1) % Math.max(images.length, 1));
   }, [images.length]);
@@ -215,7 +222,7 @@ export function ProductDetailPanel({
           {images.length > 0 && (
             <div className="xpert-detail-gallery">
               <img
-                src={images[imageIndex]}
+                src={getSafeImgSrc(images[imageIndex])}
                 alt={product.name}
                 className="xpert-detail-image"
               />
@@ -377,14 +384,25 @@ export function ProductDetailPanel({
           {product.attributes && product.attributes.length > 0 && (
             <div className="xpert-detail-attributes">
               <h4 className="xpert-detail-section-title">Specifications</h4>
-              {product.attributes.map((attr, idx) => (
-                <div key={idx} className="xpert-detail-attr-row">
-                  <span className="xpert-detail-attr-name">{attr.name}</span>
-                  <span className="xpert-detail-attr-value">
-                    {attr.options.join(", ")}
-                  </span>
-                </div>
-              ))}
+              {product.attributes.map((attr: any, idx: number) => {
+                const displayValue =
+                  attr.options && Array.isArray(attr.options)
+                    ? attr.options.join(", ")
+                    : attr.option
+                      ? String(attr.option)
+                      : "";
+
+                if (!displayValue) return null;
+
+                return (
+                  <div key={idx} className="xpert-detail-attr-row">
+                    <span className="xpert-detail-attr-name">{attr.name}</span>
+                    <span className="xpert-detail-attr-value">
+                      {displayValue}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
           )}
           {/* Full description (collapsible) */}

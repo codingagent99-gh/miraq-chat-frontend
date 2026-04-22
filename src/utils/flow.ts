@@ -43,8 +43,12 @@ export function buildFlowContext(
   const newState: FlowState =
     res.flow_state ?? res.metadata?.flow_state ?? "idle";
 
-  // Reset everything when flow returns to idle or closing
-  if (newState === "idle" || newState === "closing") {
+  // Add "awaiting_anything_else" to the reset condition
+  if (
+    newState === "idle" ||
+    newState === "closing" ||
+    newState === "awaiting_anything_else"
+  ) {
     return { flow_state: newState };
   }
 

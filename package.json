@@ -7,6 +7,8 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "build:prod": "tsc -b && vite build --mode production",
+    "build:wip": "tsc -b && vite build --mode wip",
+    "build:geoffg7": "tsc -b && vite build --mode geoffg7",
     "lint": "eslint .",
     "preview": "vite preview"
   },

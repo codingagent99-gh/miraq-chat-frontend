@@ -7,6 +7,7 @@ import { OrderListCards } from "./OrderListCards";
 import { OrderConfirmation } from "./OrderConfirmation";
 import { SuggestionChips } from "./SuggestionChips";
 import { FilterSuggestionChips } from "./FilterSuggestionChips";
+import { CategoryGrid } from "./CategoryGrid";
 
 interface MessageRowProps {
   message: ChatMessage;
@@ -124,6 +125,13 @@ export function MessageRow({
             message.orders.length >= 1 &&
             !message.paymentUrl
           ) && <ReactMarkdown>{message.text}</ReactMarkdown>}
+
+          {message.categories && message.categories.length > 0 && (
+            <CategoryGrid
+              categories={message.categories}
+              onCategoryClick={onSuggestion}
+            />
+          )}
 
           {message.products && message.products.length > 0 && (
             <ProductCards

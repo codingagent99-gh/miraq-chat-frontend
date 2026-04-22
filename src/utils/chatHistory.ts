@@ -1,9 +1,5 @@
 import type { ChatMessage } from "../types/api";
 
-// 🚀 Increased from 20 to 500!
-// This allows users to scroll up and load massive amounts of history
-// without the app secretly deleting older messages to save space,
-// while still protecting the browser from crashing if a session gets absurdly long.
 const MAX_MESSAGES = 500;
 
 /**

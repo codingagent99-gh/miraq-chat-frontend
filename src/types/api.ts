@@ -176,6 +176,7 @@ export interface ChatMessage {
   suggestions?: string[];
   /** Filter suggestions for zero-result searches */
   filterSuggestions?: FilterSuggestion[];
+  categories?: Category[];
   cart?: CartData;
   paymentUrl?: string;
   timestamp: Date;
@@ -226,6 +227,7 @@ export interface ChatResponseMetadata {
   timestamp?: string;
   flow_state?: FlowState;
   pending_product_name?: string;
+  categories?: Category[];
   pending_product_id?: number;
   pending_quantity?: number;
   pending_variation_id?: number;
@@ -237,6 +239,11 @@ export interface ChatResponseMetadata {
   /** Order ID when entering order detail flow */
   pending_order_id?: number;
   pending_semantic_match?: Record<string, any>;
+  product_id?: number;
+  variation_id?: number;
+  quantity?: number;
+  response_time_ms?: number;
+  variation_attributes?: { attribute: string; value: string }[];
 }
 
 export interface ChatResponse {
@@ -244,6 +251,7 @@ export interface ChatResponse {
   products?: Product[];
   orders?: Order[];
   total_orders?: number;
+  categories?: Category[];
   purchase_info?: PurchaseInfo;
   product?: Product;
   filters_applied?: Record<string, unknown>;
@@ -263,6 +271,7 @@ export interface ChatResponse {
   pagination?: PaginationData;
   /** Pagination metadata for order results */
   order_pagination?: PaginationData;
+  action?: string;
 }
 
 // ============================================================================
@@ -280,6 +289,13 @@ export interface HistoryResponse {
   messages: HistoryEntry[];
   has_more: boolean;
   next_page: number | null;
+}
+
+export interface Category {
+  id: number;
+  name: string;
+  slug: string;
+  count?: number;
 }
 
 // ============================================================================
@@ -323,4 +339,18 @@ export interface Product {
   type?: string;
   /** Stock quantity (may be null if not tracked) */
   stock_quantity?: number | null;
+}
+
+export interface WidgetOptions {
+  appId?: string;
+  apiKey?: string;
+  apiUrl?: string;
+  customerId?: string | number;
+  customerEmail?: string;
+  customerName?: string;
+  customerRole?: string;
+  assetBaseUrl?: string;
+  nonce?: string;
+  nonceExpires?: number; // JS timestamp in ms
+  cartToken?: string;
 }

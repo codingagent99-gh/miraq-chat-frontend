@@ -39,6 +39,16 @@ export interface UseChatOptions {
   customerId?: number;
   customerEmail?: string;
   customerRole?: string;
+  nonce?: string;
+  nonceExpires?: number;
+  cartToken?: string;
+  onViewCart?: () => void;
+  onAddToCart?: (
+    productId: number,
+    quantity: number,
+    variationId?: number,
+    variationAttributes?: { attribute: string; value: string }[],
+  ) => Promise<void>;
 }
 
 const WELCOME_MESSAGE: ChatMessage = {
@@ -65,7 +75,7 @@ export function useChat(options: UseChatOptions = {}) {
   );
   const lastQueryRef = useRef<string | null>(null);
 
-  // 🚀 New State Variables for History Pagination
+  // State Variables for History Pagination
   const [historyPage, setHistoryPage] = useState(1);
   const [hasMoreHistory, setHasMoreHistory] = useState(false);
   const [loadingHistory, setLoadingHistory] = useState(false);
@@ -82,7 +92,61 @@ export function useChat(options: UseChatOptions = {}) {
 
   const apiRef = useRef(createApiClient(options.apiUrl, options.apiKey));
 
-  // ── 🚀 HYDRATE INITIAL CHAT HISTORY FROM POSTGRES ──
+  // ── Nonce state for WooCommerce Store API ──
+  const nonceRef = useRef<string>(options.nonce ?? "");
+  const nonceExpiresRef = useRef<number>(options.nonceExpires ?? 0);
+  const cartTokenRef = useRef<string>(options.cartToken ?? "");
+  // Site URL = current origin since widget runs ON the WP site
+  const siteOrigin = import.meta.env.VITE_WP_BASE_URL || window.location.origin;
+
+  const getFreshNonce = useCallback(async (): Promise<string> => {
+    // 1-minute buffer before actual expiry
+    if (Date.now() < nonceExpiresRef.current - 60_000) {
+      return nonceRef.current;
+    }
+    // Expired — hit the WP refresh endpoint
+    try {
+      const res = await fetch(
+        `${siteOrigin}/wp-json/custom-api/v1/refresh-nonce`,
+        { credentials: "include" },
+      );
+      const data = await res.json();
+      nonceRef.current = data.nonce;
+      nonceExpiresRef.current = data.expires;
+    } catch (e) {
+      console.warn("[MiraQ] Nonce refresh failed, using stale nonce", e);
+    }
+    return nonceRef.current;
+  }, [siteOrigin]);
+
+  const storeApiFetch = useCallback(
+    async (path: string, init: RequestInit = {}): Promise<Response> => {
+      const nonce = await getFreshNonce();
+
+      const response = await fetch(`${siteOrigin}/wp-json/wc/store/v1${path}`, {
+        ...init,
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          Nonce: nonce,
+          "Cart-Token": cartTokenRef.current,
+          ...(init.headers ?? {}),
+        },
+      });
+
+      // WooCommerce returns a fresh nonce on every response — capture it
+      const freshNonce = response.headers.get("Nonce");
+      if (freshNonce) {
+        nonceRef.current = freshNonce;
+        nonceExpiresRef.current = Date.now() + 12 * 60 * 60 * 1000;
+      }
+
+      return response;
+    },
+    [getFreshNonce, siteOrigin],
+  );
+
+  // ── INITIAL CHAT HISTORY FROM POSTGRES ──
   useEffect(() => {
     const prevUserId = prevUserIdRef.current;
 
@@ -184,16 +248,45 @@ export function useChat(options: UseChatOptions = {}) {
   }, []);
 
   const processChatResponse = useCallback(
-    (res: ChatResponse) => {
+    async (res: ChatResponse) => {
       if (res.session_id) {
         sessionIdRef.current = res.session_id;
         saveSessionId(res.session_id, userId);
       }
 
       flowRef.current = buildFlowContext(flowRef.current, res);
-
       setPagination(res.pagination || null);
       setOrderPagination(res.order_pagination || null);
+
+      if (res.action === "trigger_frontend_view_cart") {
+        options.onViewCart?.();
+      }
+
+      // ADD the parallel block:
+      if (res.action === "trigger_frontend_cart_add") {
+        const { product_id, quantity, variation_id, variation_attributes } =
+          res.metadata ?? {};
+        if (product_id) {
+          try {
+            await options.onAddToCart?.(
+              product_id,
+              quantity ?? 1,
+              variation_id,
+              variation_attributes ?? [],
+            );
+          } catch (e) {
+            // Cart add failed — return an error message instead of the success message
+            return {
+              id: uuidv4(),
+              role: "bot" as const,
+              text: "❌ Sorry, I couldn't add that item to your cart. Please try selecting the item again.",
+              timestamp: new Date(),
+              // suggestions: ["Try again", "View cart", "Browse products"],
+              isFlowPrompt: false,
+            };
+          }
+        }
+      }
 
       const botMsg: ChatMessage = {
         id: uuidv4(),
@@ -201,6 +294,7 @@ export function useChat(options: UseChatOptions = {}) {
         text: res.bot_message,
         products: res.products?.length ? res.products : undefined,
         orders: res.orders?.length ? res.orders : undefined,
+        categories: res.categories?.length ? res.categories : undefined,
         purchase_info: res.purchase_info,
         intent: res.intent,
         suggestions: res.suggestions?.length ? res.suggestions : undefined,
@@ -216,7 +310,7 @@ export function useChat(options: UseChatOptions = {}) {
       };
       return botMsg;
     },
-    [userId],
+    [userId, storeApiFetch, options], // ← add storeApiFetch, options
   );
 
   const buildUserContext = useCallback(() => {
@@ -262,9 +356,9 @@ export function useChat(options: UseChatOptions = {}) {
             user_context: buildUserContext(),
           },
           sessionIdRef.current,
-        ); // 🚀 Pass Session ID to api wrapper!
+        ); // Pass Session ID to api wrapper!
 
-        const botMsg = processChatResponse(res);
+        const botMsg = await processChatResponse(res);
         setMessages((prev) => enqueuMessages(prev, botMsg));
       } catch (err) {
         const detail =
@@ -319,9 +413,9 @@ export function useChat(options: UseChatOptions = {}) {
             user_context: buildUserContext(),
           },
           sessionIdRef.current,
-        ); // 🚀 Pass Session ID!
+        ); // Pass Session ID!
 
-        const botMsg = processChatResponse(res);
+        const botMsg = await processChatResponse(res);
         setMessages((prev) => enqueuMessages(prev, botMsg));
       } catch (err) {
         const detail =
@@ -368,7 +462,7 @@ export function useChat(options: UseChatOptions = {}) {
           sessionIdRef.current,
         ); // 🚀 Pass Session ID!
 
-        const botMsg = processChatResponse(res);
+        const botMsg = await processChatResponse(res);
         setMessages((prev) => enqueuMessages(prev, botMsg));
       } catch (err) {
         const detail =
@@ -407,9 +501,9 @@ export function useChat(options: UseChatOptions = {}) {
           user_context: buildUserContext(),
         },
         sessionIdRef.current,
-      ); // 🚀 Pass Session ID!
+      ); // Pass Session ID!
 
-      const botMsg = processChatResponse(res);
+      const botMsg = await processChatResponse(res);
       setMessages((prev) => enqueuMessages(prev, botMsg));
     } catch (err) {
       const detail =
@@ -452,7 +546,7 @@ export function useChat(options: UseChatOptions = {}) {
         sessionIdRef.current,
       );
 
-      const botMsg = processChatResponse(res);
+      const botMsg = await processChatResponse(res);
       setMessages((prev) => enqueuMessages(prev, botMsg));
     } catch (err) {
       const detail =
