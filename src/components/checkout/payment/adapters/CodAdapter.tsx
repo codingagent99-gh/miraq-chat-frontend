@@ -18,7 +18,9 @@ const CodComponent: React.FC<PaymentGatewayAdapterProps> = ({
 
   return (
     <div className="miraq-cod-info">
-      <p>Pay with cash when your order is delivered.</p>
+      <p style={{ fontSize: "12px", color: "#555", margin: 0, lineHeight: 1.5 }}>
+        Pay with cash when your order is delivered.
+      </p>
     </div>
   );
 };

@@ -26,7 +26,7 @@ export function ConfirmationStep({
         `✅ Order #${order.order_id} placed — you'll receive an email shortly. Anything else?`,
       );
     }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [onPostBotMessage, order.order_id]); // deps included; useRef guards against double-post
 
   const viewOrderUrl = `${siteOrigin}/my-account/view-order/${order.order_id}`;
 
