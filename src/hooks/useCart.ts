@@ -47,6 +47,8 @@ export interface WCCart {
   shipping_address?: AddressDict;
   /** Shipping packages with available rates — present in Store API /cart response */
   shipping_rates?: ShippingPackage[];
+  /** Available payment method slugs — e.g. ['cod', 'stripe'] */
+  payment_methods?: string[];
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

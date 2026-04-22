@@ -190,6 +190,8 @@ export interface ChatMessage {
   orderPagination?: PaginationData;
   /** Actions dispatched by this message (only set for live responses, never history) */
   actions?: ChatAction[];
+  /** Optional metadata — e.g. { synthetic: true } for locally-injected bot messages */
+  metadata?: Record<string, unknown>;
 }
 
 // ============================================================================

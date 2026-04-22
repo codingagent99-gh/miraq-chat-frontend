@@ -16,6 +16,8 @@ import { useCart } from "./hooks/useCart";
 import { CartPanel } from "./components/CartPanel";
 import { CheckoutPanel } from "./components/checkout/CheckoutPanel";
 import { useStoreApi } from "./hooks/useStoreApi";
+// Side-effect import: registers built-in payment adapters before PaymentStep renders
+import "./components/checkout/payment";
 
 export interface ChatWidgetInterface extends WidgetOptions {
   onViewCart?: () => void;
@@ -86,6 +88,7 @@ export function ChatWidget({
     sendMessage,
     editMessage,
     sendFilterSuggestion,
+    appendBotMessage,
     bottomRef,
     inputRef,
     pagination,
@@ -548,7 +551,9 @@ export function ChatWidget({
               cart={cart}
               onCartUpdate={setCart}
               cartToken={cartToken ?? null}
+              siteOrigin={siteOrigin}
               onClose={() => setIsCheckoutOpen(false)}
+              onPostBotMessage={appendBotMessage}
             />
           )}
         </div>
