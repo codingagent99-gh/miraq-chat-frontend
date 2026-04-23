@@ -73,10 +73,17 @@ export function CheckoutPanel({
   onClose,
   onPostBotMessage,
 }: CheckoutPanelProps) {
-  const checkout = useCheckout({ storeApiFetch, cart, onCartUpdate, cartToken });
+  const checkout = useCheckout({
+    storeApiFetch,
+    cart,
+    onCartUpdate,
+    cartToken,
+  });
 
   // Panel-level payment payload — lives here so ReviewStep can consume it
-  const [paymentPayload, setPaymentPayload] = useState<PaymentPayload | null>(null);
+  const [paymentPayload, setPaymentPayload] = useState<PaymentPayload | null>(
+    null,
+  );
 
   // Transition from idle → collecting_address on mount
   useEffect(() => {
@@ -84,6 +91,15 @@ export function CheckoutPanel({
       checkout.setStep("collecting_address");
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Zero-total carts don't have a Payment step to populate paymentPayload, so
+  // the ReviewStep's "Place Order" button would stay disabled forever.
+  // Synthesize a stub payload as soon as Woo tells us no payment is required.
+  useEffect(() => {
+    if (cart?.needs_payment === false && !paymentPayload) {
+      setPaymentPayload({ payment_method: "", payment_data: [] });
+    }
+  }, [cart?.needs_payment, paymentPayload]);
 
   const activeIndex = stepToIndex(checkout.step);
   const symbol = cart?.totals.currency_symbol ?? "₹";
@@ -238,11 +254,16 @@ export function CheckoutPanel({
             </div>
           ))}
 
-          <div className="miraq-checkout-summary-divider" style={{ margin: "8px 0" }} />
+          <div
+            className="miraq-checkout-summary-divider"
+            style={{ margin: "8px 0" }}
+          />
 
           <div className="miraq-checkout-summary-row">
             <span>Subtotal</span>
-            <span>{formatPrice(cart.totals.total_items, symbol, minorUnit)}</span>
+            <span>
+              {formatPrice(cart.totals.total_items, symbol, minorUnit)}
+            </span>
           </div>
 
           {parseInt(cart.totals.total_shipping, 10) > 0 && (
@@ -257,15 +278,17 @@ export function CheckoutPanel({
           {parseInt(cart.totals.total_tax, 10) > 0 && (
             <div className="miraq-checkout-summary-row">
               <span>Tax</span>
-              <span>{formatPrice(cart.totals.total_tax, symbol, minorUnit)}</span>
+              <span>
+                {formatPrice(cart.totals.total_tax, symbol, minorUnit)}
+              </span>
             </div>
           )}
 
-          <div
-            className="miraq-checkout-summary-row miraq-checkout-summary-total"
-          >
+          <div className="miraq-checkout-summary-row miraq-checkout-summary-total">
             <span>Total</span>
-            <span>{formatPrice(cart.totals.total_price, symbol, minorUnit)}</span>
+            <span>
+              {formatPrice(cart.totals.total_price, symbol, minorUnit)}
+            </span>
           </div>
         </div>
       )}

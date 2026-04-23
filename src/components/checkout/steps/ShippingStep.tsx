@@ -45,6 +45,12 @@ export function ShippingStep({
   }
 
   const hasPackages = shippingPackages.length > 0;
+  const cartNeedsShipping = cart?.needs_shipping !== false;
+  const cartNeedsPayment = cart?.needs_payment !== false;
+  const canContinue = !isLoading && (!cartNeedsShipping || !!selectedRateId);
+  const nextStep: CheckoutStep = cartNeedsPayment
+    ? "awaiting_payment"
+    : "placing_order";
 
   return (
     <div style={{ padding: "16px" }}>
@@ -60,15 +66,66 @@ export function ShippingStep({
         Shipping Method
       </h3>
 
-      {!hasPackages && !isLoading && (
-        <p style={{ fontSize: "13px", color: "#888", textAlign: "center" }}>
-          No shipping methods available for your address.
-        </p>
+      {/* Cart doesn't need shipping (Woo signal — virtual items, local-pickup,
+          store policy, etc.). Tell the user clearly and let them continue. */}
+      {!cartNeedsShipping && !isLoading && (
+        <div
+          style={{
+            padding: "14px",
+            background: "#f5f4f1",
+            borderRadius: "11px",
+            fontSize: "13px",
+            color: "#1c1c1a",
+            marginBottom: "12px",
+          }}
+        >
+          No shipping selection is needed for this order. You can continue to
+          review.
+        </div>
+      )}
+
+      {/* Cart wants shipping but Woo returned zero rates → bad address/zone. */}
+      {cartNeedsShipping && !hasPackages && !isLoading && (
+        <div
+          style={{
+            padding: "12px 14px",
+            background: "#fef2f2",
+            border: "1px solid #fecaca",
+            borderRadius: "11px",
+            marginBottom: "12px",
+          }}
+        >
+          <p
+            style={{ fontSize: "13px", color: "#ef4444", margin: "0 0 8px 0" }}
+          >
+            No shipping methods available for your address.
+          </p>
+          <button
+            type="button"
+            onClick={() => setStep("collecting_address")}
+            style={{
+              fontSize: "12px",
+              background: "transparent",
+              color: "#ef4444",
+              border: "1px solid #fecaca",
+              borderRadius: "8px",
+              padding: "6px 10px",
+              cursor: "pointer",
+              fontFamily: "inherit",
+            }}
+          >
+            Edit address
+          </button>
+        </div>
       )}
 
       {isLoading && (
         <div
-          style={{ display: "flex", justifyContent: "center", padding: "20px" }}
+          style={{
+            display: "flex",
+            justifyContent: "center",
+            padding: "20px",
+          }}
         >
           <div className="dot-loader">
             <span />
@@ -95,7 +152,9 @@ export function ShippingStep({
                 {pkg.name}
               </p>
             )}
-            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+            <div
+              style={{ display: "flex", flexDirection: "column", gap: "8px" }}
+            >
               {pkg.shipping_rates.map((rate) => {
                 const isSelected = rate.rate_id === selectedRateId;
                 return (
@@ -118,18 +177,43 @@ export function ShippingStep({
                       name={`shipping-rate-${pkg.package_id}`}
                       value={rate.rate_id}
                       checked={isSelected}
-                      onChange={() => handleSelect(pkg.package_id, rate.rate_id)}
-                      style={{ accentColor: "#1c1c1a", width: "15px", height: "15px" }}
+                      onChange={() =>
+                        handleSelect(pkg.package_id, rate.rate_id)
+                      }
+                      style={{
+                        accentColor: "#1c1c1a",
+                        width: "15px",
+                        height: "15px",
+                      }}
                     />
-                    <span style={{ flex: 1, fontSize: "13px", color: "#1c1c1a", fontWeight: isSelected ? 600 : 400 }}>
+                    <span
+                      style={{
+                        flex: 1,
+                        fontSize: "13px",
+                        color: "#1c1c1a",
+                        fontWeight: isSelected ? 600 : 400,
+                      }}
+                    >
                       {rate.name}
                       {rate.delivery_time && (
-                        <span style={{ fontSize: "11px", color: "#999", marginLeft: "6px" }}>
+                        <span
+                          style={{
+                            fontSize: "11px",
+                            color: "#999",
+                            marginLeft: "6px",
+                          }}
+                        >
                           ({rate.delivery_time})
                         </span>
                       )}
                     </span>
-                    <span style={{ fontSize: "13px", fontWeight: 600, color: "#1c1c1a" }}>
+                    <span
+                      style={{
+                        fontSize: "13px",
+                        fontWeight: 600,
+                        color: "#1c1c1a",
+                      }}
+                    >
                       {parseInt(rate.price, 10) === 0
                         ? "Free"
                         : formatPrice(rate.price, symbol, minorUnit)}
@@ -149,8 +233,8 @@ export function ShippingStep({
 
       <button
         type="button"
-        disabled={!selectedRateId || isLoading}
-        onClick={() => setStep("placing_order")}
+        disabled={!canContinue}
+        onClick={() => setStep(nextStep)}
         style={{
           marginTop: "8px",
           width: "100%",
@@ -163,8 +247,8 @@ export function ShippingStep({
           fontSize: "13px",
           fontWeight: 600,
           letterSpacing: "0.04em",
-          cursor: !selectedRateId || isLoading ? "not-allowed" : "pointer",
-          opacity: !selectedRateId || isLoading ? 0.5 : 1,
+          cursor: canContinue ? "pointer" : "not-allowed",
+          opacity: canContinue ? 1 : 0.5,
           transition: "opacity 0.2s",
         }}
       >

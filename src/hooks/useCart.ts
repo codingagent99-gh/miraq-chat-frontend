@@ -49,6 +49,21 @@ export interface WCCart {
   shipping_rates?: ShippingPackage[];
   /** Available payment method slugs — e.g. ['cod', 'stripe'] */
   payment_methods?: string[];
+
+  // ── Shipping / fulfilment signals from Store API ──────────────────────────
+  /**
+   * Whether this cart requires physical shipping. Woo sets this to `false`
+   * when every item is virtual/downloadable, when local-pickup is forced,
+   * or when no shipping zone applies. When `false`, the checkout should
+   * skip the shipping-rate selection step.
+   */
+  needs_shipping?: boolean;
+  /** Whether shipping totals have been calculated yet for the current address. */
+  has_calculated_shipping?: boolean;
+  /** Whether the order requires payment (false for zero-total carts). */
+  needs_payment?: boolean;
+  /** Items requiring payment, e.g. ["products"]. */
+  payment_requirements?: string[];
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
