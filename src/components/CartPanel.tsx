@@ -219,19 +219,15 @@ export function CartPanel({
             </div>
           </div>
 
-          <a
-            href={`${siteOrigin}/checkout`}
-            className="miraq-cart-checkout-btn"
-          >
-            Proceed to Checkout <FiArrowRight size={14} />
-          </a>
-
           {onCheckout && (
             <button
               className="miraq-cart-checkout-btn"
               onClick={onCheckout}
               disabled={cart.items_count === 0}
-              style={{ marginTop: 0, cursor: cart.items_count === 0 ? "not-allowed" : "pointer" }}
+              style={{
+                marginTop: 0,
+                cursor: cart.items_count === 0 ? "not-allowed" : "pointer",
+              }}
               type="button"
             >
               Checkout <FiArrowRight size={14} />
