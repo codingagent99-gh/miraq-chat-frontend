@@ -44,7 +44,6 @@ export function CartPanel({
   cart,
   loading,
   error,
-  siteOrigin,
   onClose,
   onRemove,
   onUpdateQuantity,

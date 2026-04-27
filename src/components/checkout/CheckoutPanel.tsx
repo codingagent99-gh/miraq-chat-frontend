@@ -80,7 +80,8 @@ export function CheckoutPanel({
     cartToken,
   });
 
-  // Panel-level payment payload — lives here so ReviewStep can consume it
+  // Panel-level payment payload — lives here so ReviewStep can consume it.
+  // Only tracks what the user explicitly chose in PaymentStep.
   const [paymentPayload, setPaymentPayload] = useState<PaymentPayload | null>(
     null,
   );
@@ -92,27 +93,38 @@ export function CheckoutPanel({
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Zero-total carts don't have a Payment step to populate paymentPayload, so
-  // the ReviewStep's "Place Order" button would stay disabled forever.
-  // Synthesize a stub payload as soon as Woo tells us no payment is required.
-  useEffect(() => {
-    if (cart?.needs_payment === false && !paymentPayload) {
-      setPaymentPayload({ payment_method: "", payment_data: [] });
-    }
-  }, [cart?.needs_payment, paymentPayload]);
+  // ── Derive the effective payload — no setState, no useEffect, no useMemo.
+  // React Compiler handles memoization automatically; a plain const is correct.
+  //
+  // Priority:
+  //  1. User explicitly selected via PaymentStep  → use it as-is
+  //  2. Cart needs no payment (zero total)         → empty stub so button unlocks
+  //  3. Only one payment method available (e.g. COD) → auto-select it
+  //  4. Anything else                              → null (button stays disabled
+  //                                                  until user picks in PaymentStep)
+  const effectivePaymentPayload: PaymentPayload | null = (() => {
+    if (paymentPayload) return paymentPayload;
+    if (cart?.needs_payment === false)
+      return { payment_method: "", payment_data: [] };
+    if (cart?.needs_payment === true && cart.payment_methods?.length === 1)
+      return { payment_method: cart.payment_methods[0], payment_data: [] };
+    return null;
+  })();
+
+  const selectedAdapter = effectivePaymentPayload
+    ? (getPaymentAdapter(effectivePaymentPayload.payment_method) ?? null)
+    : null;
 
   const activeIndex = stepToIndex(checkout.step);
   const symbol = cart?.totals.currency_symbol ?? "₹";
   const minorUnit = cart?.totals.currency_minor_unit ?? 2;
 
   function handleStepClick(targetIndex: number) {
-    // Only allow navigating to a step the user has already completed
     if (targetIndex >= activeIndex) return;
     checkout.setStep(STEPS[targetIndex].step);
   }
 
   function renderActiveStep() {
-    // Confirmation screen overrides the normal step body
     if (checkout.step === "complete" && checkout.order) {
       return (
         <ConfirmationStep
@@ -161,10 +173,6 @@ export function CheckoutPanel({
         ) : null;
       case "placing_order":
       case "error": {
-        // Derive the currently-selected adapter from the payload (for validate())
-        const selectedAdapter = paymentPayload
-          ? (getPaymentAdapter(paymentPayload.payment_method) ?? null)
-          : null;
         return (
           <ReviewStep
             cart={cart}
@@ -172,7 +180,7 @@ export function CheckoutPanel({
             order={checkout.order}
             isLoading={checkout.isLoading}
             error={checkout.step === "error" ? checkout.error : null}
-            paymentPayload={paymentPayload}
+            paymentPayload={effectivePaymentPayload}
             selectedAdapter={selectedAdapter}
             onPlaceOrder={async (payload) => {
               await checkout.placeOrder(payload);

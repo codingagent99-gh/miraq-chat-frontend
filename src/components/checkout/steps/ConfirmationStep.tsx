@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { FiCheck, FiExternalLink } from "react-icons/fi";
+import { FiCheck } from "react-icons/fi";
 import type { OrderConfirmation } from "../../../types/checkout";
 
 interface ConfirmationStepProps {
@@ -11,7 +11,6 @@ interface ConfirmationStepProps {
 
 export function ConfirmationStep({
   order,
-  siteOrigin,
   onBackToChat,
   onPostBotMessage,
 }: ConfirmationStepProps) {
@@ -28,7 +27,7 @@ export function ConfirmationStep({
     }
   }, [onPostBotMessage, order.order_id]); // deps included; useRef guards against double-post
 
-  const viewOrderUrl = `${siteOrigin}/my-account/view-order/${order.order_id}`;
+  // const viewOrderUrl = `${siteOrigin}/my-account/view-order/${order.order_id}`;
 
   return (
     <div
@@ -76,12 +75,10 @@ export function ConfirmationStep({
         )}
       </div>
 
-      <p style={{ fontSize: "12px", color: "#888", margin: 0 }}>
-        A confirmation email is on its way.
-      </p>
-
-      <div style={{ display: "flex", gap: "8px", marginTop: "8px", width: "100%" }}>
-        <a
+      <div
+        style={{ display: "flex", gap: "8px", marginTop: "8px", width: "100%" }}
+      >
+        {/* <a
           href={viewOrderUrl}
           target="_blank"
           rel="noopener noreferrer"
@@ -103,7 +100,7 @@ export function ConfirmationStep({
           }}
         >
           View order <FiExternalLink size={12} />
-        </a>
+        </a> */}
         <button
           type="button"
           onClick={onBackToChat}
