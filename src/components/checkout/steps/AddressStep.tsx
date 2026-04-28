@@ -5,7 +5,8 @@ import type { AddressDict } from "../../../types/actions";
 import type { WCCart } from "../../../hooks/useCart";
 import type { CheckoutStep } from "../../../types/checkout";
 import { SavedAddressConfirmCard } from "../SavedAddressConfirmCard";
-import { AddressForm } from "../fields/AddressForm";
+import { ShippingAddressForm } from "../fields/ShippingAddressForm";
+import { BillingAddressForm } from "../fields/BillingAddressForm";
 import { clearAddressDraft } from "../../../utils/addressDraft";
 
 interface AddressStepProps {
@@ -173,8 +174,6 @@ function onEditLeave(e: React.MouseEvent<HTMLButtonElement>) {
 }
 
 // ── ConfirmedPill ─────────────────────────────────────────────────────────────
-// Purely displays one address with an edit button.
-// Each instance is independent — shipping pill edits shipping, billing pill edits billing.
 
 function ConfirmedPill({
   label,
@@ -206,15 +205,102 @@ function ConfirmedPill({
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
-// ShippingSubStep
-// 100% self-contained. No billing UI. No billing state.
+// BillingSubStep
+// Collects billing details.
 // Three internal phases:
 //   confirm_saved → show SavedAddressConfirmCard
-//   form          → show AddressForm
+//   form          → show BillingAddressForm
 //   confirm_draft → show ConfirmedPill + Continue button
 // ═════════════════════════════════════════════════════════════════════════════
 
 type AddressPhase = "confirm_saved" | "form" | "confirm_draft";
+
+interface BillingSubStepProps {
+  cart: WCCart | null;
+  cartToken: string | null;
+  isLoading: boolean;
+  error: { code: string; message: string; field?: string } | null;
+  onConfirmed: (billing: AddressDict) => void;
+}
+
+function BillingSubStep({
+  cart,
+  cartToken,
+  isLoading,
+  error,
+  onConfirmed,
+}: BillingSubStepProps) {
+  const savedBilling = cart?.billing_address;
+  const hasSavedBilling = isSavedAddress(savedBilling);
+
+  const [phase, setPhase] = useState<AddressPhase>(
+    hasSavedBilling ? "confirm_saved" : "form",
+  );
+  const [draft, setDraft] = useState<AddressDict | null>(null);
+
+  function handleFormSubmit(address: AddressDict) {
+    setDraft(address);
+    setPhase("confirm_draft");
+  }
+
+  return (
+    <div style={{ padding: "16px" }}>
+      <h3 style={heading}>Billing Details</h3>
+
+      {/* Phase: existing billing address on file */}
+      {phase === "confirm_saved" && hasSavedBilling && (
+        <SavedAddressConfirmCard
+          address={savedBilling!}
+          title="Saved Billing Address"
+          primaryLabel="Use this address"
+          secondaryLabel="Enter a different address"
+          onPrimary={() => onConfirmed(savedBilling!)}
+          onSecondary={() => setPhase("form")}
+          isLoading={isLoading}
+        />
+      )}
+
+      {/* Phase: billing form — entering new or editing draft */}
+      {phase === "form" && (
+        <BillingAddressForm
+          cartToken={cartToken}
+          initialValues={draft ?? undefined}
+          fieldError={
+            error ? { field: error.field, message: error.message } : null
+          }
+          isLoading={isLoading}
+          submitLabel="Continue →"
+          onSubmit={handleFormSubmit}
+        />
+      )}
+
+      {/* Phase: review billing draft before continuing */}
+      {phase === "confirm_draft" && draft && (
+        <>
+          <ConfirmedPill
+            label="Billing address"
+            address={draft}
+            onEdit={() => setPhase("form")}
+          />
+          <button
+            type="button"
+            disabled={isLoading}
+            onClick={() => onConfirmed(draft)}
+            style={continueBtn(isLoading)}
+          >
+            {isLoading ? "Saving…" : "Continue →"}
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// ShippingSubStep
+// Always rendered as the second step after billing is confirmed.
+// Three internal phases identical to BillingSubStep.
+// ═════════════════════════════════════════════════════════════════════════════
 
 interface ShippingSubStepProps {
   cart: WCCart | null;
@@ -245,14 +331,13 @@ function ShippingSubStep({
   }
 
   return (
-    <div style={{ padding: "16px" }}>
-      <h3 style={heading}>Shipping Address</h3>
-
-      {/* Phase: existing address on file */}
+    // No outer padding — the parent shipping view already provides it.
+    <div>
+      {/* Phase: existing shipping address on file */}
       {phase === "confirm_saved" && hasSavedShipping && (
         <SavedAddressConfirmCard
           address={savedShipping!}
-          title="Saved Address"
+          title="Saved Shipping Address"
           primaryLabel="Use this address"
           secondaryLabel="Enter a different address"
           onPrimary={() => onConfirmed(savedShipping!)}
@@ -261,15 +346,16 @@ function ShippingSubStep({
         />
       )}
 
-      {/* Phase: address form — entering new or editing draft */}
+      {/* Phase: shipping form — entering new or editing draft */}
       {phase === "form" && (
-        <AddressForm
+        <ShippingAddressForm
           cartToken={cartToken}
           initialValues={draft ?? undefined}
           fieldError={
             error ? { field: error.field, message: error.message } : null
           }
           isLoading={isLoading}
+          submitLabel="Continue to Payment →"
           onSubmit={handleFormSubmit}
         />
       )}
@@ -288,7 +374,7 @@ function ShippingSubStep({
             onClick={() => onConfirmed(draft)}
             style={continueBtn(isLoading)}
           >
-            {isLoading ? "Saving…" : "Continue to Billing →"}
+            {isLoading ? "Saving…" : "Continue to Payment →"}
           </button>
         </>
       )}
@@ -297,76 +383,95 @@ function ShippingSubStep({
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
-// BillingSubStep
-// 100% self-contained. No shipping UI whatsoever — not even a read-only pill.
-// The only shipping reference is the data value passed in for "same as shipping".
-// Three internal phases — identical pattern to ShippingSubStep but for billing.
+// AddressStep — thin orchestrator
+//
+// Flow:
+//   1. "billing"  → BillingSubStep collects billing details
+//   2. "shipping" → Always shown after billing is confirmed.
+//                   A "Same as billing address" checkbox (checked by default)
+//                   lets the user reuse their billing address without
+//                   re-entering it. Unchecking reveals ShippingSubStep for
+//                   a distinct shipping address.
+//
+// A single updateCustomer call fires at the very end with both addresses.
 // ═════════════════════════════════════════════════════════════════════════════
 
-interface BillingSubStepProps {
-  confirmedShipping: AddressDict; // data only — never rendered as UI here
-  cart: WCCart | null;
-  cartToken: string | null;
-  isLoading: boolean;
-  error: { code: string; message: string; field?: string } | null;
-  onBack: () => void;
-  onConfirmed: (billing: AddressDict) => void;
-}
-
-function BillingSubStep({
-  confirmedShipping,
+export function AddressStep({
   cart,
   cartToken,
   isLoading,
   error,
-  onBack,
-  onConfirmed,
-}: BillingSubStepProps) {
-  const savedBilling = cart?.billing_address;
-  const hasSavedBilling = isSavedAddress(savedBilling);
-
-  const [sameAsShipping, setSameAsShipping] = useState(true);
-
-  const [phase, setPhase] = useState<AddressPhase>(
-    hasSavedBilling ? "confirm_saved" : "form",
+  updateCustomer,
+  setStep,
+}: AddressStepProps) {
+  // "billing" → "shipping" — two sequential steps, always both shown
+  const [view, setView] = useState<"billing" | "shipping">("billing");
+  const [confirmedBilling, setConfirmedBilling] = useState<AddressDict | null>(
+    null,
   );
-  const [draft, setDraft] = useState<AddressDict | null>(null);
+  // Default: shipping address = billing address (most common case)
+  const [sameAsBilling, setSameAsBilling] = useState(true);
 
-  function handleSameToggle(checked: boolean) {
-    setSameAsShipping(checked);
-    if (!checked) {
-      // Reset billing to a clean slate every time the user unchecks
-      setDraft(null);
-      setPhase(hasSavedBilling ? "confirm_saved" : "form");
-    }
+  async function handleShippingConfirmed(shipping: AddressDict) {
+    if (!confirmedBilling) return;
+    const updated = await updateCustomer({
+      billing_address: confirmedBilling,
+      shipping_address: shipping,
+    });
+    clearAddressDraft(cartToken);
+    setStep(nextStepAfter(updated));
   }
 
-  function handleFormSubmit(address: AddressDict) {
-    setDraft(address);
-    setPhase("confirm_draft");
+  // ── Step 1: Billing ────────────────────────────────────────────────────────
+
+  if (view === "billing") {
+    return (
+      <BillingSubStep
+        cart={cart}
+        cartToken={cartToken}
+        isLoading={isLoading}
+        error={error}
+        onConfirmed={(billing) => {
+          setConfirmedBilling(billing);
+          setView("shipping");
+        }}
+      />
+    );
   }
+
+  // ── Step 2: Shipping ───────────────────────────────────────────────────────
 
   return (
     <div style={{ padding: "16px" }}>
-      {/* Back to shipping — text only, no shipping address shown here */}
-      <button type="button" onClick={onBack} style={backLink}>
-        ← Edit shipping address
+      {/* Back to billing */}
+      <button type="button" onClick={() => setView("billing")} style={backLink}>
+        ← Edit billing details
       </button>
 
-      <h3 style={heading}>Billing Address</h3>
+      {/* Confirmed billing summary — always visible as context */}
+      <ConfirmedPill
+        label="Billing address"
+        address={confirmedBilling!}
+        onEdit={() => setView("billing")}
+      />
 
-      {/* Same as shipping toggle */}
+      <div style={divider} />
+
+      {/* Shipping heading */}
+      <h3 style={{ ...heading, marginBottom: "14px" }}>Shipping Address</h3>
+
+      {/* "Same as billing address" toggle — checked by default */}
       <label
         style={{
           ...toggleRow,
-          background: sameAsShipping ? "#f5f4f1" : "#fff",
-          border: `1.5px solid ${sameAsShipping ? "#1c1c1a" : "#e8e6e0"}`,
+          background: sameAsBilling ? "#f5f4f1" : "#fff",
+          border: `1.5px solid ${sameAsBilling ? "#1c1c1a" : "#e8e6e0"}`,
         }}
       >
         <input
           type="checkbox"
-          checked={sameAsShipping}
-          onChange={(e) => handleSameToggle(e.target.checked)}
+          checked={sameAsBilling}
+          onChange={(e) => setSameAsBilling(e.target.checked)}
           style={{
             accentColor: "#1c1c1a",
             width: "15px",
@@ -383,9 +488,9 @@ function BillingSubStep({
               display: "block",
             }}
           >
-            Same as shipping address
+            Same as billing address
           </span>
-          {sameAsShipping && (
+          {sameAsBilling && (
             <span
               style={{
                 fontSize: "11px",
@@ -394,132 +499,37 @@ function BillingSubStep({
                 display: "block",
               }}
             >
-              Billing will match your shipping address
+              Your order will ship to your billing address
             </span>
           )}
         </div>
       </label>
 
-      {/* Path A: same as shipping */}
-      {sameAsShipping && (
+      {/* Path A: same address — single Continue button */}
+      {sameAsBilling && (
         <button
           type="button"
           disabled={isLoading}
-          onClick={() => onConfirmed(confirmedShipping)}
+          onClick={() => handleShippingConfirmed(confirmedBilling!)}
           style={continueBtn(isLoading)}
         >
-          {isLoading ? "Saving…" : "Continue →"}
+          {isLoading ? "Saving…" : "Continue to Payment →"}
         </button>
       )}
 
-      {/* Path B: different billing — fully independent form/confirm cycle */}
-      {!sameAsShipping && (
+      {/* Path B: different shipping address — reveal shipping form */}
+      {!sameAsBilling && (
         <>
-          <div style={divider} />
-          <p style={subHeading}>Billing address</p>
-
-          {/* Phase: existing billing address on file */}
-          {phase === "confirm_saved" && hasSavedBilling && (
-            <SavedAddressConfirmCard
-              address={savedBilling!}
-              title="Saved Billing Address"
-              primaryLabel="Use this address"
-              secondaryLabel="Enter a different address"
-              onPrimary={() => onConfirmed(savedBilling!)}
-              onSecondary={() => setPhase("form")}
-              isLoading={isLoading}
-            />
-          )}
-
-          {/* Phase: billing form — entering new or editing draft */}
-          {phase === "form" && (
-            <AddressForm
-              cartToken={cartToken}
-              initialValues={draft ?? undefined}
-              fieldError={
-                error ? { field: error.field, message: error.message } : null
-              }
-              isLoading={isLoading}
-              onSubmit={handleFormSubmit}
-            />
-          )}
-
-          {/* Phase: review billing draft before continuing */}
-          {phase === "confirm_draft" && draft && (
-            <>
-              <ConfirmedPill
-                label="Billing address"
-                address={draft}
-                onEdit={() => setPhase("form")}
-              />
-              <button
-                type="button"
-                disabled={isLoading}
-                onClick={() => onConfirmed(draft)}
-                style={continueBtn(isLoading)}
-              >
-                {isLoading ? "Saving…" : "Continue →"}
-              </button>
-            </>
-          )}
+          <div style={subHeading as CSSProperties}>Enter shipping address</div>
+          <ShippingSubStep
+            cart={cart}
+            cartToken={cartToken}
+            isLoading={isLoading}
+            error={error}
+            onConfirmed={handleShippingConfirmed}
+          />
         </>
       )}
     </div>
-  );
-}
-
-// ═════════════════════════════════════════════════════════════════════════════
-// AddressStep — thin orchestrator
-// Owns the sub-step navigation and the single updateCustomer call.
-// The two sub-steps never touch each other's state or UI.
-// ═════════════════════════════════════════════════════════════════════════════
-
-export function AddressStep({
-  cart,
-  cartToken,
-  isLoading,
-  error,
-  updateCustomer,
-  setStep,
-}: AddressStepProps) {
-  const [subStep, setSubStep] = useState<"shipping" | "billing">("shipping");
-  const [confirmedShipping, setConfirmedShipping] =
-    useState<AddressDict | null>(null);
-
-  async function handleBillingConfirmed(billing: AddressDict) {
-    if (!confirmedShipping) return;
-    const updated = await updateCustomer({
-      shipping_address: confirmedShipping,
-      billing_address: billing,
-    });
-    clearAddressDraft(cartToken);
-    setStep(nextStepAfter(updated));
-  }
-
-  if (subStep === "shipping") {
-    return (
-      <ShippingSubStep
-        cart={cart}
-        cartToken={cartToken}
-        isLoading={isLoading}
-        error={error}
-        onConfirmed={(shipping) => {
-          setConfirmedShipping(shipping);
-          setSubStep("billing");
-        }}
-      />
-    );
-  }
-
-  return (
-    <BillingSubStep
-      confirmedShipping={confirmedShipping!}
-      cart={cart}
-      cartToken={cartToken}
-      isLoading={isLoading}
-      error={error}
-      onBack={() => setSubStep("shipping")}
-      onConfirmed={handleBillingConfirmed}
-    />
   );
 }

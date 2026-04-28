@@ -16,6 +16,7 @@ import { useCart } from "./hooks/useCart";
 import { CartPanel } from "./components/CartPanel";
 import { CheckoutPanel } from "./components/checkout/CheckoutPanel";
 import { useStoreApi } from "./hooks/useStoreApi";
+import { AiOptInScreen } from "./components/AiOptInScreen";
 // Side-effect import: registers built-in payment adapters before PaymentStep renders
 import "./components/checkout/payment";
 
@@ -40,12 +41,38 @@ export function ChatWidget({
 
   const isLoggedIn = !!(customerId || customerEmail);
 
-  const [screen, setScreen] = useState<"home" | "chat">("home");
+  // ── AI mode localStorage key (user-scoped) ───────────────────────────────
+  const aiStorageKey = `silfra_ai_enabled_${customerId ?? customerEmail ?? "guest"}`;
+
+  // ── AI enabled state — initialised from localStorage ────────────────────
+  const [aiEnabled, setAiEnabled] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem(aiStorageKey) === "true";
+    } catch {
+      return false;
+    }
+  });
+
+  // ── Screen state ─────────────────────────────────────────────────────────
+  // "ai-opt-in" → shown when not logged in (login prompt) OR when AI is off
+  // "home"      → logged in + AI enabled, shows HomeScreen
+  // "chat"      → active chat session
+  const [screen, setScreen] = useState<"ai-opt-in" | "home" | "chat">(() => {
+    if (isLoggedIn) {
+      try {
+        if (localStorage.getItem(aiStorageKey) === "true") return "home";
+      } catch {
+        // fall through to "ai-opt-in"
+      }
+    }
+    return "ai-opt-in";
+  });
+
   const [panelOpen, setPanelOpen] = useState(false);
   const [inputValue, setInputValue] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [isCartOpen, setIsCartOpen] = useState(false); // ← cart panel toggle
-  const [isCheckoutOpen, setIsCheckoutOpen] = useState(false); // ← checkout panel toggle
+  const [isCartOpen, setIsCartOpen] = useState(false);
+  const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const originalInputRef = useRef("");
 
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -147,6 +174,26 @@ export function ChatWidget({
         // silently fall back to default MiraQIcon
       });
   }, [apiUrl]);
+  // ─────────────────────────────────────────────────────────────────────────
+
+  // ── AI mode toggle handler ────────────────────────────────────────────────
+  // Called from AiOptInScreen when the user flips the switch.
+  // Persists to localStorage and — if enabling — advances to HomeScreen.
+  const handleAiToggle = useCallback(
+    (value: boolean) => {
+      setAiEnabled(value);
+      try {
+        localStorage.setItem(aiStorageKey, String(value));
+      } catch {
+        // localStorage unavailable (private browsing, quota, etc.) — proceed anyway
+      }
+      if (value) {
+        setScreen("home");
+      }
+      // If value is false the user stays on the opt-in screen (AI-off resting state)
+    },
+    [aiStorageKey],
+  );
   // ─────────────────────────────────────────────────────────────────────────
 
   const handleMicClick = () => {
@@ -256,8 +303,8 @@ export function ChatWidget({
     [],
   );
 
-  // ── Home screen ──────────────────────────────────────────────────────────
-  if (screen === "home") {
+  // ── Non-chat screens (ai-opt-in + home) ──────────────────────────────────
+  if (screen !== "chat") {
     return (
       <div id="silfra-chat-widget-container">
         <WidgetContainer
@@ -266,6 +313,7 @@ export function ChatWidget({
           assetBaseUrl={assetBaseUrl || ""}
         >
           {!isLoggedIn ? (
+            // ── Login required ─────────────────────────────────────────────
             <div
               style={{
                 position: "relative",
@@ -295,6 +343,7 @@ export function ChatWidget({
                   justifyContent: "center",
                 }}
                 aria-label="Close widget"
+                type="button"
               >
                 <FiX size={20} />
               </button>
@@ -321,7 +370,16 @@ export function ChatWidget({
                 track your orders, and get personalized recommendations.
               </p>
             </div>
+          ) : screen === "ai-opt-in" ? (
+            // ── AI mode opt-in (also the "AI off" resting state) ───────────
+            <AiOptInScreen
+              logoUrl={widgetLogo || MiraQIcon}
+              onClose={() => setPanelOpen(false)}
+              aiEnabled={aiEnabled}
+              onToggle={handleAiToggle}
+            />
           ) : (
+            // ── Home screen (AI enabled) ───────────────────────────────────
             <HomeScreen
               onStartChat={() => setScreen("chat")}
               onClose={() => setPanelOpen(false)}

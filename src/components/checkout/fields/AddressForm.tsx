@@ -1,3 +1,10 @@
+/**
+ * AddressForm — internal base component.
+ *
+ * Don't use this directly in page-level code. Use:
+ *   <BillingAddressForm />  — all fields including phone + email
+ *   <ShippingAddressForm /> — address fields only (matches CS site shipping HTML)
+ */
 import { useState, useEffect, useRef } from "react";
 import type { AddressDict } from "../../../types/actions";
 import {
@@ -6,15 +13,18 @@ import {
 } from "../../../utils/addressDraft";
 import { InlineFieldError } from "./InlineFieldError";
 
-interface AddressFormProps {
+export interface AddressFormProps {
   cartToken: string | null;
   initialValues?: AddressDict;
   fieldError?: { field?: string; message: string } | null;
   isLoading?: boolean;
+  submitLabel?: string;
+  /** Provided by BillingAddressForm / ShippingAddressForm — don't pass manually. */
+  visibleFields: (keyof AddressDict)[];
   onSubmit: (address: AddressDict) => void;
 }
 
-const EMPTY: AddressDict = {
+export const EMPTY: AddressDict = {
   first_name: "",
   last_name: "",
   company: "",
@@ -28,24 +38,28 @@ const EMPTY: AddressDict = {
   phone: "",
 };
 
-function fieldLabel(key: keyof AddressDict): string {
+export function fieldLabel(key: keyof AddressDict): string {
   const labels: Record<keyof AddressDict, string> = {
     first_name: "First Name",
     last_name: "Last Name",
     company: "Company (optional)",
-    address_1: "Address Line 1",
-    address_2: "Address Line 2 (optional)",
-    city: "City",
-    state: "State / Province",
+    address_1: "Street address",
+    address_2: "Apartment, suite, unit, etc. (optional)",
+    city: "Town / City",
+    state: "County (optional)",
     postcode: "Postcode / ZIP",
-    country: "Country",
-    email: "Email",
+    country: "Country / Region",
+    email: "Email address",
     phone: "Phone",
   };
   return labels[key] ?? key;
 }
 
-const REQUIRED_FIELDS: (keyof AddressDict)[] = [
+/**
+ * Fields that are required whenever they appear in the rendered form.
+ * phone + email are required only on billing (they're absent on shipping).
+ */
+const ALWAYS_REQUIRED: (keyof AddressDict)[] = [
   "first_name",
   "last_name",
   "address_1",
@@ -53,17 +67,234 @@ const REQUIRED_FIELDS: (keyof AddressDict)[] = [
   "postcode",
   "country",
   "email",
+  "phone",
 ];
+
+export const COUNTRIES: { code: string; name: string }[] = [
+  { code: "AF", name: "Afghanistan" },
+  { code: "AL", name: "Albania" },
+  { code: "DZ", name: "Algeria" },
+  { code: "AD", name: "Andorra" },
+  { code: "AO", name: "Angola" },
+  { code: "AG", name: "Antigua and Barbuda" },
+  { code: "AR", name: "Argentina" },
+  { code: "AM", name: "Armenia" },
+  { code: "AU", name: "Australia" },
+  { code: "AT", name: "Austria" },
+  { code: "AZ", name: "Azerbaijan" },
+  { code: "BS", name: "Bahamas" },
+  { code: "BH", name: "Bahrain" },
+  { code: "BD", name: "Bangladesh" },
+  { code: "BB", name: "Barbados" },
+  { code: "BY", name: "Belarus" },
+  { code: "BE", name: "Belgium" },
+  { code: "BZ", name: "Belize" },
+  { code: "BJ", name: "Benin" },
+  { code: "BT", name: "Bhutan" },
+  { code: "BO", name: "Bolivia" },
+  { code: "BA", name: "Bosnia and Herzegovina" },
+  { code: "BW", name: "Botswana" },
+  { code: "BR", name: "Brazil" },
+  { code: "BN", name: "Brunei" },
+  { code: "BG", name: "Bulgaria" },
+  { code: "BF", name: "Burkina Faso" },
+  { code: "BI", name: "Burundi" },
+  { code: "CV", name: "Cabo Verde" },
+  { code: "KH", name: "Cambodia" },
+  { code: "CM", name: "Cameroon" },
+  { code: "CA", name: "Canada" },
+  { code: "CF", name: "Central African Republic" },
+  { code: "TD", name: "Chad" },
+  { code: "CL", name: "Chile" },
+  { code: "CN", name: "China" },
+  { code: "CO", name: "Colombia" },
+  { code: "KM", name: "Comoros" },
+  { code: "CG", name: "Congo" },
+  { code: "CD", name: "Congo (DRC)" },
+  { code: "CR", name: "Costa Rica" },
+  { code: "CI", name: "Côte d'Ivoire" },
+  { code: "HR", name: "Croatia" },
+  { code: "CU", name: "Cuba" },
+  { code: "CY", name: "Cyprus" },
+  { code: "CZ", name: "Czech Republic" },
+  { code: "DK", name: "Denmark" },
+  { code: "DJ", name: "Djibouti" },
+  { code: "DM", name: "Dominica" },
+  { code: "DO", name: "Dominican Republic" },
+  { code: "EC", name: "Ecuador" },
+  { code: "EG", name: "Egypt" },
+  { code: "SV", name: "El Salvador" },
+  { code: "GQ", name: "Equatorial Guinea" },
+  { code: "ER", name: "Eritrea" },
+  { code: "EE", name: "Estonia" },
+  { code: "SZ", name: "Eswatini" },
+  { code: "ET", name: "Ethiopia" },
+  { code: "FJ", name: "Fiji" },
+  { code: "FI", name: "Finland" },
+  { code: "FR", name: "France" },
+  { code: "GA", name: "Gabon" },
+  { code: "GM", name: "Gambia" },
+  { code: "GE", name: "Georgia" },
+  { code: "DE", name: "Germany" },
+  { code: "GH", name: "Ghana" },
+  { code: "GR", name: "Greece" },
+  { code: "GD", name: "Grenada" },
+  { code: "GT", name: "Guatemala" },
+  { code: "GN", name: "Guinea" },
+  { code: "GW", name: "Guinea-Bissau" },
+  { code: "GY", name: "Guyana" },
+  { code: "HT", name: "Haiti" },
+  { code: "HN", name: "Honduras" },
+  { code: "HU", name: "Hungary" },
+  { code: "IS", name: "Iceland" },
+  { code: "IN", name: "India" },
+  { code: "ID", name: "Indonesia" },
+  { code: "IR", name: "Iran" },
+  { code: "IQ", name: "Iraq" },
+  { code: "IE", name: "Ireland" },
+  { code: "IL", name: "Israel" },
+  { code: "IT", name: "Italy" },
+  { code: "JM", name: "Jamaica" },
+  { code: "JP", name: "Japan" },
+  { code: "JO", name: "Jordan" },
+  { code: "KZ", name: "Kazakhstan" },
+  { code: "KE", name: "Kenya" },
+  { code: "KI", name: "Kiribati" },
+  { code: "KW", name: "Kuwait" },
+  { code: "KG", name: "Kyrgyzstan" },
+  { code: "LA", name: "Laos" },
+  { code: "LV", name: "Latvia" },
+  { code: "LB", name: "Lebanon" },
+  { code: "LS", name: "Lesotho" },
+  { code: "LR", name: "Liberia" },
+  { code: "LY", name: "Libya" },
+  { code: "LI", name: "Liechtenstein" },
+  { code: "LT", name: "Lithuania" },
+  { code: "LU", name: "Luxembourg" },
+  { code: "MG", name: "Madagascar" },
+  { code: "MW", name: "Malawi" },
+  { code: "MY", name: "Malaysia" },
+  { code: "MV", name: "Maldives" },
+  { code: "ML", name: "Mali" },
+  { code: "MT", name: "Malta" },
+  { code: "MH", name: "Marshall Islands" },
+  { code: "MR", name: "Mauritania" },
+  { code: "MU", name: "Mauritius" },
+  { code: "MX", name: "Mexico" },
+  { code: "FM", name: "Micronesia" },
+  { code: "MD", name: "Moldova" },
+  { code: "MC", name: "Monaco" },
+  { code: "MN", name: "Mongolia" },
+  { code: "ME", name: "Montenegro" },
+  { code: "MA", name: "Morocco" },
+  { code: "MZ", name: "Mozambique" },
+  { code: "MM", name: "Myanmar" },
+  { code: "NA", name: "Namibia" },
+  { code: "NR", name: "Nauru" },
+  { code: "NP", name: "Nepal" },
+  { code: "NL", name: "Netherlands" },
+  { code: "NZ", name: "New Zealand" },
+  { code: "NI", name: "Nicaragua" },
+  { code: "NE", name: "Niger" },
+  { code: "NG", name: "Nigeria" },
+  { code: "NO", name: "Norway" },
+  { code: "OM", name: "Oman" },
+  { code: "PK", name: "Pakistan" },
+  { code: "PW", name: "Palau" },
+  { code: "PA", name: "Panama" },
+  { code: "PG", name: "Papua New Guinea" },
+  { code: "PY", name: "Paraguay" },
+  { code: "PE", name: "Peru" },
+  { code: "PH", name: "Philippines" },
+  { code: "PL", name: "Poland" },
+  { code: "PT", name: "Portugal" },
+  { code: "QA", name: "Qatar" },
+  { code: "RO", name: "Romania" },
+  { code: "RU", name: "Russia" },
+  { code: "RW", name: "Rwanda" },
+  { code: "KN", name: "Saint Kitts and Nevis" },
+  { code: "LC", name: "Saint Lucia" },
+  { code: "VC", name: "Saint Vincent and the Grenadines" },
+  { code: "WS", name: "Samoa" },
+  { code: "SM", name: "San Marino" },
+  { code: "ST", name: "São Tomé and Príncipe" },
+  { code: "SA", name: "Saudi Arabia" },
+  { code: "SN", name: "Senegal" },
+  { code: "RS", name: "Serbia" },
+  { code: "SC", name: "Seychelles" },
+  { code: "SL", name: "Sierra Leone" },
+  { code: "SG", name: "Singapore" },
+  { code: "SK", name: "Slovakia" },
+  { code: "SI", name: "Slovenia" },
+  { code: "SB", name: "Solomon Islands" },
+  { code: "SO", name: "Somalia" },
+  { code: "ZA", name: "South Africa" },
+  { code: "SS", name: "South Sudan" },
+  { code: "ES", name: "Spain" },
+  { code: "LK", name: "Sri Lanka" },
+  { code: "SD", name: "Sudan" },
+  { code: "SR", name: "Suriname" },
+  { code: "SE", name: "Sweden" },
+  { code: "CH", name: "Switzerland" },
+  { code: "SY", name: "Syria" },
+  { code: "TW", name: "Taiwan" },
+  { code: "TJ", name: "Tajikistan" },
+  { code: "TZ", name: "Tanzania" },
+  { code: "TH", name: "Thailand" },
+  { code: "TL", name: "Timor-Leste" },
+  { code: "TG", name: "Togo" },
+  { code: "TO", name: "Tonga" },
+  { code: "TT", name: "Trinidad and Tobago" },
+  { code: "TN", name: "Tunisia" },
+  { code: "TR", name: "Turkey" },
+  { code: "TM", name: "Turkmenistan" },
+  { code: "TV", name: "Tuvalu" },
+  { code: "UG", name: "Uganda" },
+  { code: "UA", name: "Ukraine" },
+  { code: "AE", name: "United Arab Emirates" },
+  { code: "GB", name: "United Kingdom" },
+  { code: "US", name: "United States" },
+  { code: "UY", name: "Uruguay" },
+  { code: "UZ", name: "Uzbekistan" },
+  { code: "VU", name: "Vanuatu" },
+  { code: "VE", name: "Venezuela" },
+  { code: "VN", name: "Vietnam" },
+  { code: "YE", name: "Yemen" },
+  { code: "ZM", name: "Zambia" },
+  { code: "ZW", name: "Zimbabwe" },
+];
+
+// first_name + last_name sit side-by-side; every other field spans full width
+const HALF_WIDTH_FIELDS: (keyof AddressDict)[] = ["first_name", "last_name"];
+
+const INPUT_BASE: React.CSSProperties = {
+  padding: "9px 11px",
+  borderRadius: "9px",
+  fontSize: "13px",
+  fontFamily: "inherit",
+  background: "#fff",
+  color: "#1c1c1a",
+  outline: "none",
+  transition: "border-color 0.15s",
+  width: "100%",
+  boxSizing: "border-box",
+};
 
 export function AddressForm({
   cartToken,
   initialValues,
   fieldError,
   isLoading,
+  submitLabel = "Continue →",
+  visibleFields,
   onSubmit,
 }: AddressFormProps) {
+  // Only validate fields that are actually rendered
+  const requiredFields = ALWAYS_REQUIRED.filter((f) =>
+    visibleFields.includes(f),
+  );
+
   const [values, setValues] = useState<AddressDict>(() => {
-    // Priority: initialValues (e.g. SavedAddressConfirmCard "enter different") → sessionStorage draft → empty
     if (initialValues && Object.keys(initialValues).length > 0) {
       return { ...EMPTY, ...initialValues };
     }
@@ -71,10 +302,13 @@ export function AddressForm({
     return { ...EMPTY, ...(draft ?? {}) };
   });
 
-  const [touched, setTouched] = useState<Partial<Record<keyof AddressDict, boolean>>>({});
-  const [localErrors, setLocalErrors] = useState<Partial<Record<keyof AddressDict, string>>>({});
+  const [touched, setTouched] = useState<
+    Partial<Record<keyof AddressDict, boolean>>
+  >({});
+  const [localErrors, setLocalErrors] = useState<
+    Partial<Record<keyof AddressDict, string>>
+  >({});
 
-  // Debounce sessionStorage save
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
@@ -91,29 +325,34 @@ export function AddressForm({
     if (touched[field]) {
       setLocalErrors((prev) => ({
         ...prev,
-        [field]: value.trim() ? undefined : (REQUIRED_FIELDS.includes(field) ? "This field is required." : undefined),
+        [field]: value.trim()
+          ? undefined
+          : requiredFields.includes(field)
+            ? "This field is required."
+            : undefined,
       }));
     }
   }
 
   function handleBlur(field: keyof AddressDict) {
     setTouched((prev) => ({ ...prev, [field]: true }));
-    if (REQUIRED_FIELDS.includes(field) && !values[field]?.trim()) {
-      setLocalErrors((prev) => ({ ...prev, [field]: "This field is required." }));
+    if (requiredFields.includes(field) && !values[field]?.trim()) {
+      setLocalErrors((prev) => ({
+        ...prev,
+        [field]: "This field is required.",
+      }));
     }
   }
 
   function validate(): boolean {
     const newErrors: Partial<Record<keyof AddressDict, string>> = {};
-    for (const field of REQUIRED_FIELDS) {
+    for (const field of requiredFields) {
       if (!values[field]?.trim()) {
         newErrors[field] = "This field is required.";
       }
     }
     setLocalErrors(newErrors);
-    setTouched(
-      REQUIRED_FIELDS.reduce((acc, f) => ({ ...acc, [f]: true }), {}),
-    );
+    setTouched(requiredFields.reduce((acc, f) => ({ ...acc, [f]: true }), {}));
     return Object.keys(newErrors).length === 0;
   }
 
@@ -124,43 +363,19 @@ export function AddressForm({
   }
 
   const serverFieldError =
-    fieldError?.field &&
-    (fieldError.field as string) in EMPTY
+    fieldError?.field && (fieldError.field as string) in EMPTY
       ? { [fieldError.field as keyof AddressDict]: fieldError.message }
       : {};
 
   const allErrors = { ...localErrors, ...serverFieldError };
 
-  const fieldOrder: (keyof AddressDict)[] = [
-    "first_name",
-    "last_name",
-    "email",
-    "phone",
-    "company",
-    "address_1",
-    "address_2",
-    "city",
-    "state",
-    "postcode",
-    "country",
-  ];
-
   return (
     <form onSubmit={handleSubmit} noValidate style={{ width: "100%" }}>
       <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr",
-          gap: "10px",
-        }}
+        style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}
       >
-        {fieldOrder.map((field) => {
-          const isFullWidth = [
-            "email",
-            "company",
-            "address_1",
-            "address_2",
-          ].includes(field);
+        {visibleFields.map((field) => {
+          const isFullWidth = !HALF_WIDTH_FIELDS.includes(field);
           const error = allErrors[field];
 
           return (
@@ -185,26 +400,52 @@ export function AddressForm({
               >
                 {fieldLabel(field)}
               </label>
-              <input
-                id={`addr-${field}`}
-                type={field === "email" ? "email" : "text"}
-                value={values[field] ?? ""}
-                onChange={(e) => handleChange(field, e.target.value)}
-                onBlur={() => handleBlur(field)}
-                style={{
-                  padding: "9px 11px",
-                  borderRadius: "9px",
-                  border: `1.5px solid ${error ? "#ef4444" : "#e8e6e0"}`,
-                  fontSize: "13px",
-                  fontFamily: "inherit",
-                  background: "#fff",
-                  color: "#1c1c1a",
-                  outline: "none",
-                  transition: "border-color 0.15s",
-                  width: "100%",
-                  boxSizing: "border-box",
-                }}
-              />
+
+              {field === "country" ? (
+                <select
+                  id={`addr-${field}`}
+                  value={values[field] ?? ""}
+                  onChange={(e) => handleChange(field, e.target.value)}
+                  onBlur={() => handleBlur(field)}
+                  style={{
+                    ...INPUT_BASE,
+                    border: `1.5px solid ${error ? "#ef4444" : "#e8e6e0"}`,
+                    appearance: "none",
+                    backgroundImage:
+                      "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23555' d='M6 8L1 3h10z'/%3E%3C/svg%3E\")",
+                    backgroundRepeat: "no-repeat",
+                    backgroundPosition: "right 10px center",
+                    paddingRight: "28px",
+                    cursor: "pointer",
+                  }}
+                >
+                  <option value="">Select a country…</option>
+                  {COUNTRIES.map((c) => (
+                    <option key={c.code} value={c.code}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  id={`addr-${field}`}
+                  type={
+                    field === "email"
+                      ? "email"
+                      : field === "phone"
+                        ? "tel"
+                        : "text"
+                  }
+                  value={values[field] ?? ""}
+                  onChange={(e) => handleChange(field, e.target.value)}
+                  onBlur={() => handleBlur(field)}
+                  style={{
+                    ...INPUT_BASE,
+                    border: `1.5px solid ${error ? "#ef4444" : "#e8e6e0"}`,
+                  }}
+                />
+              )}
+
               <InlineFieldError message={error} />
             </div>
           );
@@ -245,7 +486,7 @@ export function AddressForm({
           transition: "opacity 0.2s, background 0.2s",
         }}
       >
-        {isLoading ? "Saving…" : "Continue to Shipping →"}
+        {isLoading ? "Saving…" : submitLabel}
       </button>
     </form>
   );

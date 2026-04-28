@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { FiX, FiPackage } from "react-icons/fi";
 import type { WCCart } from "../../hooks/useCart";
 import type { StoreApiFetch } from "../../hooks/useStoreApi";
@@ -81,10 +81,20 @@ export function CheckoutPanel({
   });
 
   // Panel-level payment payload — lives here so ReviewStep can consume it.
-  // Only tracks what the user explicitly chose in PaymentStep.
   const [paymentPayload, setPaymentPayload] = useState<PaymentPayload | null>(
     null,
   );
+
+  // ── FIX: snapshot ref ────────────────────────────────────────────────────
+  // The payment adapter's Component fires onPayloadChange(null) in its
+  // useEffect cleanup when PaymentStep unmounts (navigating to Review).
+  // That clears the state before ReviewStep can read it.
+  //
+  // Solution: snapshot the last non-null payload here. When the user
+  // explicitly clicks "Continue to Review" we capture the confirmed payload
+  // into this ref so it survives the unmount.
+  const confirmedPayloadRef = useRef<PaymentPayload | null>(null);
+  // ────────────────────────────────────────────────────────────────────────
 
   // Transition from idle → collecting_address on mount
   useEffect(() => {
@@ -93,20 +103,19 @@ export function CheckoutPanel({
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Derive the effective payload — no setState, no useEffect, no useMemo.
-  // React Compiler handles memoization automatically; a plain const is correct.
-  //
+  // ── Derive the effective payload ─────────────────────────────────────────
   // Priority:
-  //  1. User explicitly selected via PaymentStep  → use it as-is
-  //  2. Cart needs no payment (zero total)         → empty stub so button unlocks
-  //  3. Only one payment method available (e.g. COD) → auto-select it
-  //  4. Anything else                              → null (button stays disabled
-  //                                                  until user picks in PaymentStep)
+  //  1. Live state from adapter (while on PaymentStep)
+  //  2. Snapshotted ref (survives PaymentStep unmount — the fix)
+  //  3. Cart needs no payment (zero total)   → empty stub
+  //  4. Only one payment method available    → auto-select it
+  //  5. Anything else                        → null (button stays disabled)
   const effectivePaymentPayload: PaymentPayload | null = (() => {
     if (paymentPayload) return paymentPayload;
+    if (confirmedPayloadRef.current) return confirmedPayloadRef.current; // ← FIX
     if (cart?.needs_payment === false)
       return { payment_method: "", payment_data: [] };
-    if (cart?.needs_payment === true && cart.payment_methods?.length === 1)
+    if (cart?.payment_methods && cart.payment_methods.length === 1)
       return { payment_method: cart.payment_methods[0], payment_data: [] };
     return null;
   })();
@@ -121,6 +130,8 @@ export function CheckoutPanel({
 
   function handleStepClick(targetIndex: number) {
     if (targetIndex >= activeIndex) return;
+    // Clicking back to Payment clears the snapshot so the user re-confirms
+    if (targetIndex === 2) confirmedPayloadRef.current = null;
     checkout.setStep(STEPS[targetIndex].step);
   }
 
@@ -167,8 +178,23 @@ export function CheckoutPanel({
             cart={cart}
             onPaymentPayloadChange={setPaymentPayload}
             isPayloadReady={paymentPayload !== null}
-            onBack={() => checkout.setStep("selecting_rate")}
-            onContinue={() => checkout.setStep("placing_order")}
+            onBack={() => {
+              // Clear the snapshot when going back to re-select
+              confirmedPayloadRef.current = null;
+              checkout.setStep("selecting_rate");
+            }}
+            onContinue={() => {
+              // ── FIX: snapshot before navigating away ──────────────────────
+              // Capture the payload NOW, while PaymentStep is still mounted
+              // and the state is still populated. The adapter's cleanup will
+              // call setPaymentPayload(null) during unmount — but the ref
+              // survives and effectivePaymentPayload falls back to it.
+              if (paymentPayload) {
+                confirmedPayloadRef.current = paymentPayload;
+              }
+              // ──────────────────────────────────────────────────────────────
+              checkout.setStep("placing_order");
+            }}
           />
         ) : null;
       case "placing_order":
@@ -185,7 +211,14 @@ export function CheckoutPanel({
             onPlaceOrder={async (payload) => {
               await checkout.placeOrder(payload);
             }}
-            onSetStep={checkout.setStep}
+            onSetStep={(step) => {
+              // Clear snapshot when user navigates back to re-do payment
+              if (step === "awaiting_payment") {
+                confirmedPayloadRef.current = null;
+                setPaymentPayload(null);
+              }
+              checkout.setStep(step);
+            }}
             onClearError={checkout.clearError}
           />
         );
