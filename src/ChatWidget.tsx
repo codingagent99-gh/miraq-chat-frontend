@@ -50,6 +50,10 @@ export function ChatWidget({
 
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
+  // ── Widget config (logo + header text from backend) ──────────────────────
+  const [widgetLogo, setWidgetLogo] = useState<string>("");
+  const [widgetText, setWidgetText] = useState<string>("");
+
   const apiClientRef = useRef<any>(null);
   if (!apiClientRef.current) {
     apiClientRef.current = createApiClient(apiUrl, apiKey);
@@ -129,6 +133,21 @@ export function ChatWidget({
       setInputValue(originalInputRef.current + transcript);
     }
   }, [transcript, isListening]);
+
+  // ── Fetch widget config (logo + text) from backend ────────────────────────
+  useEffect(() => {
+    if (!apiUrl) return;
+    fetch(`${apiUrl}/widget-config`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.image_url) setWidgetLogo(data.image_url);
+        if (data.text) setWidgetText(data.text);
+      })
+      .catch(() => {
+        // silently fall back to default MiraQIcon
+      });
+  }, [apiUrl]);
+  // ─────────────────────────────────────────────────────────────────────────
 
   const handleMicClick = () => {
     if (!isListening) {
@@ -280,7 +299,7 @@ export function ChatWidget({
                 <FiX size={20} />
               </button>
               <img
-                src={MiraQIcon}
+                src={widgetLogo || MiraQIcon}
                 alt="MiraQ"
                 style={{
                   width: "64px",
@@ -306,7 +325,7 @@ export function ChatWidget({
             <HomeScreen
               onStartChat={() => setScreen("chat")}
               onClose={() => setPanelOpen(false)}
-              miraQIcon={MiraQIcon}
+              miraQIcon={widgetLogo || MiraQIcon}
               customerName={customerName}
               isLoggedIn={isLoggedIn}
             />
@@ -355,6 +374,8 @@ export function ChatWidget({
             customerRole={customerRole}
             onBack={() => setScreen("home")}
             onClose={() => false}
+            logoUrl={widgetLogo || MiraQIcon}
+            headerText="MiraQ Commerce Assistant"
           />
 
           <div className="xpert-chat-messages">
@@ -370,7 +391,7 @@ export function ChatWidget({
                   sendMessage(`show me order #${orderNumber}`)
                 }
                 onProductClick={handleProductClick}
-                miraQIcon={MiraQIcon}
+                miraQIcon={widgetLogo || MiraQIcon}
               />
             ))}
 
@@ -419,7 +440,7 @@ export function ChatWidget({
                 <div className="xpert-bot-avatar">
                   <img
                     style={{ height: "100%", width: "100%" }}
-                    src={MiraQIcon}
+                    src={widgetLogo || MiraQIcon}
                     alt="MiraQ"
                   />
                 </div>
@@ -511,9 +532,7 @@ export function ChatWidget({
             </button>
           </div>
 
-          <p className="xpert-footer-hint">
-            Powered by AI • Shopping made simple
-          </p>
+          <p className="xpert-footer-hint">{widgetText}</p>
 
           {/* ── Product Detail Overlay ── */}
           {selectedProduct && (
