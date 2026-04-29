@@ -1,4 +1,4 @@
-import { FiMinus, FiShoppingCart } from "react-icons/fi";
+import { FiMinus, FiShoppingCart, FiChevronLeft } from "react-icons/fi";
 
 interface ChatHeaderProps {
   cartCount: number;
@@ -15,6 +15,7 @@ export function ChatHeader({
   customerName,
   customerRole,
   onBack,
+  onClose,
   logoUrl,
   headerText,
 }: ChatHeaderProps) {
@@ -25,12 +26,13 @@ export function ChatHeader({
 
   return (
     <div className="xpert-chat-header">
+      {/* Updated Back Button */}
       <button
         className="xpert-icon-btn"
         onClick={onBack}
         aria-label="Back to home"
       >
-        <FiMinus size={20} />
+        <FiChevronLeft size={24} />
       </button>
 
       {logoUrl && (
@@ -61,12 +63,24 @@ export function ChatHeader({
         )}
       </div>
 
-      {cartCount > 0 && (
-        <div className="xpert-cart-badge">
-          <FiShoppingCart size={20} />
-          <span className="xpert-cart-count">{cartCount}</span>
-        </div>
-      )}
+      {/* Right Side Actions Container */}
+      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+        {cartCount > 0 && (
+          <div className="xpert-cart-badge">
+            <FiShoppingCart size={20} />
+            <span className="xpert-cart-count">{cartCount}</span>
+          </div>
+        )}
+
+        {/* New Minimize Button */}
+        <button
+          className="xpert-icon-btn"
+          onClick={onClose}
+          aria-label="Minimize chat"
+        >
+          <FiMinus size={22} />
+        </button>
+      </div>
     </div>
   );
 }

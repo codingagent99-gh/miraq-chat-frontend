@@ -434,7 +434,7 @@ export function ChatWidget({
             customerName={customerName}
             customerRole={customerRole}
             onBack={() => setScreen("home")}
-            onClose={() => false}
+            onClose={() => setPanelOpen(false)}
             logoUrl={widgetLogo || MiraQIcon}
             headerText="MiraQ Commerce Assistant"
           />
