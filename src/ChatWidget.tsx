@@ -8,7 +8,7 @@ import { WidgetContainer } from "./components/WidgetContainer";
 import { HomeScreen } from "./components/HomeScreen";
 import { ChatHeader } from "./components/ChatHeader";
 import { MessageRow } from "./components/MessageRow";
-import { ProductDetailPanel } from "./components/ProductDetailPanel";
+import { ProductIframePanel } from "./components/ProductIframePanel";
 import type { Product, WidgetOptions } from "./types/api";
 import { FiSend, FiX, FiMic, FiMicOff } from "react-icons/fi";
 import { useSpeechRecognition } from "./hooks/useSpeechRecognition";
@@ -189,8 +189,9 @@ export function ChatWidget({
       }
       if (value) {
         setScreen("home");
-      }
-      // If value is false the user stays on the opt-in screen (AI-off resting state)
+      } else {
+        setScreen("ai-opt-in");
+      } // If value is false the user stays on the opt-in screen (AI-off resting state)
     },
     [aiStorageKey],
   );
@@ -282,26 +283,26 @@ export function ChatWidget({
     [],
   );
 
-  const handleAskAbout = useCallback(
-    (productName: string) => {
-      setSelectedProduct(null);
-      sendMessage(`Tell me more about ${productName}`);
-    },
-    [sendMessage],
-  );
+  // const handleAskAbout = useCallback(
+  //   (productName: string) => {
+  //     setSelectedProduct(null);
+  //     sendMessage(`Tell me more about ${productName}`);
+  //   },
+  //   [sendMessage],
+  // );
 
-  const handleOrderProduct = useCallback(
-    (productName: string) => {
-      setSelectedProduct(null);
-      sendMessage(`I want to order ${productName}`);
-    },
-    [sendMessage],
-  );
+  // const handleOrderProduct = useCallback(
+  //   (productName: string) => {
+  //     setSelectedProduct(null);
+  //     sendMessage(`I want to order ${productName}`);
+  //   },
+  //   [sendMessage],
+  // );
 
-  const fetchProductDetail = useCallback(
-    (id: number) => apiClientRef.current.fetchProduct(id),
-    [],
-  );
+  // const fetchProductDetail = useCallback(
+  //   (id: number) => apiClientRef.current.fetchProduct(id),
+  //   [],
+  // );
 
   // ── Non-chat screens (ai-opt-in + home) ──────────────────────────────────
   if (screen !== "chat") {
@@ -386,6 +387,8 @@ export function ChatWidget({
               miraQIcon={widgetLogo || MiraQIcon}
               customerName={customerName}
               isLoggedIn={isLoggedIn}
+              aiMode={aiEnabled}
+              onToggleAI={() => handleAiToggle(!aiEnabled)}
             />
           )}
         </WidgetContainer>
@@ -592,15 +595,11 @@ export function ChatWidget({
 
           <p className="xpert-footer-hint">{widgetText}</p>
 
-          {/* ── Product Detail Overlay ── */}
+          {/* ── Product Detail Overlay (iframe) ── */}
           {selectedProduct && (
-            <ProductDetailPanel
-              productId={selectedProduct.id}
-              initialProduct={selectedProduct}
-              fetchProduct={fetchProductDetail}
+            <ProductIframePanel
+              product={selectedProduct}
               onClose={handleProductDetailClose}
-              onAskAbout={handleAskAbout}
-              onOrder={handleOrderProduct}
             />
           )}
 

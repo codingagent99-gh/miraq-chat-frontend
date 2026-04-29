@@ -13,6 +13,11 @@ import {
 } from "../../../utils/addressDraft";
 import { InlineFieldError } from "./InlineFieldError";
 
+/** Per-field overrides for label text and/or required status. */
+export type FieldOverrides = Partial<
+  Record<keyof AddressDict, { label?: string; required?: boolean }>
+>;
+
 export interface AddressFormProps {
   cartToken: string | null;
   initialValues?: AddressDict;
@@ -21,6 +26,11 @@ export interface AddressFormProps {
   submitLabel?: string;
   /** Provided by BillingAddressForm / ShippingAddressForm — don't pass manually. */
   visibleFields: (keyof AddressDict)[];
+  /**
+   * Per-field label / required overrides.
+   * Provided by BillingAddressForm / ShippingAddressForm — don't pass manually.
+   */
+  fieldOverrides?: FieldOverrides;
   onSubmit: (address: AddressDict) => void;
 }
 
@@ -42,11 +52,11 @@ export function fieldLabel(key: keyof AddressDict): string {
   const labels: Record<keyof AddressDict, string> = {
     first_name: "First Name",
     last_name: "Last Name",
-    company: "Company (optional)",
+    company: "Company Name (optional)",
     address_1: "Street address",
     address_2: "Apartment, suite, unit, etc. (optional)",
     city: "Town / City",
-    state: "County (optional)",
+    state: "State / County",
     postcode: "Postcode / ZIP",
     country: "Country / Region",
     email: "Email address",
@@ -287,11 +297,14 @@ export function AddressForm({
   isLoading,
   submitLabel = "Continue →",
   visibleFields,
+  fieldOverrides,
   onSubmit,
 }: AddressFormProps) {
-  // Only validate fields that are actually rendered
-  const requiredFields = ALWAYS_REQUIRED.filter((f) =>
-    visibleFields.includes(f),
+  // Fields required because they're always required AND present in this form,
+  // plus any fields explicitly marked required via fieldOverrides.
+  const requiredFields = visibleFields.filter(
+    (f) =>
+      ALWAYS_REQUIRED.includes(f) || fieldOverrides?.[f]?.required === true,
   );
 
   const [values, setValues] = useState<AddressDict>(() => {
@@ -398,7 +411,7 @@ export function AddressForm({
                   textTransform: "uppercase",
                 }}
               >
-                {fieldLabel(field)}
+                {fieldOverrides?.[field]?.label ?? fieldLabel(field)}
               </label>
 
               {field === "country" ? (

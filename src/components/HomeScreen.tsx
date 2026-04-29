@@ -6,6 +6,8 @@ interface HomeScreenProps {
   miraQIcon: string;
   customerName?: string;
   isLoggedIn?: boolean;
+  aiMode?: boolean;
+  onToggleAI?: () => void;
 }
 
 export function HomeScreen({
@@ -14,6 +16,8 @@ export function HomeScreen({
   miraQIcon,
   customerName,
   isLoggedIn = true,
+  aiMode = true,
+  onToggleAI,
 }: HomeScreenProps) {
   const firstName = customerName?.trim().split(/\s+/)[0];
 
@@ -32,6 +36,26 @@ export function HomeScreen({
         <h2 className="xpert-profile-name">MiraQ Commerce Assistant</h2>
         <p className="xpert-profile-sub">AI-Powered Shopping Help</p>
       </div>
+
+      {/* ── AI Mode Toggle ── */}
+      {onToggleAI && (
+        <div
+          className="xpert-ai-toggle"
+          title={aiMode ? "Turn off AI mode" : "Turn on AI mode"}
+        >
+          <span className="xpert-ai-toggle-label">AI</span>
+          <button
+            role="switch"
+            aria-checked={aiMode}
+            aria-label="Toggle AI mode"
+            className={`xpert-toggle-switch ${aiMode ? "xpert-toggle-on" : "xpert-toggle-off"}`}
+            onClick={onToggleAI}
+          >
+            <span className="xpert-toggle-thumb" />
+          </button>
+        </div>
+      )}
+
       <button
         className="xpert-icon-btn"
         onClick={onClose}

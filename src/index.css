@@ -1850,3 +1850,62 @@
     opacity: 1;
   }
 }
+
+/* ── AI Mode Toggle (HomeScreen profile card) ── */
+#silfra-chat-widget-container .xpert-ai-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+#silfra-chat-widget-container .xpert-ai-toggle-label {
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.85);
+  letter-spacing: 0.5px;
+  line-height: 1;
+}
+
+#silfra-chat-widget-container .xpert-toggle-switch {
+  position: relative;
+  width: 36px;
+  height: 20px;
+  border-radius: 10px;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.25s ease;
+  flex-shrink: 0;
+}
+
+#silfra-chat-widget-container .xpert-toggle-switch.xpert-toggle-on {
+  background: #4ade80;
+}
+
+#silfra-chat-widget-container .xpert-toggle-switch.xpert-toggle-off {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+#silfra-chat-widget-container .xpert-toggle-thumb {
+  position: absolute;
+  top: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: white;
+  transition: left 0.25s ease;
+  pointer-events: none;
+}
+
+#silfra-chat-widget-container
+  .xpert-toggle-switch.xpert-toggle-on
+  .xpert-toggle-thumb {
+  left: 18px;
+}
+
+#silfra-chat-widget-container
+  .xpert-toggle-switch.xpert-toggle-off
+  .xpert-toggle-thumb {
+  left: 2px;
+}

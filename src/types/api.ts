@@ -291,6 +291,11 @@ export interface HistoryEntry {
   message: string;
   intent?: string;
   timestamp: string;
+  products?: Product[];
+  categories?: Category[];
+  suggestions?: string[];
+  actions?: ChatAction[];
+  metadata?: Record<string, unknown>;
 }
 
 export interface HistoryResponse {

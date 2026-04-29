@@ -7,7 +7,7 @@
  *   city | state | postcode | phone | email
  */
 import { AddressForm } from "./AddressForm";
-import type { AddressFormProps } from "./AddressForm";
+import type { AddressFormProps, FieldOverrides } from "./AddressForm";
 import type { AddressDict } from "../../../types/actions";
 
 /** All fields shown on the billing form, in CS site order. */
@@ -27,7 +27,15 @@ const BILLING_FIELDS: (keyof AddressDict)[] = [
 
 // visibleFields is intentionally omitted from the public props —
 // callers never need to touch it.
-type BillingAddressFormProps = Omit<AddressFormProps, "visibleFields">;
+type BillingAddressFormProps = Omit<
+  AddressFormProps,
+  "visibleFields" | "fieldOverrides"
+>;
+
+/** State / County is mandatory on the billing form. */
+const BILLING_FIELD_OVERRIDES: FieldOverrides = {
+  state: { label: "State / County", required: true },
+};
 
 export function BillingAddressForm({
   submitLabel = "Continue to Shipping →",
@@ -37,6 +45,7 @@ export function BillingAddressForm({
     <AddressForm
       {...rest}
       visibleFields={BILLING_FIELDS}
+      fieldOverrides={BILLING_FIELD_OVERRIDES}
       submitLabel={submitLabel}
     />
   );

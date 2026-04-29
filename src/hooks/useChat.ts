@@ -183,6 +183,11 @@ export function useChat(options: UseChatOptions = {}) {
               text: m.message,
               intent: m.intent,
               timestamp: new Date(m.timestamp),
+              products: m.products,
+              categories: m.categories,
+              suggestions: m.suggestions,
+              actions: m.actions,
+              metadata: m.metadata,
             }),
           );
           setMessages(formattedHistory);
@@ -219,6 +224,11 @@ export function useChat(options: UseChatOptions = {}) {
           text: m.message,
           intent: m.intent,
           timestamp: new Date(m.timestamp),
+          products: m.products,
+          categories: m.categories,
+          suggestions: m.suggestions,
+          actions: m.actions,
+          metadata: m.metadata,
         }));
 
         // Prepend older messages to the top of the array

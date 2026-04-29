@@ -9,7 +9,7 @@
  * No phone or email — those live on the billing form only.
  */
 import { AddressForm } from "./AddressForm";
-import type { AddressFormProps } from "./AddressForm";
+import type { AddressFormProps, FieldOverrides } from "./AddressForm";
 import type { AddressDict } from "../../../types/actions";
 
 /** Fields shown on the shipping form. Matches CS site HTML exactly. */
@@ -25,7 +25,15 @@ const SHIPPING_FIELDS: (keyof AddressDict)[] = [
   "postcode",
 ];
 
-type ShippingAddressFormProps = Omit<AddressFormProps, "visibleFields">;
+type ShippingAddressFormProps = Omit<
+  AddressFormProps,
+  "visibleFields" | "fieldOverrides"
+>;
+
+/** State is optional on shipping — label reflects this. */
+const SHIPPING_FIELD_OVERRIDES: FieldOverrides = {
+  state: { label: "County (optional)" },
+};
 
 export function ShippingAddressForm({
   submitLabel = "Continue to Payment →",
@@ -35,6 +43,7 @@ export function ShippingAddressForm({
     <AddressForm
       {...rest}
       visibleFields={SHIPPING_FIELDS}
+      fieldOverrides={SHIPPING_FIELD_OVERRIDES}
       submitLabel={submitLabel}
     />
   );
