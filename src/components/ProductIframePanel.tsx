@@ -1,19 +1,61 @@
 /**
  * ProductIframePanel
  *
- * Temporary replacement for ProductDetailPanel.
- * Opens the product's own permalink in an iframe overlay
- * inside the chat widget — no extra API calls needed.
+ * Renders the product permalink inside an iframe overlay.
  *
- * To restore the old panel later, just swap the import in ChatWidget.tsx.
+ * ── Header/footer clipping ───────────────────────────────────────────────────
+ * Cross-origin iframes block JS/CSS injection, so we can't hide the site's
+ * header and footer directly. Instead we use the overflow-clip trick:
+ *
+ *   • The iframe is taller than its container by (HEADER_PX + FOOTER_PX).
+ *   • A negative top margin shifts it upward so the site header scrolls out
+ *     of the visible area.
+ *   • The container is overflow:hidden, so the footer is clipped at the bottom.
+ *
+ * Tune HEADER_PX and FOOTER_PX by measuring the header/footer heights on
+ * your WooCommerce site (DevTools → inspect element → computed height).
+ *
+ * ── Cleaner alternative (if you control the WP site) ────────────────────────
+ * Add this to your theme's functions.php:
+ *
+ *   add_action('template_redirect', function () {
+ *     if (isset($_GET['iframe'])) {
+ *       add_filter('show_admin_bar', '__return_false');
+ *       add_action('wp_head', function () {
+ *         echo '<style>header,footer,.site-header,.site-footer{display:none!important}</style>';
+ *       });
+ *     }
+ *   });
+ *
+ * Then set QUERY_PARAM = "iframe" below and the panel will automatically
+ * append ?iframe=1 to every product URL, giving a fully clean stripped page.
+ * ────────────────────────────────────────────────────────────────────────────
  */
 import { useState } from "react";
 import { FiX, FiExternalLink } from "react-icons/fi";
 import type { Product } from "../types/api";
 
+// ── Tune these to match your site's header / footer heights ──────────────────
+// Open DevTools on wgc.net.in/wip, inspect <header> → computed height.
+const HEADER_PX = 0; // WP removes header via CSS — no clipping needed // px clipped from the top   (your site's header height)
+const FOOTER_PX = 0; // WP removes footer via CSS — no clipping needed // px clipped from the bottom (your site's footer height)
+
+// ── Set to "iframe" once you've added the functions.php snippet above ─────────
+// Leave as "" to use the plain permalink with no extra query param.
+const QUERY_PARAM = "iframe"; // appends ?iframe=1 → triggers WP iframe mode  →  appends ?iframe=1
+
+// ── Padding inside the panel around the iframe ───────────────────────────────
+const IFRAME_PADDING = "10px";
+
 interface ProductIframePanelProps {
   product: Product;
   onClose: () => void;
+}
+
+function buildUrl(permalink: string): string {
+  if (!QUERY_PARAM) return permalink;
+  const sep = permalink.includes("?") ? "&" : "?";
+  return `${permalink}${sep}${QUERY_PARAM}=1`;
 }
 
 export function ProductIframePanel({
@@ -22,12 +64,10 @@ export function ProductIframePanel({
 }: ProductIframePanelProps) {
   const [loaded, setLoaded] = useState(false);
 
-  // permalink comes straight from the WooCommerce REST response,
-  // e.g. "https://wgc.net.in/wip/product/britannia-winkin-cow-cold-coffee/"
-  const url = product.permalink as string | undefined;
+  const rawUrl = product.permalink as string | undefined;
+  const url = rawUrl ? buildUrl(rawUrl) : undefined;
 
   return (
-    /* Full overlay — sits on top of the chat window exactly like ProductDetailPanel */
     <div
       style={{
         position: "absolute",
@@ -40,7 +80,7 @@ export function ProductIframePanel({
         overflow: "hidden",
       }}
     >
-      {/* ── Header bar ── */}
+      {/* ── Panel header bar ─────────────────────────────────────────────── */}
       <div
         style={{
           display: "flex",
@@ -52,7 +92,6 @@ export function ProductIframePanel({
           background: "#fafaf8",
         }}
       >
-        {/* Back / close */}
         <button
           type="button"
           onClick={onClose}
@@ -83,7 +122,6 @@ export function ProductIframePanel({
           <FiX size={14} />
         </button>
 
-        {/* Product name */}
         <span
           style={{
             flex: 1,
@@ -98,10 +136,9 @@ export function ProductIframePanel({
           {product.name}
         </span>
 
-        {/* Open in new tab */}
-        {url && (
+        {rawUrl && (
           <a
-            href={url}
+            href={rawUrl}
             target="_blank"
             rel="noopener noreferrer"
             aria-label="Open in new tab"
@@ -135,9 +172,17 @@ export function ProductIframePanel({
         )}
       </div>
 
-      {/* ── iframe area ── */}
-      <div style={{ flex: 1, position: "relative", overflow: "hidden" }}>
-        {/* Spinner shown until iframe fires onLoad */}
+      {/* ── iframe area ──────────────────────────────────────────────────── */}
+      <div
+        style={{
+          flex: 1,
+          padding: IFRAME_PADDING,
+          overflow: "hidden",
+          position: "relative",
+          background: "#fff",
+        }}
+      >
+        {/* Loading spinner */}
         {!loaded && (
           <div
             style={{
@@ -149,9 +194,9 @@ export function ProductIframePanel({
               justifyContent: "center",
               gap: "12px",
               background: "#fafaf8",
+              zIndex: 1,
             }}
           >
-            {/* Simple CSS spinner — no extra dep */}
             <div
               style={{
                 width: "32px",
@@ -165,28 +210,46 @@ export function ProductIframePanel({
             <span style={{ fontSize: "12px", color: "#888" }}>
               Loading product…
             </span>
-            {/* Keyframe injected inline once */}
             <style>{`@keyframes miraq-spin { to { transform: rotate(360deg); } }`}</style>
           </div>
         )}
 
         {url ? (
-          <iframe
-            src={url}
-            title={product.name}
-            onLoad={() => setLoaded(true)}
+          /*
+           * Clip wrapper — overflow:hidden clips the iframe to its own bounds.
+           *
+           * The iframe is shifted up by HEADER_PX (negative marginTop) so the
+           * site's header scrolls out of the visible area, and its height is
+           * increased by (HEADER_PX + FOOTER_PX) so the footer is pushed below
+           * the clipped edge.
+           *
+           * If both constants are 0 the iframe simply fills the padded area.
+           */
+          <div
             style={{
               width: "100%",
               height: "100%",
-              border: "none",
-              display: "block",
-              // Keep invisible until loaded so spinner shows cleanly
-              opacity: loaded ? 1 : 0,
-              transition: "opacity 0.2s",
+              overflow: "hidden",
+              borderRadius: "8px",
+              position: "relative",
             }}
-          />
+          >
+            <iframe
+              src={url}
+              title={product.name}
+              onLoad={() => setLoaded(true)}
+              style={{
+                width: "100%",
+                height: `calc(100% + ${HEADER_PX + FOOTER_PX}px)`,
+                border: "none",
+                display: "block",
+                marginTop: `-${HEADER_PX}px`,
+                opacity: loaded ? 1 : 0,
+                transition: "opacity 0.2s",
+              }}
+            />
+          </div>
         ) : (
-          /* No permalink — graceful fallback */
           <div
             style={{
               display: "flex",
@@ -195,7 +258,6 @@ export function ProductIframePanel({
               height: "100%",
               fontSize: "13px",
               color: "#888",
-              padding: "24px",
               textAlign: "center",
             }}
           >
