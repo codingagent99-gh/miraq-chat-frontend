@@ -265,11 +265,13 @@ function BillingSubStep({
         />
       )}
 
-      {/* Phase: billing form — entering new or editing draft */}
+      {/* Phase: billing form — entering new or editing draft.
+          When coming from confirm_saved (hasSavedBilling), seed the form with
+          the existing address so the user only edits what they need to change. */}
       {phase === "form" && (
         <BillingAddressForm
           cartToken={cartToken}
-          initialValues={draft ?? undefined}
+          initialValues={draft ?? (hasSavedBilling ? savedBilling : undefined)}
           fieldError={
             error ? { field: error.field, message: error.message } : null
           }
@@ -355,11 +357,15 @@ function ShippingSubStep({
         />
       )}
 
-      {/* Phase: shipping form — entering new or editing draft */}
+      {/* Phase: shipping form — entering new or editing draft.
+          When coming from confirm_saved (hasSavedShipping), seed the form with
+          the existing address so the user only edits what they need to change. */}
       {phase === "form" && (
         <ShippingAddressForm
           cartToken={cartToken}
-          initialValues={draft ?? undefined}
+          initialValues={
+            draft ?? (hasSavedShipping ? savedShipping : undefined)
+          }
           fieldError={
             error ? { field: error.field, message: error.message } : null
           }

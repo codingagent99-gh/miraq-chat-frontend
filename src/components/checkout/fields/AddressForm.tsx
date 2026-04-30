@@ -343,12 +343,31 @@ export function AddressForm({
     return { ...EMPTY_EXTENDED, ...(draft ?? {}) };
   });
 
+  // Track whether the form was opened with prefilled data so we can show
+  // the "clear fields" affordance. Only true on the initial render when
+  // initialValues contains at least one non-empty field.
+  const [isPrefillActive, setIsPrefillActive] = useState<boolean>(
+    () =>
+      !!(
+        initialValues && Object.values(initialValues).some((v) => v?.trim?.())
+      ),
+  );
+
   const [touched, setTouched] = useState<
     Partial<Record<keyof FormValues, boolean>>
   >({});
   const [localErrors, setLocalErrors] = useState<
     Partial<Record<keyof FormValues, string>>
   >({});
+
+  function handleClearFields() {
+    setValues(EMPTY_EXTENDED);
+    setTouched({});
+    setLocalErrors({});
+    setIsPrefillActive(false);
+    // Also clear the draft so the empty state is persisted
+    saveAddressDraft(cartToken, EMPTY_EXTENDED);
+  }
 
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
@@ -442,6 +461,54 @@ export function AddressForm({
 
   return (
     <form onSubmit={handleSubmit} noValidate style={{ width: "100%" }}>
+      {/* ── Prefill banner — shown when the form is seeded from a saved address ── */}
+      {isPrefillActive && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "10px",
+            padding: "10px 12px",
+            background: "#f5f4f1",
+            borderRadius: "10px",
+            marginBottom: "14px",
+          }}
+        >
+          <span style={{ fontSize: "12px", color: "#555", lineHeight: 1.4 }}>
+            Editing your saved address — make any changes below.
+          </span>
+          <button
+            type="button"
+            onClick={handleClearFields}
+            style={{
+              flexShrink: 0,
+              background: "none",
+              border: "1.5px solid #d0cec9",
+              borderRadius: "7px",
+              padding: "4px 10px",
+              fontSize: "11px",
+              fontWeight: 600,
+              color: "#555",
+              fontFamily: "inherit",
+              cursor: "pointer",
+              whiteSpace: "nowrap",
+              transition: "border-color 0.15s, color 0.15s",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = "#1c1c1a";
+              e.currentTarget.style.color = "#1c1c1a";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = "#d0cec9";
+              e.currentTarget.style.color = "#555";
+            }}
+          >
+            Clear fields
+          </button>
+        </div>
+      )}
+
       <div
         style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}
       >
