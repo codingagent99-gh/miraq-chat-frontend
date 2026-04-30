@@ -14,6 +14,7 @@ export interface AddressDict {
   email?: string;
   phone?: string;
   company?: string;
+  project_rep?: string;
 }
 
 export type ChatAction =
@@ -51,5 +52,7 @@ export type ChatAction =
  * exhaustive handling at compile time. TypeScript will error if a case is missing.
  */
 export function assertNever(x: never): never {
-  throw new Error(`[ChatAction] Unhandled action type: ${(x as { type: string }).type}`);
+  throw new Error(
+    `[ChatAction] Unhandled action type: ${(x as { type: string }).type}`,
+  );
 }

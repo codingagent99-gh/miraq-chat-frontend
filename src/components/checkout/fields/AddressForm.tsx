@@ -12,11 +12,18 @@ import {
   saveAddressDraft,
 } from "../../../utils/addressDraft";
 import { InlineFieldError } from "./InlineFieldError";
+import type { WpCountry, WpRep } from "../../../hooks/useCheckoutFields";
 
 /** Per-field overrides for label text and/or required status. */
 export type FieldOverrides = Partial<
   Record<keyof AddressDict, { label?: string; required?: boolean }>
 >;
+
+/**
+ * Internal form values — extends AddressDict with custom WooCommerce fields
+ * that aren't part of the standard address schema (e.g. project_rep).
+ */
+type FormValues = AddressDict & { project_rep?: string };
 
 export interface AddressFormProps {
   cartToken: string | null;
@@ -25,13 +32,24 @@ export interface AddressFormProps {
   isLoading?: boolean;
   submitLabel?: string;
   /** Provided by BillingAddressForm / ShippingAddressForm — don't pass manually. */
-  visibleFields: (keyof AddressDict)[];
+  visibleFields: (keyof AddressDict | "project_rep")[];
   /**
    * Per-field label / required overrides.
    * Provided by BillingAddressForm / ShippingAddressForm — don't pass manually.
    */
   fieldOverrides?: FieldOverrides;
   onSubmit: (address: AddressDict) => void;
+  /**
+   * Live country list from /wp-json/custom-api/v1/countries.
+   * Each entry includes a `states` array. When empty, falls back to the
+   * built-in COUNTRIES constant (no state dropdowns).
+   */
+  countries?: WpCountry[];
+  /**
+   * CS rep options from /wp-json/custom-api/v1/reps.
+   * When provided (billing only), renders the "Your Rep" dropdown.
+   */
+  repOptions?: WpRep[];
 }
 
 export const EMPTY: AddressDict = {
@@ -48,8 +66,11 @@ export const EMPTY: AddressDict = {
   phone: "",
 };
 
-export function fieldLabel(key: keyof AddressDict): string {
-  const labels: Record<keyof AddressDict, string> = {
+/** Full EMPTY with custom billing fields */
+const EMPTY_EXTENDED: FormValues = { ...EMPTY, project_rep: "" };
+
+export function fieldLabel(key: keyof AddressDict | "project_rep"): string {
+  const labels: Record<string, string> = {
     first_name: "First Name",
     last_name: "Last Name",
     company: "Company Name (optional)",
@@ -61,6 +82,7 @@ export function fieldLabel(key: keyof AddressDict): string {
     country: "Country / Region",
     email: "Email address",
     phone: "Phone",
+    project_rep: "Your Rep",
   };
   return labels[key] ?? key;
 }
@@ -299,27 +321,33 @@ export function AddressForm({
   visibleFields,
   fieldOverrides,
   onSubmit,
+  countries: wpCountries = [],
+  repOptions = [],
 }: AddressFormProps) {
+  // Use live WP countries when available, fall back to built-in list
+  const countryList = wpCountries.length > 0 ? wpCountries : COUNTRIES;
+
   // Fields required because they're always required AND present in this form,
   // plus any fields explicitly marked required via fieldOverrides.
   const requiredFields = visibleFields.filter(
     (f) =>
-      ALWAYS_REQUIRED.includes(f) || fieldOverrides?.[f]?.required === true,
+      ALWAYS_REQUIRED.includes(f as keyof AddressDict) ||
+      (fieldOverrides as any)?.[f]?.required === true,
   );
 
-  const [values, setValues] = useState<AddressDict>(() => {
+  const [values, setValues] = useState<FormValues>(() => {
     if (initialValues && Object.keys(initialValues).length > 0) {
-      return { ...EMPTY, ...initialValues };
+      return { ...EMPTY_EXTENDED, ...initialValues };
     }
     const draft = loadAddressDraft(cartToken);
-    return { ...EMPTY, ...(draft ?? {}) };
+    return { ...EMPTY_EXTENDED, ...(draft ?? {}) };
   });
 
   const [touched, setTouched] = useState<
-    Partial<Record<keyof AddressDict, boolean>>
+    Partial<Record<keyof FormValues, boolean>>
   >({});
   const [localErrors, setLocalErrors] = useState<
-    Partial<Record<keyof AddressDict, string>>
+    Partial<Record<keyof FormValues, string>>
   >({});
 
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -333,23 +361,30 @@ export function AddressForm({
     };
   }, [values, cartToken]);
 
-  function handleChange(field: keyof AddressDict, value: string) {
+  function handleChange(field: string, value: string) {
     setValues((prev) => ({ ...prev, [field]: value }));
-    if (touched[field]) {
+    if ((touched as any)[field]) {
       setLocalErrors((prev) => ({
         ...prev,
         [field]: value.trim()
           ? undefined
-          : requiredFields.includes(field)
+          : requiredFields.includes(field as any)
             ? "This field is required."
             : undefined,
       }));
     }
+    // Reset state when country changes
+    if (field === "country") {
+      setValues((prev) => ({ ...prev, country: value, state: "" }));
+    }
   }
 
-  function handleBlur(field: keyof AddressDict) {
+  function handleBlur(field: string) {
     setTouched((prev) => ({ ...prev, [field]: true }));
-    if (requiredFields.includes(field) && !values[field]?.trim()) {
+    if (
+      requiredFields.includes(field as any) &&
+      !(values as any)[field]?.trim()
+    ) {
       setLocalErrors((prev) => ({
         ...prev,
         [field]: "This field is required.",
@@ -358,13 +393,13 @@ export function AddressForm({
   }
 
   function validate(): boolean {
-    const newErrors: Partial<Record<keyof AddressDict, string>> = {};
+    const newErrors: Partial<Record<string, string>> = {};
     for (const field of requiredFields) {
-      if (!values[field]?.trim()) {
+      if (!(values as any)[field]?.trim()) {
         newErrors[field] = "This field is required.";
       }
     }
-    setLocalErrors(newErrors);
+    setLocalErrors(newErrors as any);
     setTouched(requiredFields.reduce((acc, f) => ({ ...acc, [f]: true }), {}));
     return Object.keys(newErrors).length === 0;
   }
@@ -372,15 +407,38 @@ export function AddressForm({
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!validate()) return;
-    onSubmit(values);
+    // Cast back — project_rep is included at runtime even if not in AddressDict type
+    onSubmit(values as AddressDict);
   }
 
   const serverFieldError =
     fieldError?.field && (fieldError.field as string) in EMPTY
-      ? { [fieldError.field as keyof AddressDict]: fieldError.message }
+      ? { [fieldError.field as string]: fieldError.message }
       : {};
 
-  const allErrors = { ...localErrors, ...serverFieldError };
+  const allErrors: Record<string, string | undefined> = {
+    ...(localErrors as Record<string, string | undefined>),
+    ...serverFieldError,
+  };
+
+  // Derive available states from the currently selected country
+  const selectedCountryData = countryList.find(
+    (c) => "states" in c && c.code === values.country,
+  ) as WpCountry | undefined;
+  const availableStates = selectedCountryData?.states ?? [];
+
+  // Select input shared styles
+  const selectStyle = (hasError: boolean): React.CSSProperties => ({
+    ...INPUT_BASE,
+    border: `1.5px solid ${hasError ? "#ef4444" : "#e8e6e0"}`,
+    appearance: "none",
+    backgroundImage:
+      "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23555' d='M6 8L1 3h10z'/%3E%3C/svg%3E\")",
+    backgroundRepeat: "no-repeat",
+    backgroundPosition: "right 10px center",
+    paddingRight: "28px",
+    cursor: "pointer",
+  });
 
   return (
     <form onSubmit={handleSubmit} noValidate style={{ width: "100%" }}>
@@ -388,8 +446,13 @@ export function AddressForm({
         style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}
       >
         {visibleFields.map((field) => {
-          const isFullWidth = !HALF_WIDTH_FIELDS.includes(field);
+          const isFullWidth = !HALF_WIDTH_FIELDS.includes(
+            field as keyof AddressDict,
+          );
           const error = allErrors[field];
+          const currentValue = (values as any)[field] ?? "";
+          const label =
+            (fieldOverrides as any)?.[field]?.label ?? fieldLabel(field);
 
           return (
             <div
@@ -411,45 +474,50 @@ export function AddressForm({
                   textTransform: "uppercase",
                 }}
               >
-                {fieldOverrides?.[field]?.label ?? fieldLabel(field)}
+                {label}
               </label>
 
-              {field === "country" ? (
+              {/* ── Country dropdown ── */}
+              {field === "country" && (
                 <select
                   id={`addr-${field}`}
-                  value={values[field] ?? ""}
+                  value={currentValue}
                   onChange={(e) => handleChange(field, e.target.value)}
                   onBlur={() => handleBlur(field)}
-                  style={{
-                    ...INPUT_BASE,
-                    border: `1.5px solid ${error ? "#ef4444" : "#e8e6e0"}`,
-                    appearance: "none",
-                    backgroundImage:
-                      "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23555' d='M6 8L1 3h10z'/%3E%3C/svg%3E\")",
-                    backgroundRepeat: "no-repeat",
-                    backgroundPosition: "right 10px center",
-                    paddingRight: "28px",
-                    cursor: "pointer",
-                  }}
+                  style={selectStyle(!!error)}
                 >
                   <option value="">Select a country…</option>
-                  {COUNTRIES.map((c) => (
+                  {countryList.map((c) => (
                     <option key={c.code} value={c.code}>
                       {c.name}
                     </option>
                   ))}
                 </select>
-              ) : (
+              )}
+
+              {/* ── State: dropdown when WP returns states, text input otherwise ── */}
+              {field === "state" && availableStates.length > 0 && (
+                <select
+                  id={`addr-${field}`}
+                  value={currentValue}
+                  onChange={(e) => handleChange(field, e.target.value)}
+                  onBlur={() => handleBlur(field)}
+                  style={selectStyle(!!error)}
+                >
+                  <option value="">Select a state…</option>
+                  {availableStates.map((s) => (
+                    <option key={s.code} value={s.code}>
+                      {s.name}
+                    </option>
+                  ))}
+                </select>
+              )}
+
+              {field === "state" && availableStates.length === 0 && (
                 <input
                   id={`addr-${field}`}
-                  type={
-                    field === "email"
-                      ? "email"
-                      : field === "phone"
-                        ? "tel"
-                        : "text"
-                  }
-                  value={values[field] ?? ""}
+                  type="text"
+                  value={currentValue}
                   onChange={(e) => handleChange(field, e.target.value)}
                   onBlur={() => handleBlur(field)}
                   style={{
@@ -458,6 +526,47 @@ export function AddressForm({
                   }}
                 />
               )}
+
+              {/* ── Your Rep dropdown (billing only) ── */}
+              {field === "project_rep" && (
+                <select
+                  id={`addr-${field}`}
+                  value={currentValue}
+                  onChange={(e) => handleChange(field, e.target.value)}
+                  onBlur={() => handleBlur(field)}
+                  style={selectStyle(!!error)}
+                >
+                  <option value="">Select your rep…</option>
+                  {repOptions.map((r) => (
+                    <option key={r.value} value={r.value}>
+                      {r.label}
+                    </option>
+                  ))}
+                </select>
+              )}
+
+              {/* ── All other fields: email, phone, text ── */}
+              {field !== "country" &&
+                field !== "state" &&
+                field !== "project_rep" && (
+                  <input
+                    id={`addr-${field}`}
+                    type={
+                      field === "email"
+                        ? "email"
+                        : field === "phone"
+                          ? "tel"
+                          : "text"
+                    }
+                    value={currentValue}
+                    onChange={(e) => handleChange(field, e.target.value)}
+                    onBlur={() => handleBlur(field)}
+                    style={{
+                      ...INPUT_BASE,
+                      border: `1.5px solid ${error ? "#ef4444" : "#e8e6e0"}`,
+                    }}
+                  />
+                )}
 
               <InlineFieldError message={error} />
             </div>

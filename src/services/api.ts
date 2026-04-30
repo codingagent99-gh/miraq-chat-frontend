@@ -114,3 +114,37 @@ export function createApiClient(baseURL?: string, apiKey?: string) {
     healthCheck,
   };
 }
+
+// ── WP REST API types ──────────────────────────────────────────────────────
+
+export interface WpCountry {
+  code: string;
+  name: string;
+  states: { code: string; name: string }[];
+}
+
+export interface WpRep {
+  value: string; // user_email — stored as _billing_project_rep meta
+  label: string; // display_name e.g. "Adria W."
+}
+
+// ── WP REST API fetch helpers ──────────────────────────────────────────────
+// These call your plugin's custom-api/v1 endpoints directly on the WP site.
+// They are intentionally separate from createApiClient (which points at the
+// MiraQ chat backend, not WordPress).
+
+export async function fetchWpCountries(wpBase: string): Promise<WpCountry[]> {
+  const res = await fetch(`${wpBase}/wp-json/custom-api/v1/countries`, {
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error(`Countries fetch failed: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchWpReps(wpBase: string): Promise<WpRep[]> {
+  const res = await fetch(`${wpBase}/wp-json/custom-api/v1/reps`, {
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error(`Reps fetch failed: ${res.status}`);
+  return res.json();
+}

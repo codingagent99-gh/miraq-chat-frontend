@@ -8,6 +8,7 @@ import { SavedAddressConfirmCard } from "../SavedAddressConfirmCard";
 import { ShippingAddressForm } from "../fields/ShippingAddressForm";
 import { BillingAddressForm } from "../fields/BillingAddressForm";
 import { clearAddressDraft } from "../../../utils/addressDraft";
+import { useCheckoutFields } from "../../../hooks/useCheckoutFields";
 
 interface AddressStepProps {
   cart: WCCart | null;
@@ -221,6 +222,8 @@ interface BillingSubStepProps {
   isLoading: boolean;
   error: { code: string; message: string; field?: string } | null;
   onConfirmed: (billing: AddressDict) => void;
+  countries: ReturnType<typeof useCheckoutFields>["countries"];
+  repOptions: ReturnType<typeof useCheckoutFields>["reps"];
 }
 
 function BillingSubStep({
@@ -229,6 +232,8 @@ function BillingSubStep({
   isLoading,
   error,
   onConfirmed,
+  countries,
+  repOptions,
 }: BillingSubStepProps) {
   const savedBilling = cart?.billing_address;
   const hasSavedBilling = isSavedAddress(savedBilling);
@@ -271,6 +276,8 @@ function BillingSubStep({
           isLoading={isLoading}
           submitLabel="Continue →"
           onSubmit={handleFormSubmit}
+          countries={countries}
+          repOptions={repOptions}
         />
       )}
 
@@ -308,6 +315,7 @@ interface ShippingSubStepProps {
   isLoading: boolean;
   error: { code: string; message: string; field?: string } | null;
   onConfirmed: (address: AddressDict) => void;
+  countries: ReturnType<typeof useCheckoutFields>["countries"];
 }
 
 function ShippingSubStep({
@@ -316,6 +324,7 @@ function ShippingSubStep({
   isLoading,
   error,
   onConfirmed,
+  countries,
 }: ShippingSubStepProps) {
   const savedShipping = cart?.shipping_address;
   const hasSavedShipping = isSavedAddress(savedShipping);
@@ -357,6 +366,7 @@ function ShippingSubStep({
           isLoading={isLoading}
           submitLabel="Continue to Payment →"
           onSubmit={handleFormSubmit}
+          countries={countries}
         />
       )}
 
@@ -404,6 +414,13 @@ export function AddressStep({
   updateCustomer,
   setStep,
 }: AddressStepProps) {
+  // Site origin: same logic as useChat — widget runs ON the WP site
+  const siteOrigin =
+    (import.meta as any).env?.VITE_WP_BASE_URL || window.location.origin;
+
+  // Fetch countries (with states) + rep options from the WP plugin endpoints
+  const { countries, reps } = useCheckoutFields(siteOrigin);
+
   // "billing" → "shipping" — two sequential steps, always both shown
   const [view, setView] = useState<"billing" | "shipping">("billing");
   const [confirmedBilling, setConfirmedBilling] = useState<AddressDict | null>(
@@ -435,6 +452,8 @@ export function AddressStep({
           setConfirmedBilling(billing);
           setView("shipping");
         }}
+        countries={countries}
+        repOptions={reps}
       />
     );
   }
@@ -527,6 +546,7 @@ export function AddressStep({
             isLoading={isLoading}
             error={error}
             onConfirmed={handleShippingConfirmed}
+            countries={countries}
           />
         </>
       )}

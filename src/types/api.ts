@@ -60,33 +60,6 @@ export interface PurchaseInfo {
 }
 
 // ============================================================================
-// Product Types
-// ============================================================================
-
-export interface Product {
-  id: number;
-  name: string;
-  slug: string;
-  description: string;
-  short_description: string;
-  price: number;
-  regular_price: number;
-  sale_price: number | null;
-  on_sale: boolean;
-  stock_status: string;
-  in_stock: boolean;
-  images: string[];
-  categories: string[];
-  permalink: string;
-  average_rating: string;
-  rating_count: number;
-  sku: string;
-  weight: string;
-  dimensions: { height: string; length: string; width: string };
-  total_sales: number;
-}
-
-// ============================================================================
 // Cart Types
 // ============================================================================
 
