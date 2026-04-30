@@ -32,7 +32,7 @@
  * ────────────────────────────────────────────────────────────────────────────
  */
 import { useState } from "react";
-import { FiX, FiExternalLink } from "react-icons/fi";
+import { FiChevronLeft, FiX, FiExternalLink } from "react-icons/fi";
 import type { Product } from "../types/api";
 
 // ── Tune these to match your site's header / footer heights ──────────────────
@@ -49,6 +49,7 @@ const IFRAME_PADDING = "10px";
 
 interface ProductIframePanelProps {
   product: Product;
+  onBack: () => void;
   onClose: () => void;
 }
 
@@ -60,6 +61,7 @@ function buildUrl(permalink: string): string {
 
 export function ProductIframePanel({
   product,
+  onBack,
   onClose,
 }: ProductIframePanelProps) {
   const [loaded, setLoaded] = useState(false);
@@ -81,95 +83,69 @@ export function ProductIframePanel({
       }}
     >
       {/* ── Panel header bar ─────────────────────────────────────────────── */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "10px",
-          padding: "12px 14px",
-          borderBottom: "1px solid #e8e6e0",
-          flexShrink: 0,
-          background: "#fafaf8",
-        }}
-      >
+      <div className="xpert-chat-header">
+        {/* Back button — mirrors ChatHeader's back button */}
         <button
           type="button"
-          onClick={onClose}
-          aria-label="Close product view"
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            width: "30px",
-            height: "30px",
-            border: "1.5px solid #e8e6e0",
-            borderRadius: "8px",
-            background: "#fff",
-            cursor: "pointer",
-            color: "#555",
-            flexShrink: 0,
-            transition: "border-color 0.15s, color 0.15s",
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.borderColor = "#1c1c1a";
-            e.currentTarget.style.color = "#1c1c1a";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.borderColor = "#e8e6e0";
-            e.currentTarget.style.color = "#555";
-          }}
+          className="xpert-icon-btn"
+          onClick={onBack}
+          aria-label="Back to chat"
         >
-          <FiX size={14} />
+          <FiChevronLeft size={24} />
         </button>
 
-        <span
-          style={{
-            flex: 1,
-            fontSize: "13px",
-            fontWeight: 600,
-            color: "#1c1c1a",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-          }}
-        >
-          {product.name}
-        </span>
+        {/* Product title */}
+        <div className="xpert-chat-header-info">
+          <h3 className="xpert-chat-header-title">{product.name}</h3>
+        </div>
 
-        {rawUrl && (
-          <a
-            href={rawUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label="Open in new tab"
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              width: "30px",
-              height: "30px",
-              border: "1.5px solid #e8e6e0",
-              borderRadius: "8px",
-              background: "#fff",
-              color: "#555",
-              flexShrink: 0,
-              textDecoration: "none",
-              transition: "border-color 0.15s, color 0.15s",
-            }}
-            onMouseEnter={(e) => {
-              (e.currentTarget as HTMLAnchorElement).style.borderColor =
-                "#1c1c1a";
-              (e.currentTarget as HTMLAnchorElement).style.color = "#1c1c1a";
-            }}
-            onMouseLeave={(e) => {
-              (e.currentTarget as HTMLAnchorElement).style.borderColor =
-                "#e8e6e0";
-              (e.currentTarget as HTMLAnchorElement).style.color = "#555";
-            }}
+        {/* Right side: external link + minimize button */}
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          {rawUrl && (
+            <a
+              href={rawUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Open in new tab"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                width: "30px",
+                height: "30px",
+                border: "1.5px solid #e8e6e0",
+                borderRadius: "8px",
+                background: "#fff",
+                color: "#555",
+                flexShrink: 0,
+                textDecoration: "none",
+                transition: "border-color 0.15s, color 0.15s",
+              }}
+              onMouseEnter={(e) => {
+                (e.currentTarget as HTMLAnchorElement).style.borderColor =
+                  "#1c1c1a";
+                (e.currentTarget as HTMLAnchorElement).style.color = "#1c1c1a";
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLAnchorElement).style.borderColor =
+                  "#e8e6e0";
+                (e.currentTarget as HTMLAnchorElement).style.color = "#555";
+              }}
+            >
+              <FiExternalLink size={13} />
+            </a>
+          )}
+
+          {/* Minimize button — mirrors ChatHeader's close button */}
+          <button
+            type="button"
+            className="xpert-icon-btn"
+            onClick={onClose}
+            aria-label="Minimize chat"
           >
-            <FiExternalLink size={13} />
-          </a>
-        )}
+            <FiX size={22} />
+          </button>
+        </div>
       </div>
 
       {/* ── iframe area ──────────────────────────────────────────────────── */}

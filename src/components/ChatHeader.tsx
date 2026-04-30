@@ -1,4 +1,4 @@
-import { FiMinus, FiShoppingCart, FiChevronLeft } from "react-icons/fi";
+import { FiShoppingCart, FiChevronLeft, FiX } from "react-icons/fi";
 
 interface ChatHeaderProps {
   cartCount: number;
@@ -78,7 +78,7 @@ export function ChatHeader({
           onClick={onClose}
           aria-label="Minimize chat"
         >
-          <FiMinus size={22} />
+          <FiX size={22} />
         </button>
       </div>
     </div>
