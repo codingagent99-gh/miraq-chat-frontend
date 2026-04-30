@@ -312,6 +312,7 @@ export function ChatWidget({
           panelOpen={panelOpen}
           setPanelOpen={setPanelOpen}
           assetBaseUrl={assetBaseUrl || ""}
+          aiEnabled={aiEnabled}
         >
           {!isLoggedIn ? (
             // ── Login required ─────────────────────────────────────────────
@@ -427,6 +428,7 @@ export function ChatWidget({
         panelOpen={panelOpen}
         setPanelOpen={setPanelOpen}
         assetBaseUrl={assetBaseUrl || ""}
+        aiEnabled={aiEnabled}
       >
         <div className="xpert-chat-window" style={{ position: "relative" }}>
           <ChatHeader
@@ -598,8 +600,9 @@ export function ChatWidget({
           {/* ── Product Detail Overlay (iframe) ── */}
           {selectedProduct && (
             <ProductIframePanel
+              onBack={handleProductDetailClose}
+              onClose={() => setPanelOpen(false)}
               product={selectedProduct}
-              onClose={handleProductDetailClose}
             />
           )}
 
@@ -635,7 +638,7 @@ export function ChatWidget({
         </div>
 
         <ToastContainer
-          position="top-right"
+          position="top-left"
           autoClose={3000}
           hideProgressBar={false}
           closeOnClick
