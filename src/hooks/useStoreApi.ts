@@ -69,6 +69,14 @@ export function useStoreApi({
         nonceExpiresRef.current = Date.now() + 12 * 60 * 60 * 1000;
       }
 
+      // WC also issues/rotates a Cart-Token on every response.
+      // Without keeping this current, /checkout fires with a stale/empty
+      // token and WooCommerce can't identify which session cart to clear.
+      const rotatedCartToken = response.headers.get("Cart-Token");
+      if (rotatedCartToken) {
+        cartTokenRef.current = rotatedCartToken;
+      }
+
       return response;
     },
     [getFreshNonce, siteOrigin],

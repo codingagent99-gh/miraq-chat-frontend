@@ -15,6 +15,7 @@ export interface AddressDict {
   phone?: string;
   company?: string;
   project_rep?: string;
+  order_notes?: string;
 }
 
 export type ChatAction =

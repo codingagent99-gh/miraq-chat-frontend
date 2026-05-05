@@ -114,11 +114,21 @@ export function useCheckout({
         const updatedCart = body as WCCart;
         onCartUpdate(updatedCart);
 
-        // Hydrate customer + shipping packages from the response
+        // Hydrate customer + shipping packages from the response.
+        // WooCommerce only echoes back standard address fields — it silently
+        // drops custom fields (project_rep, billing_field_type, etc.).
+        // Merge the original input ON TOP of the WC response so placeOrder
+        // always sends custom fields along with the /checkout payload.
         if (updatedCart.billing_address || updatedCart.shipping_address) {
           setCustomer({
-            billing: updatedCart.billing_address ?? {},
-            shipping: updatedCart.shipping_address ?? {},
+            billing: {
+              ...(updatedCart.billing_address ?? {}),
+              ...(data.billing_address ?? {}),
+            },
+            shipping: {
+              ...(updatedCart.shipping_address ?? {}),
+              ...(data.shipping_address ?? {}),
+            },
           });
         }
 
@@ -172,45 +182,129 @@ export function useCheckout({
   );
 
   // ── placeOrder ─────────────────────────────────────────────────────────────
+  // Uses POST /wc/store/v1/checkout (Store API).
+  //
+  // Custom fields (billing_project, billing_field_type, project_rep) are
+  // passed in the `extensions` object rather than as top-level fields.
+  // The server-side hook `woocommerce_store_api_checkout_update_order_from_request`
+  // in class-api.php reads from extensions["miraq-checkout"] and saves them
+  // as order meta — the correct Store API extension pattern.
+  //
+  // Free orders: WooCommerce still requires a non-empty payment_method even
+  // when needs_payment === false. We fall back to the first available method
+  // (e.g. "cod") — it won't be charged for a $0 order.
   const placeOrder = useCallback(
     async (payment: PaymentPayload): Promise<OrderConfirmation> => {
       setIsLoading(true);
       setError(null);
       setStep("placing_order");
+
       try {
         const billing = customer?.billing ?? cart?.billing_address ?? {};
         const shipping = customer?.shipping ?? cart?.shipping_address ?? {};
 
+        // Always send a valid payment_method — required by the Store API even
+        // when the order total is zero.
+        const paymentMethod =
+          payment.payment_method || cart?.payment_methods?.[0] || "cod";
+
+        const body = {
+          billing_address: {
+            first_name: String(billing.first_name ?? ""),
+            last_name: String(billing.last_name ?? ""),
+            company: String(billing.company ?? ""),
+            address_1: String(billing.address_1 ?? ""),
+            address_2: String(billing.address_2 ?? ""),
+            city: String(billing.city ?? ""),
+            state: String(billing.state ?? ""),
+            postcode: String(billing.postcode ?? ""),
+            country: String(billing.country ?? ""),
+            email: String(billing.email ?? ""),
+            phone: String(billing.phone ?? ""),
+          },
+          shipping_address: {
+            first_name: String(shipping.first_name ?? ""),
+            last_name: String(shipping.last_name ?? ""),
+            company: String(shipping.company ?? ""),
+            address_1: String(shipping.address_1 ?? ""),
+            address_2: String(shipping.address_2 ?? ""),
+            city: String(shipping.city ?? ""),
+            state: String(shipping.state ?? ""),
+            postcode: String(shipping.postcode ?? ""),
+            country: String(shipping.country ?? ""),
+          },
+          customer_note: String((billing as any).order_notes ?? ""),
+          payment_method: paymentMethod,
+          payment_data: payment.payment_data ?? [],
+          // Custom fields — saved via woocommerce_store_api_checkout_update_order_from_request
+          // in class-api.php. The namespace key must match what the PHP hook reads.
+          extensions: {
+            "miraq-checkout": {
+              billing_project: String((billing as any).billing_project ?? ""),
+              billing_field_type: String(
+                (billing as any).billing_field_type ?? "",
+              ),
+              project_rep: String((billing as any).project_rep ?? ""),
+            },
+          },
+        };
+
         const res = await storeApiFetch("/checkout", {
           method: "POST",
-          body: JSON.stringify({
-            billing_address: billing,
-            shipping_address: shipping,
-            customer_note: "",
-            payment_method: payment.payment_method,
-            payment_data: payment.payment_data,
-          }),
+          body: JSON.stringify(body),
         });
 
-        const body: unknown = await res.json();
+        const resBody: unknown = await res.json();
 
         if (!res.ok) {
-          const parsed = parseWooError(body);
+          const parsed = parseWooError(resBody);
           setError(parsed);
           setStep("error");
           throw new Error(parsed.message);
         }
 
-        const confirmation = body as OrderConfirmation;
+        const result = resBody as {
+          order_id?: number;
+          order_key?: string;
+          status?: string;
+          total?: string;
+          payment_result?: {
+            payment_status?: string;
+            redirect_url?: string;
+          };
+        };
+
+        const confirmation: OrderConfirmation = {
+          order_id: result.order_id ?? 0,
+          order_key: result.order_key ?? "",
+          status: result.status ?? "",
+          total: result.total ?? "",
+          payment_result: result.payment_result
+            ? {
+                payment_status: result.payment_result.payment_status ?? "",
+                redirect_url: result.payment_result.redirect_url,
+              }
+            : undefined,
+        };
+
         setOrder(confirmation);
         setStep("complete");
 
         // Clear address draft — order is done
         clearAddressDraft(cartToken ?? null);
 
-        // Update cart in parent (Woo returns the new empty cart on checkout)
-        if ((body as { cart?: WCCart }).cart) {
-          onCartUpdate((body as { cart: WCCart }).cart);
+        // Re-fetch cart so the frontend reflects the now-empty server cart
+        try {
+          const cartRes = await storeApiFetch("/cart");
+          if (cartRes.ok) {
+            const freshCart = (await cartRes.json()) as WCCart;
+            onCartUpdate(freshCart);
+          }
+        } catch (cartErr) {
+          console.warn(
+            "[MiraQ] Could not refresh cart after checkout:",
+            cartErr,
+          );
         }
 
         return confirmation;

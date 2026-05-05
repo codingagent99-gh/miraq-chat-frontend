@@ -4,11 +4,11 @@ import { FiEdit2 } from "react-icons/fi";
 import type { AddressDict } from "../../../types/actions";
 import type { WCCart } from "../../../hooks/useCart";
 import type { CheckoutStep } from "../../../types/checkout";
-import { SavedAddressConfirmCard } from "../SavedAddressConfirmCard";
 import { ShippingAddressForm } from "../fields/ShippingAddressForm";
-import { BillingAddressForm } from "../fields/BillingAddressForm";
 import { clearAddressDraft } from "../../../utils/addressDraft";
 import { useCheckoutFields } from "../../../hooks/useCheckoutFields";
+import { BillingAddressForm } from "../fields/BillingAddressForm";
+import { SavedAddressConfirmCard } from "../SavedAddressConfirmCard";
 
 interface AddressStepProps {
   cart: WCCart | null;
@@ -207,13 +207,11 @@ function ConfirmedPill({
 
 // ═════════════════════════════════════════════════════════════════════════════
 // BillingSubStep
-// Collects billing details.
-// Three internal phases:
-//   confirm_saved → show SavedAddressConfirmCard
-//   form          → show BillingAddressForm
-//   confirm_draft → show ConfirmedPill + Continue button
+// Always shows the billing form pre-filled from any saved address.
+// Calls onConfirmed directly on submit — no intermediate review phase.
 // ═════════════════════════════════════════════════════════════════════════════
 
+// Used only by ShippingSubStep — billing always opens the form directly.
 type AddressPhase = "confirm_saved" | "form" | "confirm_draft";
 
 interface BillingSubStepProps {
@@ -224,6 +222,7 @@ interface BillingSubStepProps {
   onConfirmed: (billing: AddressDict) => void;
   countries: ReturnType<typeof useCheckoutFields>["countries"];
   repOptions: ReturnType<typeof useCheckoutFields>["reps"];
+  orderTypeOptions: ReturnType<typeof useCheckoutFields>["orderTypeOptions"];
 }
 
 function BillingSubStep({
@@ -234,73 +233,31 @@ function BillingSubStep({
   onConfirmed,
   countries,
   repOptions,
+  orderTypeOptions,
 }: BillingSubStepProps) {
   const savedBilling = cart?.billing_address;
   const hasSavedBilling = isSavedAddress(savedBilling);
 
-  const [phase, setPhase] = useState<AddressPhase>(
-    hasSavedBilling ? "confirm_saved" : "form",
-  );
-  const [draft, setDraft] = useState<AddressDict | null>(null);
-
-  function handleFormSubmit(address: AddressDict) {
-    setDraft(address);
-    setPhase("confirm_draft");
-  }
-
+  // Always show the form — billing has custom fields (Order Type, Project
+  // Name, Rep) that need explicit user input every time. Pre-fill from any
+  // saved address so the user only edits what has changed. The form's submit
+  // button IS the continue action — no intermediate review step needed.
   return (
     <div style={{ padding: "16px" }}>
       <h3 style={heading}>Billing Details</h3>
-
-      {/* Phase: existing billing address on file */}
-      {phase === "confirm_saved" && hasSavedBilling && (
-        <SavedAddressConfirmCard
-          address={savedBilling!}
-          title="Saved Billing Address"
-          primaryLabel="Use this address"
-          secondaryLabel="Enter a different address"
-          onPrimary={() => onConfirmed(savedBilling!)}
-          onSecondary={() => setPhase("form")}
-          isLoading={isLoading}
-        />
-      )}
-
-      {/* Phase: billing form — entering new or editing draft.
-          When coming from confirm_saved (hasSavedBilling), seed the form with
-          the existing address so the user only edits what they need to change. */}
-      {phase === "form" && (
-        <BillingAddressForm
-          cartToken={cartToken}
-          initialValues={draft ?? (hasSavedBilling ? savedBilling : undefined)}
-          fieldError={
-            error ? { field: error.field, message: error.message } : null
-          }
-          isLoading={isLoading}
-          submitLabel="Continue →"
-          onSubmit={handleFormSubmit}
-          countries={countries}
-          repOptions={repOptions}
-        />
-      )}
-
-      {/* Phase: review billing draft before continuing */}
-      {phase === "confirm_draft" && draft && (
-        <>
-          <ConfirmedPill
-            label="Billing address"
-            address={draft}
-            onEdit={() => setPhase("form")}
-          />
-          <button
-            type="button"
-            disabled={isLoading}
-            onClick={() => onConfirmed(draft)}
-            style={continueBtn(isLoading)}
-          >
-            {isLoading ? "Saving…" : "Continue →"}
-          </button>
-        </>
-      )}
+      <BillingAddressForm
+        cartToken={cartToken}
+        initialValues={hasSavedBilling ? savedBilling : undefined}
+        fieldError={
+          error ? { field: error.field, message: error.message } : null
+        }
+        isLoading={isLoading}
+        submitLabel="Continue →"
+        onSubmit={onConfirmed}
+        countries={countries}
+        repOptions={repOptions}
+        orderTypeOptions={orderTypeOptions}
+      />
     </div>
   );
 }
@@ -424,8 +381,8 @@ export function AddressStep({
   const siteOrigin =
     (import.meta as any).env?.VITE_WP_BASE_URL || window.location.origin;
 
-  // Fetch countries (with states) + rep options from the WP plugin endpoints
-  const { countries, reps } = useCheckoutFields(siteOrigin);
+  // Fetch countries (with states), rep options, and order type options from the WP plugin endpoints
+  const { countries, reps, orderTypeOptions } = useCheckoutFields(siteOrigin);
 
   // "billing" → "shipping" — two sequential steps, always both shown
   const [view, setView] = useState<"billing" | "shipping">("billing");
@@ -460,6 +417,7 @@ export function AddressStep({
         }}
         countries={countries}
         repOptions={reps}
+        orderTypeOptions={orderTypeOptions}
       />
     );
   }
@@ -485,48 +443,73 @@ export function AddressStep({
       {/* Shipping heading */}
       <h3 style={{ ...heading, marginBottom: "14px" }}>Shipping Address</h3>
 
-      {/* "Same as billing address" toggle — checked by default */}
+      {/* "Same as billing address" toggle — custom checkbox for clarity */}
       <label
         style={{
           ...toggleRow,
-          background: sameAsBilling ? "#f5f4f1" : "#fff",
-          border: `1.5px solid ${sameAsBilling ? "#1c1c1a" : "#e8e6e0"}`,
+          background: sameAsBilling ? "#f0fdf4" : "#fff",
+          border: `1.5px solid ${sameAsBilling ? "#10b981" : "#e8e6e0"}`,
         }}
       >
+        {/* Custom checkbox */}
+        <div
+          style={{
+            flexShrink: 0,
+            width: "20px",
+            height: "20px",
+            borderRadius: "6px",
+            border: `2px solid ${sameAsBilling ? "#10b981" : "#ccc"}`,
+            background: sameAsBilling ? "#10b981" : "#fff",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            transition: "all 0.15s",
+          }}
+        >
+          {sameAsBilling && (
+            <svg width="11" height="9" viewBox="0 0 11 9" fill="none">
+              <path
+                d="M1 4.5L4 7.5L10 1"
+                stroke="white"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          )}
+        </div>
+        {/* Hidden native checkbox for accessibility */}
         <input
           type="checkbox"
           checked={sameAsBilling}
           onChange={(e) => setSameAsBilling(e.target.checked)}
-          style={{
-            accentColor: "#1c1c1a",
-            width: "15px",
-            height: "15px",
-            flexShrink: 0,
-          }}
+          style={{ position: "absolute", opacity: 0, width: 0, height: 0 }}
         />
         <div>
           <span
             style={{
               fontSize: "13px",
               fontWeight: 600,
-              color: "#1c1c1a",
+              color: sameAsBilling ? "#065f46" : "#1c1c1a",
               display: "block",
+              transition: "color 0.15s",
             }}
           >
             Same as billing address
           </span>
-          {sameAsBilling && (
-            <span
-              style={{
-                fontSize: "11px",
-                color: "#888",
-                marginTop: "2px",
-                display: "block",
-              }}
-            >
-              Your order will ship to your billing address
-            </span>
-          )}
+          <span
+            style={{
+              fontSize: "11px",
+              color: sameAsBilling ? "#10b981" : "#aaa",
+              marginTop: "2px",
+              display: "block",
+              transition: "color 0.15s",
+            }}
+          >
+            {sameAsBilling
+              ? "✓ Your order will ship to your billing address"
+              : "Uncheck — enter a separate shipping address below"}
+          </span>
         </div>
       </label>
 

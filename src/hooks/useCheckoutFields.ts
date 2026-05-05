@@ -13,15 +13,18 @@ import { useState, useEffect } from "react";
 import {
   fetchWpCountries,
   fetchWpReps,
+  fetchWpCheckoutFields,
   type WpCountry,
   type WpRep,
+  type WpOrderTypeOption,
 } from "../services/api";
 
-export type { WpCountry, WpRep };
+export type { WpCountry, WpRep, WpOrderTypeOption };
 
 export interface CheckoutFieldsData {
   countries: WpCountry[];
   reps: WpRep[];
+  orderTypeOptions: WpOrderTypeOption[];
   isLoading: boolean;
   error: string | null;
 }
@@ -29,6 +32,9 @@ export interface CheckoutFieldsData {
 export function useCheckoutFields(wpBase: string): CheckoutFieldsData {
   const [countries, setCountries] = useState<WpCountry[]>([]);
   const [reps, setReps] = useState<WpRep[]>([]);
+  const [orderTypeOptions, setOrderTypeOptions] = useState<WpOrderTypeOption[]>(
+    [],
+  );
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -39,18 +45,22 @@ export function useCheckoutFields(wpBase: string): CheckoutFieldsData {
     setIsLoading(true);
     setError(null);
 
-    Promise.all([fetchWpCountries(wpBase), fetchWpReps(wpBase)])
-      .then(([countriesData, repsData]) => {
+    Promise.all([
+      fetchWpCountries(wpBase),
+      fetchWpReps(wpBase),
+      fetchWpCheckoutFields(wpBase),
+    ])
+      .then(([countriesData, repsData, orderTypeData]) => {
         if (cancelled) return;
         setCountries(countriesData);
         setReps(repsData);
+        setOrderTypeOptions(orderTypeData);
       })
       .catch((err) => {
         if (cancelled) return;
         console.warn("[useCheckoutFields] Failed to fetch from WP:", err);
         setError(err?.message ?? "Failed to load checkout fields");
-        // Countries/reps stay empty — AddressForm falls back to its
-        // built-in COUNTRIES list and hides the rep dropdown.
+        // All fields stay empty — AddressForm falls back to built-in defaults.
       })
       .finally(() => {
         if (!cancelled) setIsLoading(false);
@@ -61,5 +71,5 @@ export function useCheckoutFields(wpBase: string): CheckoutFieldsData {
     };
   }, [wpBase]);
 
-  return { countries, reps, isLoading, error };
+  return { countries, reps, orderTypeOptions, isLoading, error };
 }

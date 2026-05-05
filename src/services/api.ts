@@ -128,6 +128,12 @@ export interface WpRep {
   label: string; // display_name e.g. "Adria W."
 }
 
+/** One option from the billing_field_type (Order Type) select field. */
+export interface WpOrderTypeOption {
+  value: string; // e.g. "existing_deal"
+  label: string; // e.g. "Existing Deal"
+}
+
 // ── WP REST API fetch helpers ──────────────────────────────────────────────
 // These call your plugin's custom-api/v1 endpoints directly on the WP site.
 // They are intentionally separate from createApiClient (which points at the
@@ -147,4 +153,28 @@ export async function fetchWpReps(wpBase: string): Promise<WpRep[]> {
   });
   if (!res.ok) throw new Error(`Reps fetch failed: ${res.status}`);
   return res.json();
+}
+
+/**
+ * Fetches Order Type options from the dedicated /order-types endpoint.
+ *
+ * billing_field_type is registered by THWCFE outside WooCommerce's standard
+ * checkout fields filter, so it never appears in /checkout-fields. The plugin
+ * exposes a dedicated endpoint that reads directly from THWCFE's option store.
+ *
+ * Response shape: [{ value: "existing_deal", label: "Existing Deal" }, ...]
+ */
+export async function fetchWpCheckoutFields(
+  wpBase: string,
+): Promise<WpOrderTypeOption[]> {
+  const res = await fetch(`${wpBase}/wp-json/custom-api/v1/order-types`, {
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error(`Order types fetch failed: ${res.status}`);
+  const data = await res.json();
+
+  if (Array.isArray(data)) return data as WpOrderTypeOption[];
+
+  console.warn("[MiraQ] Unexpected /order-types shape:", data);
+  return [];
 }

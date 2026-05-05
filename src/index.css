@@ -752,10 +752,14 @@
 /* --- Order Confirmation --- */
 #silfra-chat-widget-container .xpert-order-confirmation {
   margin-top: 1rem;
-  background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
-  border: 2px solid var(--color-success);
+  margin-left: 8px;
+  background: #ffffff;
+  border: 1.5px solid var(--color-border);
   border-radius: 12px;
-  padding: 1.5rem;
+  padding: 1.25rem;
+  width: calc(100% - 8px);
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 #silfra-chat-widget-container .xpert-order-header {

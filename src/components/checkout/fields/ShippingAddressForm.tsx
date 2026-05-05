@@ -24,6 +24,7 @@ const SHIPPING_FIELDS: (keyof AddressDict)[] = [
   "city",
   "state",
   "postcode",
+  "order_notes",
 ];
 
 type ShippingAddressFormProps = Omit<
@@ -37,6 +38,7 @@ type ShippingAddressFormProps = Omit<
 /** State is optional on shipping — label reflects this. */
 const SHIPPING_FIELD_OVERRIDES: FieldOverrides = {
   state: { label: "County (optional)" },
+  company: { required: true },
 };
 
 export function ShippingAddressForm({

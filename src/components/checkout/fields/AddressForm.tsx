@@ -12,18 +12,37 @@ import {
   saveAddressDraft,
 } from "../../../utils/addressDraft";
 import { InlineFieldError } from "./InlineFieldError";
-import type { WpCountry, WpRep } from "../../../hooks/useCheckoutFields";
+import type {
+  WpCountry,
+  WpRep,
+  WpOrderTypeOption,
+} from "../../../hooks/useCheckoutFields";
+
+/** All custom (non-AddressDict) fields supported by this form. */
+type CustomField =
+  | "project_rep" // Your Rep — select from /wp-json/custom-api/v1/reps
+  | "billing_field_type" // Order Type — select from /wp-json/custom-api/v1/checkout-fields
+  | "billing_project" // Project Name — free-text input
+  | "order_notes"; // Order Notes — optional textarea (shipping step)
 
 /** Per-field overrides for label text and/or required status. */
 export type FieldOverrides = Partial<
-  Record<keyof AddressDict, { label?: string; required?: boolean }>
+  Record<
+    keyof AddressDict | CustomField,
+    { label?: string; required?: boolean }
+  >
 >;
 
 /**
  * Internal form values — extends AddressDict with custom WooCommerce fields
- * that aren't part of the standard address schema (e.g. project_rep).
+ * that aren't part of the standard address schema.
  */
-type FormValues = AddressDict & { project_rep?: string };
+type FormValues = AddressDict & {
+  project_rep?: string;
+  billing_field_type?: string; // Order Type
+  billing_project?: string; // Project Name
+  order_notes?: string;
+};
 
 export interface AddressFormProps {
   cartToken: string | null;
@@ -32,7 +51,7 @@ export interface AddressFormProps {
   isLoading?: boolean;
   submitLabel?: string;
   /** Provided by BillingAddressForm / ShippingAddressForm — don't pass manually. */
-  visibleFields: (keyof AddressDict | "project_rep")[];
+  visibleFields: (keyof AddressDict | CustomField)[];
   /**
    * Per-field label / required overrides.
    * Provided by BillingAddressForm / ShippingAddressForm — don't pass manually.
@@ -45,6 +64,11 @@ export interface AddressFormProps {
    * built-in COUNTRIES constant (no state dropdowns).
    */
   countries?: WpCountry[];
+  /**
+   * Order Type options from /wp-json/custom-api/v1/checkout-fields.
+   * When provided (billing only), renders the "Order Type" dropdown.
+   */
+  orderTypeOptions?: WpOrderTypeOption[];
   /**
    * CS rep options from /wp-json/custom-api/v1/reps.
    * When provided (billing only), renders the "Your Rep" dropdown.
@@ -66,14 +90,20 @@ export const EMPTY: AddressDict = {
   phone: "",
 };
 
-/** Full EMPTY with custom billing fields */
-const EMPTY_EXTENDED: FormValues = { ...EMPTY, project_rep: "" };
+/** Full EMPTY with custom billing/shipping fields */
+const EMPTY_EXTENDED: FormValues = {
+  ...EMPTY,
+  project_rep: "",
+  billing_field_type: "",
+  billing_project: "",
+  order_notes: "",
+};
 
-export function fieldLabel(key: keyof AddressDict | "project_rep"): string {
+export function fieldLabel(key: keyof AddressDict | CustomField): string {
   const labels: Record<string, string> = {
     first_name: "First Name",
     last_name: "Last Name",
-    company: "Company Name (optional)",
+    company: "Company Name",
     address_1: "Street address",
     address_2: "Apartment, suite, unit, etc. (optional)",
     city: "Town / City",
@@ -83,6 +113,9 @@ export function fieldLabel(key: keyof AddressDict | "project_rep"): string {
     email: "Email address",
     phone: "Phone",
     project_rep: "Your Rep",
+    billing_field_type: "Order Type",
+    billing_project: "Project Name",
+    order_notes: "Order Notes (optional)",
   };
   return labels[key] ?? key;
 }
@@ -323,6 +356,7 @@ export function AddressForm({
   onSubmit,
   countries: wpCountries = [],
   repOptions = [],
+  orderTypeOptions = [],
 }: AddressFormProps) {
   // Use live WP countries when available, fall back to built-in list
   const countryList = wpCountries.length > 0 ? wpCountries : COUNTRIES;
@@ -612,10 +646,65 @@ export function AddressForm({
                 </select>
               )}
 
-              {/* ── All other fields: email, phone, text ── */}
+              {/* ── Order Type dropdown (billing only — options from /checkout-fields) ── */}
+              {field === "billing_field_type" && (
+                <select
+                  id={`addr-${field}`}
+                  value={currentValue}
+                  onChange={(e) => handleChange(field, e.target.value)}
+                  onBlur={() => handleBlur(field)}
+                  style={selectStyle(!!error)}
+                >
+                  <option value="">Select order type…</option>
+                  {orderTypeOptions.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              )}
+
+              {/* ── Project Name text input (billing only) ── */}
+              {field === "billing_project" && (
+                <input
+                  id={`addr-${field}`}
+                  type="text"
+                  placeholder="e.g. City Centre Hotel Refurb"
+                  value={currentValue}
+                  onChange={(e) => handleChange(field, e.target.value)}
+                  onBlur={() => handleBlur(field)}
+                  style={{
+                    ...INPUT_BASE,
+                    border: `1.5px solid ${error ? "#ef4444" : "#e8e6e0"}`,
+                  }}
+                />
+              )}
+
+              {/* ── Order Notes textarea (shipping step — optional) ── */}
+              {field === "order_notes" && (
+                <textarea
+                  id={`addr-${field}`}
+                  placeholder="Any special delivery instructions or notes about your order…"
+                  value={currentValue}
+                  onChange={(e) => handleChange(field, e.target.value)}
+                  onBlur={() => handleBlur(field)}
+                  rows={3}
+                  style={{
+                    ...INPUT_BASE,
+                    border: `1.5px solid ${error ? "#ef4444" : "#e8e6e0"}`,
+                    resize: "vertical",
+                    minHeight: "70px",
+                  }}
+                />
+              )}
+
+              {/* ── All other fields: email, phone, text inputs ── */}
               {field !== "country" &&
                 field !== "state" &&
-                field !== "project_rep" && (
+                field !== "project_rep" &&
+                field !== "billing_field_type" &&
+                field !== "billing_project" &&
+                field !== "order_notes" && (
                   <input
                     id={`addr-${field}`}
                     type={

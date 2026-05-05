@@ -8,7 +8,6 @@ import { WidgetContainer } from "./components/WidgetContainer";
 import { HomeScreen } from "./components/HomeScreen";
 import { ChatHeader } from "./components/ChatHeader";
 import { MessageRow } from "./components/MessageRow";
-import { ProductIframePanel } from "./components/ProductIframePanel";
 import type { Product, WidgetOptions } from "./types/api";
 import { FiSend, FiX, FiMic, FiMicOff } from "react-icons/fi";
 import { useSpeechRecognition } from "./hooks/useSpeechRecognition";
@@ -74,8 +73,6 @@ export function ChatWidget({
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const originalInputRef = useRef("");
-
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
   // ── Widget config (logo + header text from backend) ──────────────────────
   const [widgetLogo, setWidgetLogo] = useState<string>("");
@@ -160,6 +157,18 @@ export function ChatWidget({
       setInputValue(originalInputRef.current + transcript);
     }
   }, [transcript, isListening]);
+
+  // ── Scroll to bottom whenever the panel opens so latest messages are visible ──
+  useEffect(() => {
+    if (panelOpen) {
+      // Small delay lets the panel finish its slide-in animation before scrolling
+      const id = setTimeout(
+        () => bottomRef.current?.scrollIntoView({ behavior: "instant" }),
+        50,
+      );
+      return () => clearTimeout(id);
+    }
+  }, [panelOpen, bottomRef]);
 
   // ── Fetch widget config (logo + text) from backend ────────────────────────
   useEffect(() => {
@@ -274,14 +283,10 @@ export function ChatWidget({
     setTimeout(() => inputRef.current?.focus(), 50);
   }, [inputRef]);
 
-  const handleProductClick = useCallback(
-    (product: Product) => setSelectedProduct(product),
-    [],
-  );
-  const handleProductDetailClose = useCallback(
-    () => setSelectedProduct(null),
-    [],
-  );
+  const handleProductClick = useCallback((product: Product) => {
+    const url = (product as any).permalink as string | undefined;
+    if (url) window.location.href = url;
+  }, []);
 
   // const handleAskAbout = useCallback(
   //   (productName: string) => {
@@ -312,7 +317,7 @@ export function ChatWidget({
           panelOpen={panelOpen}
           setPanelOpen={setPanelOpen}
           assetBaseUrl={assetBaseUrl || ""}
-          aiEnabled={aiEnabled}
+          // aiEnabled={aiEnabled}
         >
           {!isLoggedIn ? (
             // ── Login required ─────────────────────────────────────────────
@@ -428,9 +433,12 @@ export function ChatWidget({
         panelOpen={panelOpen}
         setPanelOpen={setPanelOpen}
         assetBaseUrl={assetBaseUrl || ""}
-        aiEnabled={aiEnabled}
+        // aiEnabled={aiEnabled}
       >
-        <div className="xpert-chat-window" style={{ position: "relative" }}>
+        <div
+          className="xpert-chat-window"
+          style={{ position: "relative", overflow: "hidden" }}
+        >
           <ChatHeader
             cartCount={cartCount}
             customerName={customerName}
@@ -597,15 +605,6 @@ export function ChatWidget({
 
           <p className="xpert-footer-hint">{widgetText}</p>
 
-          {/* ── Product Detail Overlay (iframe) ── */}
-          {selectedProduct && (
-            <ProductIframePanel
-              onBack={handleProductDetailClose}
-              onClose={() => setPanelOpen(false)}
-              product={selectedProduct}
-            />
-          )}
-
           {/* ── Cart Panel Overlay ── */}
           {isCartOpen && (
             <CartPanel
@@ -635,16 +634,32 @@ export function ChatWidget({
               onPostBotMessage={appendBotMessage}
             />
           )}
+          {/* ── Toast notifications — scoped within the widget ── */}
+          <ToastContainer
+            position="top-left"
+            autoClose={3000}
+            hideProgressBar={false}
+            closeOnClick
+            pauseOnHover
+            draggable
+            style={{
+              position: "absolute",
+              top: "8px",
+              left: "8px",
+              right: "8px",
+              width: "auto",
+              zIndex: 9999,
+            }}
+            toastStyle={{
+              background: "#fff",
+              color: "#1c1c1a",
+              boxShadow: "0 4px 16px rgba(0,0,0,0.10)",
+              borderRadius: "10px",
+              fontSize: "12.5px",
+              border: "1px solid #eeede8",
+            }}
+          />
         </div>
-
-        <ToastContainer
-          position="top-left"
-          autoClose={3000}
-          hideProgressBar={false}
-          closeOnClick
-          pauseOnHover
-          draggable
-        />
       </WidgetContainer>
     </div>
   );
