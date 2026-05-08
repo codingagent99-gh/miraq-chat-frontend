@@ -158,17 +158,18 @@ export function ChatWidget({
     }
   }, [transcript, isListening]);
 
-  // ── Scroll to bottom whenever the panel opens so latest messages are visible ──
+  // ── Scroll to bottom when panel opens OR screen switches to chat ──
+  // screen is in deps so Home→Chat navigation (panelOpen already true) also triggers.
+  // 120ms delay gives the chat DOM time to paint after a page reload.
   useEffect(() => {
-    if (panelOpen) {
-      // Small delay lets the panel finish its slide-in animation before scrolling
+    if (panelOpen && screen === "chat") {
       const id = setTimeout(
         () => bottomRef.current?.scrollIntoView({ behavior: "instant" }),
-        50,
+        120,
       );
       return () => clearTimeout(id);
     }
-  }, [panelOpen, bottomRef]);
+  }, [panelOpen, screen, bottomRef]);
 
   // ── Fetch widget config (logo + text) from backend ────────────────────────
   useEffect(() => {
@@ -259,6 +260,12 @@ export function ChatWidget({
       setInputValue("");
     }
     sendMessage(text);
+    setTimeout(() => inputRef.current?.focus(), 50);
+  };
+
+  /** Populates the input box with the current variant selection — does NOT send. */
+  const handleVariantSelect = (text: string) => {
+    setInputValue(text);
     setTimeout(() => inputRef.current?.focus(), 50);
   };
 
@@ -462,6 +469,7 @@ export function ChatWidget({
                   sendMessage(`show me order #${orderNumber}`)
                 }
                 onProductClick={handleProductClick}
+                onVariantSelect={handleVariantSelect}
                 miraQIcon={widgetLogo || MiraQIcon}
               />
             ))}
@@ -613,6 +621,10 @@ export function ChatWidget({
               error={cartError}
               siteOrigin={siteOrigin}
               onClose={() => setIsCartOpen(false)}
+              onCloseWidget={() => {
+                setIsCartOpen(false);
+                setPanelOpen(false);
+              }}
               onRemove={removeItem}
               onUpdateQuantity={updateQuantity}
               onCheckout={() => {

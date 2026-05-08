@@ -8,6 +8,7 @@ import { OrderConfirmation } from "./OrderConfirmation";
 import { SuggestionChips } from "./SuggestionChips";
 import { FilterSuggestionChips } from "./FilterSuggestionChips";
 import { CategoryGrid } from "./CategoryGrid";
+import { VariantPicker } from "./VariantPicker";
 
 interface MessageRowProps {
   message: ChatMessage;
@@ -18,6 +19,8 @@ interface MessageRowProps {
   onEdit: (id: string, text: string) => void;
   onOrderClick: (orderId: number, orderNumber: string) => void;
   onProductClick?: (product: Product) => void;
+  /** Called when the user clicks a variant option — populates the input box */
+  onVariantSelect: (text: string) => void;
   miraQIcon: string;
 }
 
@@ -59,6 +62,7 @@ function formatTimestamp(date: Date): string {
 const timestampStyle: React.CSSProperties = {
   fontSize: "11px",
   color: "#94a3b8",
+  margin: 0,
   marginTop: "4px",
   lineHeight: 1,
   userSelect: "none",
@@ -72,6 +76,7 @@ export function MessageRow({
   onEdit,
   onOrderClick,
   onProductClick,
+  onVariantSelect,
   miraQIcon,
 }: MessageRowProps) {
   const formattedTime = formatTimestamp(new Date(message.timestamp));
@@ -165,6 +170,14 @@ export function MessageRow({
               <FilterSuggestionChips
                 suggestions={message.filterSuggestions}
                 onSelect={onFilterSuggestion}
+              />
+            )}
+
+          {message.variantOptions &&
+            Object.keys(message.variantOptions).length > 0 && (
+              <VariantPicker
+                variantOptions={message.variantOptions}
+                onSelect={onVariantSelect}
               />
             )}
 

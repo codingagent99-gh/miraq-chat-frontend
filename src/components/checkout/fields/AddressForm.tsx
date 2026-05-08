@@ -474,6 +474,10 @@ export function AddressForm({
     ...serverFieldError,
   };
 
+  // True only when every required field has a non-empty value.
+  // Used to disable the submit button until the form is completable.
+  const isFormValid = requiredFields.every((f) => !!(values as any)[f]?.trim());
+
   // Derive available states from the currently selected country
   const selectedCountryData = countryList.find(
     (c) => "states" in c && c.code === values.country,
@@ -746,12 +750,12 @@ export function AddressForm({
 
       <button
         type="submit"
-        disabled={isLoading}
+        disabled={isLoading || !isFormValid}
         style={{
           marginTop: "16px",
           width: "100%",
           padding: "12px",
-          background: "#1c1c1a",
+          background: isFormValid && !isLoading ? "#1c1c1a" : "#ccc",
           color: "#fff",
           border: "none",
           borderRadius: "11px",
@@ -759,8 +763,8 @@ export function AddressForm({
           fontSize: "13px",
           fontWeight: 600,
           letterSpacing: "0.04em",
-          cursor: isLoading ? "not-allowed" : "pointer",
-          opacity: isLoading ? 0.65 : 1,
+          cursor: isLoading || !isFormValid ? "not-allowed" : "pointer",
+          opacity: isLoading || !isFormValid ? 0.65 : 1,
           transition: "opacity 0.2s, background 0.2s",
         }}
       >

@@ -3,7 +3,7 @@ import { FiX, FiPackage } from "react-icons/fi";
 import type { WCCart } from "../../hooks/useCart";
 import type { StoreApiFetch } from "../../hooks/useStoreApi";
 import type { CheckoutStep, PaymentPayload } from "../../types/checkout";
-import { useCheckout } from "../../hooks/useCheckout";
+import type { AddressDict } from "../../types/actions";
 import { AddressStep } from "./steps/AddressStep";
 import { ShippingStep } from "./steps/ShippingStep";
 import { PaymentStep } from "./steps/PaymentStep";
@@ -11,6 +11,7 @@ import { ReviewStep } from "./steps/ReviewStep";
 import { ConfirmationStep } from "./steps/ConfirmationStep";
 import { getPaymentAdapter } from "./payment/PaymentGatewayAdapter";
 import "./CheckoutPanel.css";
+import { useCheckout } from "../../hooks/useCheckout";
 
 interface CheckoutPanelProps {
   storeApiFetch: StoreApiFetch;
@@ -21,8 +22,6 @@ interface CheckoutPanelProps {
   onClose: () => void;
   onPostBotMessage: (text: string) => void;
 }
-
-// ── Step indicator metadata ──────────────────────────────────────────────────
 
 const STEPS: { label: string; step: CheckoutStep }[] = [
   { label: "Address", step: "collecting_address" },
@@ -47,8 +46,6 @@ function stepToIndex(step: CheckoutStep): number {
   }
 }
 
-// ── Price formatter ──────────────────────────────────────────────────────────
-
 function formatPrice(
   minorStr: string,
   symbol: string,
@@ -61,8 +58,6 @@ function formatPrice(
     maximumFractionDigits: minorUnit > 0 ? 2 : 0,
   })}`;
 }
-
-// ── Component ────────────────────────────────────────────────────────────────
 
 export function CheckoutPanel({
   storeApiFetch,
@@ -80,39 +75,44 @@ export function CheckoutPanel({
     cartToken,
   });
 
-  // Panel-level payment payload — lives here so ReviewStep can consume it.
   const [paymentPayload, setPaymentPayload] = useState<PaymentPayload | null>(
     null,
   );
 
-  // ── FIX: snapshot ref ────────────────────────────────────────────────────
-  // The payment adapter's Component fires onPayloadChange(null) in its
-  // useEffect cleanup when PaymentStep unmounts (navigating to Review).
-  // That clears the state before ReviewStep can read it.
-  //
-  // Solution: snapshot the last non-null payload here. When the user
-  // explicitly clicks "Continue to Review" we capture the confirmed payload
-  // into this ref so it survives the unmount.
-  const confirmedPayloadRef = useRef<PaymentPayload | null>(null);
-  // ────────────────────────────────────────────────────────────────────────
+  // FIX ISSUE 1: Lifted address state to survive AddressStep unmounts
+  const [confirmedBilling, setConfirmedBilling] = useState<AddressDict | null>(
+    null,
+  );
 
-  // Transition from idle → collecting_address on mount
+  const confirmedPayloadRef = useRef<PaymentPayload | null>(null);
+
   useEffect(() => {
     if (checkout.step === "idle") {
       checkout.setStep("collecting_address");
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Derive the effective payload ─────────────────────────────────────────
-  // Priority:
-  //  1. Live state from adapter (while on PaymentStep)
-  //  2. Snapshotted ref (survives PaymentStep unmount — the fix)
-  //  3. Cart needs no payment (zero total)   → empty stub
-  //  4. Only one payment method available    → auto-select it
-  //  5. Anything else                        → null (button stays disabled)
+  useEffect(() => {
+    if (checkout.step === "complete" && cart) {
+      onCartUpdate({
+        ...cart,
+        items: [],
+        items_count: 0,
+        totals: {
+          ...cart.totals,
+          total_items: "0",
+          total_items_tax: "0",
+          total_shipping: "0",
+          total_tax: "0",
+          total_price: "0",
+        },
+      });
+    }
+  }, [checkout.step]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const effectivePaymentPayload: PaymentPayload | null = (() => {
     if (paymentPayload) return paymentPayload;
-    if (confirmedPayloadRef.current) return confirmedPayloadRef.current; // ← FIX
+    if (confirmedPayloadRef.current) return confirmedPayloadRef.current;
     if (cart?.needs_payment === false)
       return { payment_method: "", payment_data: [] };
     if (cart?.payment_methods && cart.payment_methods.length === 1)
@@ -130,7 +130,6 @@ export function CheckoutPanel({
 
   function handleStepClick(targetIndex: number) {
     if (targetIndex >= activeIndex) return;
-    // Clicking back to Payment clears the snapshot so the user re-confirms
     if (targetIndex === 2) confirmedPayloadRef.current = null;
     checkout.setStep(STEPS[targetIndex].step);
   }
@@ -158,6 +157,9 @@ export function CheckoutPanel({
             error={checkout.error}
             updateCustomer={checkout.updateCustomer}
             setStep={checkout.setStep}
+            // Passing down the lifted state
+            confirmedBilling={confirmedBilling}
+            setConfirmedBilling={setConfirmedBilling}
           />
         );
       case "selecting_rate":
@@ -179,20 +181,13 @@ export function CheckoutPanel({
             onPaymentPayloadChange={setPaymentPayload}
             isPayloadReady={paymentPayload !== null}
             onBack={() => {
-              // Clear the snapshot when going back to re-select
               confirmedPayloadRef.current = null;
               checkout.setStep("selecting_rate");
             }}
             onContinue={() => {
-              // ── FIX: snapshot before navigating away ──────────────────────
-              // Capture the payload NOW, while PaymentStep is still mounted
-              // and the state is still populated. The adapter's cleanup will
-              // call setPaymentPayload(null) during unmount — but the ref
-              // survives and effectivePaymentPayload falls back to it.
               if (paymentPayload) {
                 confirmedPayloadRef.current = paymentPayload;
               }
-              // ──────────────────────────────────────────────────────────────
               checkout.setStep("placing_order");
             }}
           />
@@ -212,7 +207,6 @@ export function CheckoutPanel({
               await checkout.placeOrder(payload);
             }}
             onSetStep={(step) => {
-              // Clear snapshot when user navigates back to re-do payment
               if (step === "awaiting_payment") {
                 confirmedPayloadRef.current = null;
                 setPaymentPayload(null);
@@ -230,7 +224,6 @@ export function CheckoutPanel({
 
   return (
     <div className="miraq-checkout-panel">
-      {/* ── Header ── */}
       <div className="miraq-checkout-header">
         <div className="miraq-checkout-title">
           <FiPackage size={16} color="#1c1c1a" />
@@ -250,7 +243,6 @@ export function CheckoutPanel({
         </button>
       </div>
 
-      {/* ── Step indicator ── */}
       <div className="miraq-checkout-steps">
         {STEPS.map((s, i) => {
           const isActive = i === activeIndex;
@@ -275,10 +267,8 @@ export function CheckoutPanel({
         })}
       </div>
 
-      {/* ── Body (active step) ── */}
       <div className="miraq-checkout-body">{renderActiveStep()}</div>
 
-      {/* ── Order Summary (always visible) ── */}
       {cart && cart.items_count > 0 && (
         <div className="miraq-checkout-summary">
           <p className="miraq-checkout-summary-title">Order Summary</p>

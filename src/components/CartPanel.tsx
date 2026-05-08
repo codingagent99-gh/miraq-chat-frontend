@@ -19,6 +19,12 @@ interface CartPanelProps {
   onUpdateQuantity: (key: string, quantity: number) => void;
   /** When provided, renders a "Checkout" CTA that opens the checkout panel. */
   onCheckout?: () => void;
+  /**
+   * Called when the user clicks the ✕ header button.
+   * Closes the entire widget panel (not just the cart overlay).
+   * If omitted, falls back to onClose.
+   */
+  onCloseWidget?: () => void;
 }
 
 function formatPrice(
@@ -48,6 +54,7 @@ export function CartPanel({
   onRemove,
   onUpdateQuantity,
   onCheckout,
+  onCloseWidget,
 }: CartPanelProps) {
   const isEmpty = !cart || cart.items.length === 0;
   const minorUnit = cart?.totals.currency_minor_unit ?? 2;
@@ -66,8 +73,8 @@ export function CartPanel({
         </div>
         <button
           className="miraq-cart-close"
-          onClick={onClose}
-          aria-label="Close cart"
+          onClick={onCloseWidget ?? onClose}
+          aria-label="Close widget"
         >
           <FiX size={16} />
         </button>

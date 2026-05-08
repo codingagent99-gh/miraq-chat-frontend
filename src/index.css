@@ -45,7 +45,34 @@
   outline: none;
 }
 
-#silfra-chat-widget-container h1,
+:where(#silfra-chat-widget-container)
+  :where(
+    h1,
+    h2,
+    h3,
+    h4,
+    h5,
+    h6,
+    p,
+    ul,
+    li,
+    figure,
+    blockquote,
+    dl,
+    dd,
+    div,
+    span,
+    a
+  ) {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  text-decoration: none;
+  font-family: inherit;
+  font-weight: inherit;
+}
+
+/* #silfra-chat-widget-container h1,
 #silfra-chat-widget-container h2,
 #silfra-chat-widget-container h3,
 #silfra-chat-widget-container h4,
@@ -67,7 +94,7 @@
   text-decoration: none;
   font-family: inherit;
   font-weight: inherit;
-}
+} */
 
 #silfra-chat-widget-container button {
   background: none;
@@ -752,14 +779,10 @@
 /* --- Order Confirmation --- */
 #silfra-chat-widget-container .xpert-order-confirmation {
   margin-top: 1rem;
-  margin-left: 8px;
-  background: #ffffff;
-  border: 1.5px solid var(--color-border);
+  background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+  border: 2px solid var(--color-success);
   border-radius: 12px;
-  padding: 1.25rem;
-  width: calc(100% - 8px);
-  box-sizing: border-box;
-  overflow: hidden;
+  padding: 1.5rem;
 }
 
 #silfra-chat-widget-container .xpert-order-header {
@@ -1091,21 +1114,6 @@
   40% {
     transform: scale(1);
   }
-}
-
-/* --- Toastify --- */
-#silfra-chat-widget-container .Toastify__toast {
-  font-family: var(--font-family) !important;
-  border-radius: 8px !important;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
-}
-
-#silfra-chat-widget-container .Toastify__toast--success {
-  background: var(--color-success) !important;
-}
-
-#silfra-chat-widget-container .Toastify__toast--error {
-  background: var(--color-sale) !important;
 }
 
 /* --- Order List Cards --- */
@@ -1912,4 +1920,95 @@
   .xpert-toggle-switch.xpert-toggle-off
   .xpert-toggle-thumb {
   left: 2px;
+}
+
+/* ── Variant Picker ──────────────────────────────────────────────────────────
+   Rendered inside a bot bubble when flow_state = awaiting_variant_selection.
+   Chips let the user pick one value per axis; selections compose into the
+   input box but do NOT auto-send.
+   ─────────────────────────────────────────────────────────────────────────── */
+
+#silfra-chat-widget-container .xpert-variant-picker {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Axis block — label + chip row */
+#silfra-chat-widget-container .xpert-variant-axis {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Axis label (e.g. "Colors", "Finish") */
+#silfra-chat-widget-container .xpert-variant-axis-label {
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 0;
+  line-height: 1;
+}
+
+/* Chip row — wraps onto multiple lines for long lists */
+#silfra-chat-widget-container .xpert-variant-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* Individual chip — default (unselected) state matches suggestion chips */
+#silfra-chat-widget-container .xpert-variant-chip {
+  padding: 5px 12px;
+  background: white;
+  border: 1.5px solid var(--color-primary);
+  color: var(--color-primary);
+  border-radius: 20px;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+#silfra-chat-widget-container .xpert-variant-chip:hover {
+  background: var(--color-primary-light);
+  border-color: var(--color-primary-light);
+  color: white;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(0, 78, 100, 0.2);
+}
+
+#silfra-chat-widget-container .xpert-variant-chip:active {
+  transform: translateY(0);
+  box-shadow: none;
+}
+
+/* Selected state — filled with primary gradient, matches the send button */
+#silfra-chat-widget-container .xpert-variant-chip--selected {
+  background: linear-gradient(
+    135deg,
+    var(--color-primary-light) 0%,
+    var(--color-primary) 100%
+  );
+  border-color: transparent;
+  color: white;
+  box-shadow: 0 2px 8px rgba(0, 78, 100, 0.25);
+}
+
+#silfra-chat-widget-container .xpert-variant-chip--selected:hover {
+  background: linear-gradient(
+    135deg,
+    var(--color-primary) 0%,
+    var(--color-primary-dark) 100%
+  );
+  border-color: transparent;
+  color: white;
+  box-shadow: 0 3px 10px rgba(0, 78, 100, 0.35);
 }

@@ -38,25 +38,20 @@ const BILLING_FIELDS: (
   "project_rep", // Your Rep — /wp-json/custom-api/v1/reps
 ];
 
-// visibleFields is intentionally omitted from the public props —
-// callers never need to touch it.
-type BillingAddressFormProps = Omit<
-  AddressFormProps,
-  "visibleFields" | "fieldOverrides"
-> & {
+// ── Label-only overrides ─────────────────────────────────────────────────────
+const BILLING_LABEL_OVERRIDES: FieldOverrides = {
+  state: { label: "State / County" },
+};
+
+type BillingAddressFormProps = Omit<AddressFormProps, "visibleFields"> & {
   /** Live country list from useCheckoutFields — passed down from AddressStep. */
   countries?: WpCountry[];
   /** CS rep options from useCheckoutFields — passed down from AddressStep. */
   repOptions?: WpRep[];
   /** Order Type options from /checkout-fields — passed down from AddressStep. */
   orderTypeOptions?: WpOrderTypeOption[];
-};
-
-/** Company name, Order Type are mandatory on the billing form. State / County is mandatory too. */
-const BILLING_FIELD_OVERRIDES: FieldOverrides = {
-  company: { required: true },
-  billing_field_type: { required: true },
-  state: { label: "State / County", required: true },
+  /** Required flags derived from /checkout-fields by useCheckoutFields. */
+  fieldOverrides?: FieldOverrides;
 };
 
 export function BillingAddressForm({
@@ -64,13 +59,29 @@ export function BillingAddressForm({
   countries,
   repOptions,
   orderTypeOptions,
+  fieldOverrides,
   ...rest
 }: BillingAddressFormProps) {
+  // Merge label-only overrides with API-supplied required flags.
+  const mergedOverrides: FieldOverrides = {
+    ...BILLING_LABEL_OVERRIDES,
+    ...fieldOverrides,
+    // FIX ISSUE 2: Force Order Type to be required
+    billing_field_type: {
+      label: fieldOverrides?.billing_field_type?.label,
+      required: true,
+    },
+    state: {
+      label: "State / County",
+      ...fieldOverrides?.state,
+    },
+  };
+
   return (
     <AddressForm
       {...rest}
       visibleFields={BILLING_FIELDS}
-      fieldOverrides={BILLING_FIELD_OVERRIDES}
+      fieldOverrides={mergedOverrides}
       submitLabel={submitLabel}
       countries={countries}
       repOptions={repOptions}
