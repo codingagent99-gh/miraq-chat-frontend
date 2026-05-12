@@ -20,6 +20,9 @@ interface AddressStepProps {
     shipping_address?: AddressDict;
   }) => Promise<WCCart>;
   setStep: (step: CheckoutStep) => void;
+  // State lifted to CheckoutPanel
+  confirmedBilling: AddressDict | null;
+  setConfirmedBilling: (address: AddressDict | null) => void;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -207,11 +210,8 @@ function ConfirmedPill({
 
 // ═════════════════════════════════════════════════════════════════════════════
 // BillingSubStep
-// Always shows the billing form pre-filled from any saved address.
-// Calls onConfirmed directly on submit — no intermediate review phase.
 // ═════════════════════════════════════════════════════════════════════════════
 
-// Used only by ShippingSubStep — billing always opens the form directly.
 type AddressPhase = "confirm_saved" | "form" | "confirm_draft";
 
 interface BillingSubStepProps {
@@ -223,6 +223,8 @@ interface BillingSubStepProps {
   countries: ReturnType<typeof useCheckoutFields>["countries"];
   repOptions: ReturnType<typeof useCheckoutFields>["reps"];
   orderTypeOptions: ReturnType<typeof useCheckoutFields>["orderTypeOptions"];
+  fieldOverrides: ReturnType<typeof useCheckoutFields>["billingFieldOverrides"];
+  prefillValues?: AddressDict | null;
 }
 
 function BillingSubStep({
@@ -234,14 +236,12 @@ function BillingSubStep({
   countries,
   repOptions,
   orderTypeOptions,
+  fieldOverrides,
+  prefillValues,
 }: BillingSubStepProps) {
-  const savedBilling = cart?.billing_address;
+  const savedBilling = prefillValues ?? cart?.billing_address;
   const hasSavedBilling = isSavedAddress(savedBilling);
 
-  // Always show the form — billing has custom fields (Order Type, Project
-  // Name, Rep) that need explicit user input every time. Pre-fill from any
-  // saved address so the user only edits what has changed. The form's submit
-  // button IS the continue action — no intermediate review step needed.
   return (
     <div style={{ padding: "16px" }}>
       <h3 style={heading}>Billing Details</h3>
@@ -257,6 +257,7 @@ function BillingSubStep({
         countries={countries}
         repOptions={repOptions}
         orderTypeOptions={orderTypeOptions}
+        fieldOverrides={fieldOverrides}
       />
     </div>
   );
@@ -264,8 +265,6 @@ function BillingSubStep({
 
 // ═════════════════════════════════════════════════════════════════════════════
 // ShippingSubStep
-// Always rendered as the second step after billing is confirmed.
-// Three internal phases identical to BillingSubStep.
 // ═════════════════════════════════════════════════════════════════════════════
 
 interface ShippingSubStepProps {
@@ -275,6 +274,9 @@ interface ShippingSubStepProps {
   error: { code: string; message: string; field?: string } | null;
   onConfirmed: (address: AddressDict) => void;
   countries: ReturnType<typeof useCheckoutFields>["countries"];
+  fieldOverrides: ReturnType<
+    typeof useCheckoutFields
+  >["shippingFieldOverrides"];
 }
 
 function ShippingSubStep({
@@ -284,6 +286,7 @@ function ShippingSubStep({
   error,
   onConfirmed,
   countries,
+  fieldOverrides,
 }: ShippingSubStepProps) {
   const savedShipping = cart?.shipping_address;
   const hasSavedShipping = isSavedAddress(savedShipping);
@@ -299,9 +302,7 @@ function ShippingSubStep({
   }
 
   return (
-    // No outer padding — the parent shipping view already provides it.
     <div>
-      {/* Phase: existing shipping address on file */}
       {phase === "confirm_saved" && hasSavedShipping && (
         <SavedAddressConfirmCard
           address={savedShipping!}
@@ -314,9 +315,6 @@ function ShippingSubStep({
         />
       )}
 
-      {/* Phase: shipping form — entering new or editing draft.
-          When coming from confirm_saved (hasSavedShipping), seed the form with
-          the existing address so the user only edits what they need to change. */}
       {phase === "form" && (
         <ShippingAddressForm
           cartToken={cartToken}
@@ -330,10 +328,10 @@ function ShippingSubStep({
           submitLabel="Continue to Payment →"
           onSubmit={handleFormSubmit}
           countries={countries}
+          fieldOverrides={fieldOverrides}
         />
       )}
 
-      {/* Phase: review the draft before continuing */}
       {phase === "confirm_draft" && draft && (
         <>
           <ConfirmedPill
@@ -356,17 +354,7 @@ function ShippingSubStep({
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
-// AddressStep — thin orchestrator
-//
-// Flow:
-//   1. "billing"  → BillingSubStep collects billing details
-//   2. "shipping" → Always shown after billing is confirmed.
-//                   A "Same as billing address" checkbox (checked by default)
-//                   lets the user reuse their billing address without
-//                   re-entering it. Unchecking reveals ShippingSubStep for
-//                   a distinct shipping address.
-//
-// A single updateCustomer call fires at the very end with both addresses.
+// AddressStep
 // ═════════════════════════════════════════════════════════════════════════════
 
 export function AddressStep({
@@ -376,20 +364,21 @@ export function AddressStep({
   error,
   updateCustomer,
   setStep,
+  confirmedBilling,
+  setConfirmedBilling,
 }: AddressStepProps) {
-  // Site origin: same logic as useChat — widget runs ON the WP site
   const siteOrigin =
     (import.meta as any).env?.VITE_WP_BASE_URL || window.location.origin;
 
-  // Fetch countries (with states), rep options, and order type options from the WP plugin endpoints
-  const { countries, reps, orderTypeOptions } = useCheckoutFields(siteOrigin);
+  const {
+    countries,
+    reps,
+    orderTypeOptions,
+    billingFieldOverrides,
+    shippingFieldOverrides,
+  } = useCheckoutFields(siteOrigin);
 
-  // "billing" → "shipping" — two sequential steps, always both shown
   const [view, setView] = useState<"billing" | "shipping">("billing");
-  const [confirmedBilling, setConfirmedBilling] = useState<AddressDict | null>(
-    null,
-  );
-  // Default: shipping address = billing address (most common case)
   const [sameAsBilling, setSameAsBilling] = useState(true);
 
   async function handleShippingConfirmed(shipping: AddressDict) {
@@ -418,6 +407,8 @@ export function AddressStep({
         countries={countries}
         repOptions={reps}
         orderTypeOptions={orderTypeOptions}
+        fieldOverrides={billingFieldOverrides}
+        prefillValues={confirmedBilling}
       />
     );
   }
@@ -426,12 +417,10 @@ export function AddressStep({
 
   return (
     <div style={{ padding: "16px" }}>
-      {/* Back to billing */}
       <button type="button" onClick={() => setView("billing")} style={backLink}>
         ← Edit billing details
       </button>
 
-      {/* Confirmed billing summary — always visible as context */}
       <ConfirmedPill
         label="Billing address"
         address={confirmedBilling!}
@@ -440,10 +429,8 @@ export function AddressStep({
 
       <div style={divider} />
 
-      {/* Shipping heading */}
       <h3 style={{ ...heading, marginBottom: "14px" }}>Shipping Address</h3>
 
-      {/* "Same as billing address" toggle — custom checkbox for clarity */}
       <label
         style={{
           ...toggleRow,
@@ -451,7 +438,6 @@ export function AddressStep({
           border: `1.5px solid ${sameAsBilling ? "#10b981" : "#e8e6e0"}`,
         }}
       >
-        {/* Custom checkbox */}
         <div
           style={{
             flexShrink: 0,
@@ -478,7 +464,6 @@ export function AddressStep({
             </svg>
           )}
         </div>
-        {/* Hidden native checkbox for accessibility */}
         <input
           type="checkbox"
           checked={sameAsBilling}
@@ -513,7 +498,6 @@ export function AddressStep({
         </div>
       </label>
 
-      {/* Path A: same address — single Continue button */}
       {sameAsBilling && (
         <button
           type="button"
@@ -525,7 +509,6 @@ export function AddressStep({
         </button>
       )}
 
-      {/* Path B: different shipping address — reveal shipping form */}
       {!sameAsBilling && (
         <>
           <div style={subHeading as CSSProperties}>Enter shipping address</div>
@@ -536,6 +519,7 @@ export function AddressStep({
             error={error}
             onConfirmed={handleShippingConfirmed}
             countries={countries}
+            fieldOverrides={shippingFieldOverrides}
           />
         </>
       )}

@@ -54,6 +54,7 @@ async function handleSingleAction(
       const { product_id, quantity, variation_id, variation } = action.payload;
       await deps.addItem(product_id, quantity, variation_id, variation);
       toast.success("Added to cart 🛒");
+
       break;
     }
 
@@ -61,7 +62,10 @@ async function handleSingleAction(
       const { quantity, ...rest } = action.payload;
       const key = resolveCartKey(deps, rest);
       if (!key) {
-        console.warn("[ChatAction] UPDATE_CART_ITEM: could not resolve key", action.payload);
+        console.warn(
+          "[ChatAction] UPDATE_CART_ITEM: could not resolve key",
+          action.payload,
+        );
         break;
       }
       await deps.updateQuantity(key, quantity);
@@ -71,7 +75,10 @@ async function handleSingleAction(
     case "REMOVE_CART_ITEM": {
       const key = resolveCartKey(deps, action.payload);
       if (!key) {
-        console.warn("[ChatAction] REMOVE_CART_ITEM: could not resolve key", action.payload);
+        console.warn(
+          "[ChatAction] REMOVE_CART_ITEM: could not resolve key",
+          action.payload,
+        );
         break;
       }
       await deps.removeItem(key);
@@ -138,7 +145,15 @@ export function useChatActions({
         }
       }
     },
-    [addItem, updateQuantity, removeItem, fetchCart, cartItems, setIsCartOpen, setIsCheckoutOpen],
+    [
+      addItem,
+      updateQuantity,
+      removeItem,
+      fetchCart,
+      cartItems,
+      setIsCartOpen,
+      setIsCheckoutOpen,
+    ],
   );
 
   return { dispatchActions };

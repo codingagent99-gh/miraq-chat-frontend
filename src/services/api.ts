@@ -46,6 +46,7 @@ export function createApiClient(baseURL?: string, apiKey?: string) {
         "X-MiraQ-Session": sessionId,
         "X-WC-Session": getWooCommerceSession(),
       },
+      timeout: 60_000,
     });
     return data;
   }

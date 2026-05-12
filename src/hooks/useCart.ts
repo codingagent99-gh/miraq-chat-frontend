@@ -34,6 +34,7 @@ export interface WCCart {
   items_count: number;
   totals: {
     total_items: string;
+    total_items_tax: string;
     total_shipping: string;
     total_tax: string;
     total_price: string;

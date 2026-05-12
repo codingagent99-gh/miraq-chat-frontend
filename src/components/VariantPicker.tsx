@@ -5,6 +5,12 @@ interface VariantPickerProps {
   variantOptions: Record<string, string[]>;
   /** Called whenever the selection changes — receives the composed input string */
   onSelect: (text: string) => void;
+  /**
+   * Called on every selection change with `true` when every axis has a
+   * selection, `false` otherwise.  Used by the parent to enable/disable
+   * the Place Order button.
+   */
+  onAllSelected?: (complete: boolean) => void;
 }
 
 /**
@@ -21,6 +27,7 @@ interface VariantPickerProps {
 export function VariantPicker({
   variantOptions,
   onSelect,
+  onAllSelected,
 }: VariantPickerProps) {
   const axes = Object.keys(variantOptions);
   const [selections, setSelections] = useState<Record<string, string>>({});
@@ -42,6 +49,10 @@ export function VariantPicker({
         .join(", ");
 
       onSelect(composed);
+
+      // Notify parent whether every axis now has a selection
+      onAllSelected?.(axes.every((a) => next[a] !== undefined));
+
       return next;
     });
   };

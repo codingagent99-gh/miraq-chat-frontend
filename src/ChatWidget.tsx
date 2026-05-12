@@ -56,10 +56,16 @@ export function ChatWidget({
   // "ai-opt-in" → shown when not logged in (login prompt) OR when AI is off
   // "home"      → logged in + AI enabled, shows HomeScreen
   // "chat"      → active chat session
+  const screenStorageKey = `silfra_screen_${customerId ?? customerEmail ?? "guest"}`;
+
   const [screen, setScreen] = useState<"ai-opt-in" | "home" | "chat">(() => {
     if (isLoggedIn) {
       try {
-        if (localStorage.getItem(aiStorageKey) === "true") return "home";
+        if (localStorage.getItem(aiStorageKey) === "true") {
+          const saved = sessionStorage.getItem(screenStorageKey);
+          if (saved === "chat" || saved === "home") return saved;
+          return "home";
+        }
       } catch {
         // fall through to "ai-opt-in"
       }
@@ -67,12 +73,95 @@ export function ChatWidget({
     return "ai-opt-in";
   });
 
-  const [panelOpen, setPanelOpen] = useState(false);
+  const [panelOpen, setPanelOpen] = useState(() => {
+    if (window.innerWidth <= 768) return false;
+    try {
+      return sessionStorage.getItem("silfra_panel_open") === "true";
+    } catch {
+      return false;
+    }
+  });
   const [inputValue, setInputValue] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [isCartOpen, setIsCartOpen] = useState(false);
-  const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
+  /** True only when every variant axis in the current VariantPicker has a selection */
+  const [canPlaceOrder, setCanPlaceOrder] = useState(false);
+
+  // Persist panel open state across refreshes (desktop only)
+  useEffect(() => {
+    if (window.innerWidth <= 768) return;
+    try {
+      sessionStorage.setItem("silfra_panel_open", String(panelOpen));
+    } catch {
+      // sessionStorage unavailable
+    }
+  }, [panelOpen]);
+
+  // Persist screen state so refreshes restore the user's last screen
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(screenStorageKey, screen);
+    } catch {
+      // sessionStorage unavailable
+    }
+  }, [screen, screenStorageKey]);
+
+  const [isCartOpen, setIsCartOpen] = useState<boolean>(() => {
+    try {
+      const val = sessionStorage.getItem("silfra_cart_open") === "true";
+      if (val) sessionStorage.removeItem("silfra_cart_open");
+      return val;
+    } catch {
+      return false;
+    }
+  });
+  const [isCheckoutOpen, setIsCheckoutOpen] = useState<boolean>(() => {
+    try {
+      const val = sessionStorage.getItem("silfra_checkout_open") === "true";
+      if (val) sessionStorage.removeItem("silfra_checkout_open");
+      return val;
+    } catch {
+      return false;
+    }
+  });
   const originalInputRef = useRef("");
+
+  // ── URL sync ──────────────────────────────────────────────────────────────
+  // Watches isCartOpen / isCheckoutOpen and performs a full-page redirect to
+  // the WooCommerce cart / checkout pages.
+  // - Skips the redirect if the browser is already on the target page.
+  // - Flushes widget state + panel flags to sessionStorage synchronously so
+  //   the widget reopens in the correct state after the page reloads.
+  useEffect(() => {
+    if (isCartOpen) {
+      if (window.location.pathname === "/cart/") return; // already here
+      try {
+        sessionStorage.setItem("silfra_panel_open", "true");
+        sessionStorage.setItem(screenStorageKey, screen);
+        sessionStorage.setItem("silfra_cart_open", "true");
+      } catch {
+        // sessionStorage unavailable — navigate anyway
+      }
+      window.location.href = `${siteOrigin}/cart/`;
+    } else if (isCheckoutOpen) {
+      if (window.location.pathname === "/checkout/") return; // already here
+      try {
+        sessionStorage.setItem("silfra_panel_open", "true");
+        sessionStorage.setItem(screenStorageKey, screen);
+        sessionStorage.setItem("silfra_checkout_open", "true");
+      } catch {
+        // sessionStorage unavailable — navigate anyway
+      }
+      window.location.href = `${siteOrigin}/checkout/`;
+    }
+  }, [isCartOpen, isCheckoutOpen, screen, screenStorageKey, siteOrigin]);
+
+  // ── Fetch cart on mount if panel was restored from sessionStorage ─────────
+  // fetchCart is not called automatically; we need to trigger it here so the
+  // CartPanel has data after a redirect restores isCartOpen = true.
+  useEffect(() => {
+    if (isCartOpen) fetchCart();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // intentionally runs once on mount only
 
   // ── Widget config (logo + header text from backend) ──────────────────────
   const [widgetLogo, setWidgetLogo] = useState<string>("");
@@ -470,6 +559,12 @@ export function ChatWidget({
                 }
                 onProductClick={handleProductClick}
                 onVariantSelect={handleVariantSelect}
+                onVariantAllSelected={setCanPlaceOrder}
+                canPlaceOrder={canPlaceOrder}
+                onPlaceOrder={() => {
+                  handleSend();
+                  setCanPlaceOrder(false);
+                }}
                 miraQIcon={widgetLogo || MiraQIcon}
               />
             ))}
@@ -646,6 +741,7 @@ export function ChatWidget({
               onPostBotMessage={appendBotMessage}
             />
           )}
+
           {/* ── Toast notifications — scoped within the widget ── */}
           <ToastContainer
             position="top-left"

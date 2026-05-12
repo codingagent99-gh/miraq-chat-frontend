@@ -21,9 +21,7 @@ export function ConfirmationStep({
   useEffect(() => {
     if (!hasPosted.current) {
       hasPosted.current = true;
-      onPostBotMessage(
-        `✅ Order #${order.order_id} placed — you'll receive an email shortly. Anything else?`,
-      );
+      onPostBotMessage(`✅ Order #${order.order_id} placed.`);
     }
   }, [onPostBotMessage, order.order_id]); // deps included; useRef guards against double-post
 

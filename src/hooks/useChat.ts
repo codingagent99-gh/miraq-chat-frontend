@@ -330,6 +330,7 @@ export function useChat(options: UseChatOptions = {}) {
         isFlowPrompt: isFlowPrompt(res.intent, res.flow_state),
         pagination: res.pagination,
         orderPagination: res.order_pagination,
+        variantOptions: res.variant_options,
       };
       return botMsg;
     },

@@ -161,6 +161,8 @@ export interface ChatMessage {
   pagination?: PaginationData;
   /** Pagination data for order results */
   orderPagination?: PaginationData;
+  /** Structured variant options for the picker UI — only present on awaiting_variant_selection responses */
+  variantOptions?: Record<string, string[]>;
   /** Actions dispatched by this message (only set for live responses, never history) */
   actions?: ChatAction[];
   /** Optional metadata — e.g. { synthetic: true } for locally-injected bot messages */
@@ -250,6 +252,8 @@ export interface ChatResponse {
   pagination?: PaginationData;
   /** Pagination metadata for order results */
   order_pagination?: PaginationData;
+  /** Structured variant options for the picker UI — keyed by axis name, values are sorted option lists */
+  variant_options?: Record<string, string[]>;
   action?: string;
   /** New actions envelope — primary signal channel (supersedes legacy `action` field) */
   actions?: ChatAction[];

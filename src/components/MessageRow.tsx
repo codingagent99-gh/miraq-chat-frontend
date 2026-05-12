@@ -21,6 +21,15 @@ interface MessageRowProps {
   onProductClick?: (product: Product) => void;
   /** Called when the user clicks a variant option — populates the input box */
   onVariantSelect: (text: string) => void;
+  /**
+   * Called whenever the variant selection changes.  Receives `true` when
+   * every axis has been selected (enables Place Order), `false` otherwise.
+   */
+  onVariantAllSelected?: (complete: boolean) => void;
+  /** Called when the user clicks the "Place Order" button after selecting variants */
+  onPlaceOrder?: () => void;
+  /** Whether a variant has been selected (enables the Place Order button) */
+  canPlaceOrder?: boolean;
   miraQIcon: string;
 }
 
@@ -77,6 +86,9 @@ export function MessageRow({
   onOrderClick,
   onProductClick,
   onVariantSelect,
+  onVariantAllSelected,
+  onPlaceOrder,
+  canPlaceOrder = false,
   miraQIcon,
 }: MessageRowProps) {
   const formattedTime = formatTimestamp(new Date(message.timestamp));
@@ -175,10 +187,23 @@ export function MessageRow({
 
           {message.variantOptions &&
             Object.keys(message.variantOptions).length > 0 && (
-              <VariantPicker
-                variantOptions={message.variantOptions}
-                onSelect={onVariantSelect}
-              />
+              <>
+                <VariantPicker
+                  variantOptions={message.variantOptions}
+                  onSelect={onVariantSelect}
+                  onAllSelected={onVariantAllSelected}
+                />
+                {onPlaceOrder && (
+                  <button
+                    className="xpert-place-order-btn"
+                    onClick={onPlaceOrder}
+                    disabled={!canPlaceOrder}
+                    type="button"
+                  >
+                    Place Order
+                  </button>
+                )}
+              </>
             )}
 
           {message.suggestions && message.suggestions.length > 0 && (
