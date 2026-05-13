@@ -92,7 +92,17 @@ export function ProductCards({ products, onProductClick }: ProductCardsProps) {
             )}
 
             <div className="xpert-product-info">
-              <h4 className="xpert-product-name">{product.name}</h4>
+              <h4
+                className="xpert-product-name"
+                title={product.name}
+                style={{
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {product.name}
+              </h4>
               <div className="xpert-product-price">
                 {product.on_sale && product.sale_price ? (
                   <>

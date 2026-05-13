@@ -5,9 +5,11 @@ interface WidgetContainerProps {
   setPanelOpen: (open: boolean) => void;
   assetBaseUrl: string;
   children: React.ReactNode;
+  overlayClickCloses?: boolean;
 }
 
 const MOBILE_BREAKPOINT = 768;
+const OVERLAY_ID = "silfra-overlay";
 
 function ensureGlobalStyles() {
   if (document.getElementById("silfra-global-styles")) return;
@@ -36,8 +38,29 @@ function ensureGlobalStyles() {
       width: ${contentWidth} !important;
       max-width: ${contentWidth} !important;
     }
+
+    #${OVERLAY_ID} {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.45);
+      z-index: 99999;
+      pointer-events: all;
+      transition: opacity 0.3s ease;
+    }
   `;
   document.head.appendChild(style);
+}
+
+function mountOverlay(onClick: (() => void) | null) {
+  if (document.getElementById(OVERLAY_ID)) return;
+  const el = document.createElement("div");
+  el.id = OVERLAY_ID;
+  if (onClick) el.addEventListener("click", onClick);
+  document.body.appendChild(el);
+}
+
+function unmountOverlay() {
+  document.getElementById(OVERLAY_ID)?.remove();
 }
 
 export function WidgetContainer({
@@ -45,6 +68,7 @@ export function WidgetContainer({
   setPanelOpen,
   children,
   assetBaseUrl,
+  overlayClickCloses = false,
 }: WidgetContainerProps) {
   const MiraQIcon = `${assetBaseUrl}MiraQ-icon.png`;
 
@@ -59,6 +83,7 @@ export function WidgetContainer({
     return () => mq.removeEventListener("change", handler);
   }, []);
 
+  // ── Desktop: body class + content squeeze ────────────────────────────────
   useEffect(() => {
     if (isMobile) {
       document.body.classList.remove("silfra-panel-open");
@@ -70,6 +95,17 @@ export function WidgetContainer({
       document.body.classList.remove("silfra-panel-open");
     };
   }, [panelOpen, isMobile]);
+
+  // ── Overlay: mount when panel is open, unmount when closed ───────────────
+  useEffect(() => {
+    if (panelOpen) {
+      ensureGlobalStyles(); // ensures overlay CSS exists
+      mountOverlay(overlayClickCloses ? () => setPanelOpen(false) : null);
+    } else {
+      unmountOverlay();
+    }
+    return () => unmountOverlay(); // clean up on component unmount
+  }, [panelOpen, setPanelOpen]);
 
   // ── Mobile: original floating button + popup ─────────────────────────────
   if (isMobile) {
