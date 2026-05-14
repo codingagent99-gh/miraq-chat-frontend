@@ -6,6 +6,8 @@ import {
   FiMinus,
   FiShoppingCart,
   FiArrowRight,
+  FiMaximize2,
+  FiMinimize2,
 } from "react-icons/fi";
 import type { WCCart } from "../hooks/useCart";
 
@@ -25,6 +27,8 @@ interface CartPanelProps {
    * If omitted, falls back to onClose.
    */
   onCloseWidget?: () => void;
+  isExpanded?: boolean;
+  onToggleExpand?: () => void;
 }
 
 function formatPrice(
@@ -55,6 +59,8 @@ export function CartPanel({
   onUpdateQuantity,
   onCheckout,
   onCloseWidget,
+  isExpanded,
+  onToggleExpand,
 }: CartPanelProps) {
   const isEmpty = !cart || cart.items.length === 0;
   const minorUnit = cart?.totals.currency_minor_unit ?? 2;
@@ -71,15 +77,29 @@ export function CartPanel({
             <span className="miraq-cart-badge">{cart.items_count}</span>
           )}
         </div>
-        <button
-          className="miraq-cart-close"
-          onClick={onCloseWidget ?? onClose}
-          aria-label="Close widget"
-        >
-          <FiX size={16} />
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+          {onToggleExpand && (
+            <button
+              className="miraq-cart-close"
+              onClick={onToggleExpand}
+              aria-label={isExpanded ? "Collapse panel" : "Expand panel"}
+            >
+              {isExpanded ? (
+                <FiMinimize2 size={16} />
+              ) : (
+                <FiMaximize2 size={16} />
+              )}
+            </button>
+          )}
+          <button
+            className="miraq-cart-close"
+            onClick={onCloseWidget ?? onClose}
+            aria-label="Close widget"
+          >
+            <FiX size={16} />
+          </button>
+        </div>
       </div>
-
       {/* ── Body ── */}
       <div className="miraq-cart-body">
         {loading && (

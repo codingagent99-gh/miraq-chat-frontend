@@ -1,9 +1,9 @@
-import { useState, useEffect, useRef } from "react";
-import { FiX, FiPackage } from "react-icons/fi";
+import { useState, useEffect, useRef, useMemo } from "react";
 import type { WCCart } from "../../hooks/useCart";
 import type { StoreApiFetch } from "../../hooks/useStoreApi";
 import type { CheckoutStep, PaymentPayload } from "../../types/checkout";
 import type { AddressDict } from "../../types/actions";
+import type { ShipAddress, MultiShipGroup } from "../../types/multiAddress";
 import { AddressStep } from "./steps/AddressStep";
 import { ShippingStep } from "./steps/ShippingStep";
 import { PaymentStep } from "./steps/PaymentStep";
@@ -12,6 +12,7 @@ import { ConfirmationStep } from "./steps/ConfirmationStep";
 import { getPaymentAdapter } from "./payment/PaymentGatewayAdapter";
 import "./CheckoutPanel.css";
 import { useCheckout } from "../../hooks/useCheckout";
+import { FiX, FiPackage, FiMaximize2, FiMinimize2 } from "react-icons/fi";
 
 interface CheckoutPanelProps {
   storeApiFetch: StoreApiFetch;
@@ -21,6 +22,8 @@ interface CheckoutPanelProps {
   siteOrigin: string;
   onClose: () => void;
   onPostBotMessage: (text: string) => void;
+  isExpanded?: boolean;
+  onToggleExpand?: () => void;
 }
 
 const STEPS: { label: string; step: CheckoutStep }[] = [
@@ -59,6 +62,32 @@ function formatPrice(
   })}`;
 }
 
+// ── Derive MultiShipGroups from address + assignment state ──────────────────
+
+function buildMultiShipGroups(
+  savedAddresses: ShipAddress[],
+  itemAddressMap: Record<string, string>,
+  cartItems: WCCart["items"],
+  groupRates: Record<string, string>, // addressId → rateId
+): MultiShipGroup[] {
+  return savedAddresses
+    .map((addr) => ({
+      address: addr.address,
+      items: cartItems
+        .filter((item) => itemAddressMap[item.key] === addr.id)
+        .map((item) => ({
+          cart_key: item.key,
+          product_name: item.name,
+          quantity: item.quantity,
+          address_id: addr.id,
+        })),
+      selected_rate_id: groupRates[addr.id] ?? null,
+    }))
+    .filter((g) => g.items.length > 0);
+}
+
+// ── Component ────────────────────────────────────────────────────────────────
+
 export function CheckoutPanel({
   storeApiFetch,
   cart,
@@ -67,33 +96,94 @@ export function CheckoutPanel({
   siteOrigin,
   onClose,
   onPostBotMessage,
+  isExpanded,
+  onToggleExpand,
 }: CheckoutPanelProps) {
+  // ── Multi-address state (lifted here so it survives step transitions) ───────
+  const [multiAddressEnabled, setMultiAddressEnabled] = useState(false);
+  const [savedShipAddresses, setSavedShipAddresses] = useState<ShipAddress[]>(
+    [],
+  );
+  const [itemAddressMap, setItemAddressMap] = useState<Record<string, string>>(
+    {},
+  );
+  // Tracks which shipping rate each address group has selected
+  const [multiGroupRates, setMultiGroupRates] = useState<
+    Record<string, string>
+  >({});
+
+  // Derive the full MultiShipGroup array from the above state
+  const multiShipGroups = useMemo(
+    () =>
+      multiAddressEnabled && cart
+        ? buildMultiShipGroups(
+            savedShipAddresses,
+            itemAddressMap,
+            cart.items,
+            multiGroupRates,
+          )
+        : [],
+    [
+      multiAddressEnabled,
+      savedShipAddresses,
+      itemAddressMap,
+      cart,
+      multiGroupRates,
+    ],
+  );
+
+  // Keep a stable ref so placeOrder in useCheckout always reads the latest
+  // groups without needing them in its dependency array.
+  const multiShipGroupsRef = useRef<MultiShipGroup[]>([]);
+  multiShipGroupsRef.current = multiShipGroups;
+
+  // ── useCheckout ──────────────────────────────────────────────────────────────
   const checkout = useCheckout({
     storeApiFetch,
     cart,
     onCartUpdate,
     cartToken,
+    multiShipGroupsRef,
   });
 
+  // ── Other lifted state ───────────────────────────────────────────────────────
   const [paymentPayload, setPaymentPayload] = useState<PaymentPayload | null>(
     null,
   );
-
-  // FIX ISSUE 1: Lifted address state to survive AddressStep unmounts
   const [confirmedBilling, setConfirmedBilling] = useState<AddressDict | null>(
-    null,
+    () => {
+      try {
+        const saved = sessionStorage.getItem("silfra_billing");
+        return saved ? (JSON.parse(saved) as AddressDict) : null;
+      } catch {
+        return null;
+      }
+    },
   );
-
   const confirmedPayloadRef = useRef<PaymentPayload | null>(null);
 
+  // ── Effects ──────────────────────────────────────────────────────────────────
   useEffect(() => {
     if (checkout.step === "idle") {
       checkout.setStep("collecting_address");
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
+  useEffect(() => {
+    try {
+      if (confirmedBilling) {
+        sessionStorage.setItem(
+          "silfra_billing",
+          JSON.stringify(confirmedBilling),
+        );
+      } else {
+        sessionStorage.removeItem("silfra_billing");
+      }
+    } catch {}
+  }, [confirmedBilling]);
   useEffect(() => {
     if (checkout.step === "complete" && cart) {
+      sessionStorage.removeItem("silfra_billing");
+
       onCartUpdate({
         ...cart,
         items: [],
@@ -110,6 +200,7 @@ export function CheckoutPanel({
     }
   }, [checkout.step]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── Helpers ──────────────────────────────────────────────────────────────────
   const effectivePaymentPayload: PaymentPayload | null = (() => {
     if (paymentPayload) return paymentPayload;
     if (confirmedPayloadRef.current) return confirmedPayloadRef.current;
@@ -134,6 +225,12 @@ export function CheckoutPanel({
     checkout.setStep(STEPS[targetIndex].step);
   }
 
+  // Called by ShippingStep when user picks a rate for one address group
+  function handleMultiRateChange(addressId: string, rateId: string) {
+    setMultiGroupRates((prev) => ({ ...prev, [addressId]: rateId }));
+  }
+
+  // ── Step rendering ────────────────────────────────────────────────────────────
   function renderActiveStep() {
     if (checkout.step === "complete" && checkout.order) {
       return (
@@ -157,11 +254,19 @@ export function CheckoutPanel({
             error={checkout.error}
             updateCustomer={checkout.updateCustomer}
             setStep={checkout.setStep}
-            // Passing down the lifted state
+            // Lifted billing state
             confirmedBilling={confirmedBilling}
             setConfirmedBilling={setConfirmedBilling}
+            // Lifted multi-address state
+            multiAddressEnabled={multiAddressEnabled}
+            setMultiAddressEnabled={setMultiAddressEnabled}
+            savedShipAddresses={savedShipAddresses}
+            setSavedShipAddresses={setSavedShipAddresses}
+            itemAddressMap={itemAddressMap}
+            setItemAddressMap={setItemAddressMap}
           />
         );
+
       case "selecting_rate":
         return (
           <ShippingStep
@@ -172,8 +277,16 @@ export function CheckoutPanel({
             error={checkout.error}
             selectShippingRate={checkout.selectShippingRate}
             setStep={checkout.setStep}
+            // Multi-address props — only passed when mode is active
+            multiAddressGroups={
+              multiAddressEnabled ? multiShipGroups : undefined
+            }
+            onMultiRateChange={
+              multiAddressEnabled ? handleMultiRateChange : undefined
+            }
           />
         );
+
       case "awaiting_payment":
         return cart ? (
           <PaymentStep
@@ -192,8 +305,9 @@ export function CheckoutPanel({
             }}
           />
         ) : null;
+
       case "placing_order":
-      case "error": {
+      case "error":
         return (
           <ReviewStep
             cart={cart}
@@ -203,6 +317,9 @@ export function CheckoutPanel({
             error={checkout.step === "error" ? checkout.error : null}
             paymentPayload={effectivePaymentPayload}
             selectedAdapter={selectedAdapter}
+            // Multi-address display props
+            multiAddressEnabled={multiAddressEnabled}
+            multiShipGroups={multiShipGroups}
             onPlaceOrder={async (payload) => {
               await checkout.placeOrder(payload);
             }}
@@ -216,12 +333,13 @@ export function CheckoutPanel({
             onClearError={checkout.clearError}
           />
         );
-      }
+
       default:
         return null;
     }
   }
 
+  // ── Render ────────────────────────────────────────────────────────────────────
   return (
     <div className="miraq-checkout-panel">
       <div className="miraq-checkout-header">
@@ -229,18 +347,31 @@ export function CheckoutPanel({
           <FiPackage size={16} color="#1c1c1a" />
           <span className="miraq-checkout-title-text">Checkout</span>
         </div>
-        <button
-          className="miraq-checkout-close"
-          onClick={() => {
-            if (checkout.step === "complete") {
-              checkout.reset();
-            }
-            onClose();
-          }}
-          aria-label="Close checkout"
-        >
-          <FiX size={16} />
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+          {onToggleExpand && (
+            <button
+              className="miraq-checkout-close"
+              onClick={onToggleExpand}
+              aria-label={isExpanded ? "Collapse panel" : "Expand panel"}
+            >
+              {isExpanded ? (
+                <FiMinimize2 size={16} />
+              ) : (
+                <FiMaximize2 size={16} />
+              )}
+            </button>
+          )}
+          <button
+            className="miraq-checkout-close"
+            onClick={() => {
+              if (checkout.step === "complete") checkout.reset();
+              onClose();
+            }}
+            aria-label="Close checkout"
+          >
+            <FiX size={16} />
+          </button>
+        </div>
       </div>
 
       <div className="miraq-checkout-steps">

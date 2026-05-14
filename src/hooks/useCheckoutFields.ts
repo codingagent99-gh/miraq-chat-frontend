@@ -18,7 +18,7 @@ import { useState, useEffect } from "react";
 import {
   fetchWpCountries,
   fetchWpReps,
-  fetchWpCheckoutFields,
+  fetchWpOrderTypes,
   type WpCountry,
   type WpRep,
   type WpOrderTypeOption,
@@ -199,7 +199,7 @@ export function useCheckoutFields(wpBase: string): CheckoutFieldsData {
     Promise.all([
       fetchWpCountries(wpBase),
       fetchWpReps(wpBase),
-      fetchWpCheckoutFields(wpBase),
+      fetchWpOrderTypes(wpBase),
       fetchBillingFieldMeta(wpBase), // ← derives billing required flags from WC
       fetchShippingFieldMeta(wpBase), // ← derives shipping required flags from WC
     ])

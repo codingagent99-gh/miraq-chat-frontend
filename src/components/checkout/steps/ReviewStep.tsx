@@ -6,6 +6,8 @@ import type {
   PaymentPayload,
   CheckoutStep,
 } from "../../../types/checkout";
+import type { MultiShipGroup } from "../../../types/multiAddress";
+import { makeAddressLabel } from "../../../types/multiAddress";
 import type { PaymentGatewayAdapter } from "../payment/PaymentGatewayAdapter";
 import { FiCheck } from "react-icons/fi";
 
@@ -17,6 +19,9 @@ interface ReviewStepProps {
   error: { code: string; message: string; field?: string } | null;
   paymentPayload: PaymentPayload | null;
   selectedAdapter: PaymentGatewayAdapter | null;
+  // Multi-address display
+  multiAddressEnabled?: boolean;
+  multiShipGroups?: MultiShipGroup[];
   onPlaceOrder: (payload: PaymentPayload) => Promise<void>;
   onSetStep: (step: CheckoutStep) => void;
   onClearError: () => void;
@@ -90,7 +95,130 @@ function AddressSummary({
   );
 }
 
-/** Returns a human-readable explanation of why Place Order is disabled. */
+// ── Multi-address shipment breakdown ──────────────────────────────────────────
+
+function MultiShipmentSummary({
+  groups,
+  cart,
+}: {
+  groups: MultiShipGroup[];
+  cart: WCCart | null;
+}) {
+  const symbol = cart?.totals.currency_symbol ?? "$";
+  const minorUnit = cart?.totals.currency_minor_unit ?? 2;
+
+  // Build a lookup of cart_key → line_total from the cart
+  const lineTotals: Record<string, string> = {};
+  for (const item of cart?.items ?? []) {
+    lineTotals[item.key] = item.totals.line_total;
+  }
+
+  return (
+    <div style={{ marginBottom: "14px" }}>
+      <p
+        style={{
+          fontSize: "11px",
+          fontWeight: 600,
+          color: "#888",
+          letterSpacing: "0.05em",
+          textTransform: "uppercase",
+          margin: "0 0 10px 0",
+        }}
+      >
+        Shipments
+      </p>
+
+      {groups.map((group, idx) => (
+        <div
+          key={group.items[0]?.address_id ?? idx}
+          style={{
+            border: "1px solid #e8e6e0",
+            borderRadius: "11px",
+            overflow: "hidden",
+            marginBottom: "10px",
+          }}
+        >
+          {/* Shipment header */}
+          <div
+            style={{
+              padding: "9px 13px",
+              background: "#f5f4f1",
+              borderBottom: "1px solid #e8e6e0",
+            }}
+          >
+            <p
+              style={{
+                fontSize: "10.5px",
+                fontWeight: 600,
+                color: "#888",
+                letterSpacing: "0.04em",
+                textTransform: "uppercase",
+                margin: "0 0 1px 0",
+              }}
+            >
+              Shipment {idx + 1}
+            </p>
+            <p
+              style={{
+                fontSize: "12.5px",
+                fontWeight: 500,
+                color: "#1c1c1a",
+                margin: 0,
+              }}
+            >
+              {makeAddressLabel(group.address)}
+            </p>
+            {group.selected_rate_id && (
+              <p style={{ fontSize: "11px", color: "#888", margin: "2px 0 0" }}>
+                Shipping: {group.selected_rate_id.replace(/_\d+$/, "")}
+              </p>
+            )}
+          </div>
+
+          {/* Items in this shipment */}
+          <div style={{ padding: "0" }}>
+            {group.items.map((item, i) => {
+              const total = lineTotals[item.cart_key];
+              return (
+                <div
+                  key={item.cart_key}
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    padding: "8px 13px",
+                    borderBottom:
+                      i < group.items.length - 1 ? "1px solid #f0eeea" : "none",
+                    background: "#fff",
+                  }}
+                >
+                  <span style={{ fontSize: "12px", color: "#1c1c1a" }}>
+                    {item.product_name}{" "}
+                    <span style={{ color: "#999" }}>×{item.quantity}</span>
+                  </span>
+                  {total && (
+                    <span
+                      style={{
+                        fontSize: "12px",
+                        fontWeight: 600,
+                        color: "#1c1c1a",
+                      }}
+                    >
+                      {formatPrice(total, symbol, minorUnit)}
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── Disabled tooltip wrapper ──────────────────────────────────────────────────
+
 function getDisabledReason(
   paymentPayload: PaymentPayload | null,
   isLoading: boolean,
@@ -101,7 +229,6 @@ function getDisabledReason(
   return null;
 }
 
-/** A wrapper that shows a tooltip over any disabled child element. */
 function DisabledTooltip({
   label,
   children,
@@ -143,7 +270,6 @@ function DisabledTooltip({
           }}
         >
           {label}
-          {/* Arrow */}
           <span
             style={{
               position: "absolute",
@@ -161,6 +287,8 @@ function DisabledTooltip({
   );
 }
 
+// ── ReviewStep ────────────────────────────────────────────────────────────────
+
 export function ReviewStep({
   cart,
   customer,
@@ -169,6 +297,8 @@ export function ReviewStep({
   error,
   paymentPayload,
   selectedAdapter,
+  multiAddressEnabled,
+  multiShipGroups,
   onPlaceOrder,
   onSetStep,
   onClearError,
@@ -178,6 +308,11 @@ export function ReviewStep({
 
   const disabledReason = getDisabledReason(paymentPayload, isLoading);
   const isDisabled = disabledReason !== null;
+
+  const isMultiMode =
+    multiAddressEnabled &&
+    Array.isArray(multiShipGroups) &&
+    multiShipGroups.length > 0;
 
   // Order complete state
   if (order) {
@@ -236,8 +371,8 @@ export function ReviewStep({
         Review Your Order
       </h3>
 
-      {/* Address summary */}
-      {customer && (
+      {/* ── Address summary ── */}
+      {customer && !isMultiMode && (
         <div
           style={{
             display: "flex",
@@ -253,8 +388,27 @@ export function ReviewStep({
         </div>
       )}
 
-      {/* Cart items */}
-      {cart && cart.items.length > 0 && (
+      {/* ── Billing address (multi-mode: show on its own) ── */}
+      {customer && isMultiMode && (
+        <div
+          style={{
+            padding: "12px 14px",
+            background: "#f5f4f1",
+            borderRadius: "11px",
+            marginBottom: "14px",
+          }}
+        >
+          <AddressSummary address={customer.billing} label="Billing" />
+        </div>
+      )}
+
+      {/* ── Multi-address shipment breakdown ── */}
+      {isMultiMode && (
+        <MultiShipmentSummary groups={multiShipGroups!} cart={cart} />
+      )}
+
+      {/* ── Single-address cart items ── */}
+      {!isMultiMode && cart && cart.items.length > 0 && (
         <div
           style={{
             border: "1px solid #eeede8",
@@ -327,7 +481,7 @@ export function ReviewStep({
         </div>
       )}
 
-      {/* Error banner */}
+      {/* ── Error banner ── */}
       {error && (
         <div
           style={{
@@ -416,7 +570,7 @@ export function ReviewStep({
         </div>
       )}
 
-      {/* Place Order button — wrapped in tooltip when disabled */}
+      {/* ── Place Order button ── */}
       <DisabledTooltip label={disabledReason}>
         <button
           type="button"
@@ -447,7 +601,6 @@ export function ReviewStep({
             letterSpacing: "0.04em",
             cursor: isDisabled ? "not-allowed" : "pointer",
             opacity: isLoading ? 0.65 : 1,
-            // Ensure the disabled button is still hoverable so the tooltip fires
             pointerEvents: "auto",
           }}
         >

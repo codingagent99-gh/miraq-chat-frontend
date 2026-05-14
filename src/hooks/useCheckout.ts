@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import type { AddressDict } from "../types/actions";
 import type {
   CheckoutStep,
@@ -9,7 +9,18 @@ import type {
   UseCheckoutOptions,
 } from "../types/checkout";
 import type { WCCart } from "./useCart";
+import type { MultiShipGroup } from "../types/multiAddress";
 import { clearAddressDraft } from "../utils/addressDraft";
+
+// ── Extend the base options type locally so types/checkout.ts needs no changes ─
+
+interface UseCheckoutOptionsExtended extends UseCheckoutOptions {
+  /**
+   * A ref populated by CheckoutPanel with the current multi-address groups.
+   * placeOrder reads it at call-time — no signature change required.
+   */
+  multiShipGroupsRef?: React.MutableRefObject<MultiShipGroup[] | undefined>;
+}
 
 // ── Helper: extract the first field-level error from a Woo Store API error ──
 
@@ -31,7 +42,6 @@ function parseWooError(body: unknown): {
   const code = err.code ?? "unknown_error";
   const message = err.message ?? "An unexpected error occurred.";
 
-  // Surface first field-level error if present
   const details = err.data?.details;
   if (details) {
     const firstField = Object.keys(details)[0];
@@ -63,6 +73,23 @@ function findSelectedRateId(packages: ShippingPackage[]): string | null {
   return null;
 }
 
+// ── Helper: serialise multi-ship groups for the extensions payload ───────────
+
+function serializeMultiShip(groups: MultiShipGroup[]): string {
+  if (!groups.length) return "";
+  return JSON.stringify(
+    groups.map((g) => ({
+      address: g.address,
+      rate_id: g.selected_rate_id ?? "",
+      items: g.items.map((i) => ({
+        cart_key: i.cart_key,
+        name: i.product_name,
+        qty: i.quantity,
+      })),
+    })),
+  );
+}
+
 // ── Hook ────────────────────────────────────────────────────────────────────
 
 export function useCheckout({
@@ -70,7 +97,8 @@ export function useCheckout({
   cart,
   onCartUpdate,
   cartToken,
-}: UseCheckoutOptions): UseCheckoutReturn {
+  multiShipGroupsRef,
+}: UseCheckoutOptionsExtended): UseCheckoutReturn {
   const [step, setStep] = useState<CheckoutStep>("idle");
   const [customer, setCustomer] = useState<{
     billing: AddressDict;
@@ -114,11 +142,6 @@ export function useCheckout({
         const updatedCart = body as WCCart;
         onCartUpdate(updatedCart);
 
-        // Hydrate customer + shipping packages from the response.
-        // WooCommerce only echoes back standard address fields — it silently
-        // drops custom fields (project_rep, billing_field_type, etc.).
-        // Merge the original input ON TOP of the WC response so placeOrder
-        // always sends custom fields along with the /checkout payload.
         if (updatedCart.billing_address || updatedCart.shipping_address) {
           setCustomer({
             billing: {
@@ -169,7 +192,6 @@ export function useCheckout({
         const packages = extractShippingPackages(updatedCart);
         setShippingPackages(packages);
 
-        // Find the newly selected rate id from the response
         const newSelectedId = findSelectedRateId(packages) ?? rateId;
         setSelectedRateId(newSelectedId);
 
@@ -182,17 +204,9 @@ export function useCheckout({
   );
 
   // ── placeOrder ─────────────────────────────────────────────────────────────
-  // Uses POST /wc/store/v1/checkout (Store API).
-  //
-  // Custom fields (billing_project, billing_field_type, project_rep) are
-  // passed in the `extensions` object rather than as top-level fields.
-  // The server-side hook `woocommerce_store_api_checkout_update_order_from_request`
-  // in class-api.php reads from extensions["miraq-checkout"] and saves them
-  // as order meta — the correct Store API extension pattern.
-  //
-  // Free orders: WooCommerce still requires a non-empty payment_method even
-  // when needs_payment === false. We fall back to the first available method
-  // (e.g. "cod") — it won't be charged for a $0 order.
+  // Multi-ship groups are read from the ref injected by CheckoutPanel.
+  // The ref is written during CheckoutPanel's render (safe for refs) so it is
+  // always current by the time the user clicks "Place Order".
   const placeOrder = useCallback(
     async (payment: PaymentPayload): Promise<OrderConfirmation> => {
       setIsLoading(true);
@@ -203,10 +217,15 @@ export function useCheckout({
         const billing = customer?.billing ?? cart?.billing_address ?? {};
         const shipping = customer?.shipping ?? cart?.shipping_address ?? {};
 
-        // Always send a valid payment_method — required by the Store API even
-        // when the order total is zero.
         const paymentMethod =
           payment.payment_method || cart?.payment_methods?.[0] || "cod";
+
+        // Read multi-ship groups from the ref at call-time
+        const multiShipGroups = multiShipGroupsRef?.current;
+        const multiShippingStr =
+          multiShipGroups && multiShipGroups.length > 0
+            ? serializeMultiShip(multiShipGroups)
+            : "";
 
         const body = {
           billing_address: {
@@ -236,8 +255,6 @@ export function useCheckout({
           customer_note: String((billing as any).order_notes ?? ""),
           payment_method: paymentMethod,
           payment_data: payment.payment_data ?? [],
-          // Custom fields — saved via woocommerce_store_api_checkout_update_order_from_request
-          // in class-api.php. The namespace key must match what the PHP hook reads.
           extensions: {
             "miraq-checkout": {
               billing_project: String((billing as any).billing_project ?? ""),
@@ -245,6 +262,10 @@ export function useCheckout({
                 (billing as any).billing_field_type ?? "",
               ),
               project_rep: String((billing as any).project_rep ?? ""),
+              // ── Multi-address shipping data ──────────────────────────────
+              // Serialised JSON; PHP hook (class-api.php) parses and saves
+              // per-shipment order meta from this string.
+              multi_shipping: multiShippingStr,
             },
           },
         };
@@ -290,10 +311,8 @@ export function useCheckout({
         setOrder(confirmation);
         setStep("complete");
 
-        // Clear address draft — order is done
         clearAddressDraft(cartToken ?? null);
 
-        // Re-fetch cart so the frontend reflects the now-empty server cart
         try {
           const cartRes = await storeApiFetch("/cart");
           if (cartRes.ok) {
@@ -312,7 +331,8 @@ export function useCheckout({
         setIsLoading(false);
       }
     },
-    [storeApiFetch, customer, cart, cartToken, onCartUpdate],
+    // multiShipGroupsRef intentionally omitted — refs are stable and need no deps
+    [storeApiFetch, customer, cart, cartToken, onCartUpdate], // eslint-disable-line react-hooks/exhaustive-deps
   );
 
   // ── clearError ──────────────────────────────────────────────────────────────
@@ -330,6 +350,16 @@ export function useCheckout({
     setError(null);
     setIsLoading(false);
   }, []);
+
+  // useCheckout.ts — after the shippingPackages useState
+  useEffect(() => {
+    if (!cart) return;
+    const packages = extractShippingPackages(cart);
+    if (packages.length > 0) {
+      setShippingPackages(packages);
+      setSelectedRateId(findSelectedRateId(packages));
+    }
+  }, [cart]);
 
   return {
     step,

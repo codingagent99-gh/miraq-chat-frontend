@@ -52,8 +52,7 @@ export function ProductCards({ products, onProductClick }: ProductCardsProps) {
               <div
                 style={{
                   width: "100%",
-                  minHeight:
-                    "160px" /* Forces a physical height so CSS can't squash it */,
+                  minHeight: "120px",
                   position: "relative",
                   backgroundColor: "#f1f5f9",
                   borderBottom: "1px solid #e2e8f0",
@@ -78,7 +77,7 @@ export function ProductCards({ products, onProductClick }: ProductCardsProps) {
               <div
                 style={{
                   width: "100%",
-                  minHeight: "160px",
+                  minHeight: "120px",
                   backgroundColor: "#e2e8f0",
                   display: "flex",
                   alignItems: "center",
@@ -96,9 +95,8 @@ export function ProductCards({ products, onProductClick }: ProductCardsProps) {
                 className="xpert-product-name"
                 title={product.name}
                 style={{
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
+                  overflowWrap: "break-word",
+                  wordBreak: "break-word",
                 }}
               >
                 {product.name}

@@ -1,5 +1,4 @@
-import { FiX } from "react-icons/fi";
-
+import { FiX, FiMaximize2, FiMinimize2 } from "react-icons/fi";
 interface HomeScreenProps {
   onStartChat: () => void;
   onClose: () => void;
@@ -8,6 +7,8 @@ interface HomeScreenProps {
   isLoggedIn?: boolean;
   aiMode?: boolean;
   onToggleAI?: () => void;
+  isExpanded?: boolean;
+  onToggleExpand?: () => void;
 }
 
 export function HomeScreen({
@@ -18,6 +19,8 @@ export function HomeScreen({
   isLoggedIn = true,
   aiMode = true,
   onToggleAI,
+  isExpanded,
+  onToggleExpand,
 }: HomeScreenProps) {
   const firstName = customerName?.trim().split(/\s+/)[0];
 
@@ -54,6 +57,16 @@ export function HomeScreen({
             <span className="xpert-toggle-thumb" />
           </button>
         </div>
+      )}
+
+      {onToggleExpand && (
+        <button
+          className="xpert-icon-btn"
+          onClick={onToggleExpand}
+          aria-label={isExpanded ? "Collapse panel" : "Expand panel"}
+        >
+          {isExpanded ? <FiMinimize2 size={18} /> : <FiMaximize2 size={18} />}
+        </button>
       )}
 
       <button

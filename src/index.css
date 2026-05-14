@@ -553,7 +553,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   display: -webkit-box;
-  -webkit-line-clamp: 2;
+  -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   line-height: 1.3;
 }
@@ -2063,6 +2063,10 @@
     height: 100vh;
     border-radius: 0;
     box-shadow: -4px 0 24px rgba(0, 0, 0, 0.15);
+    transition: width 0.3s ease;
+  }
+  #silfra-chat-widget-container .xpert-panel--side.xpert-panel--expanded {
+    width: 50vw;
   }
 }
 

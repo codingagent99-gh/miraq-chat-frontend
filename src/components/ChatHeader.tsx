@@ -1,5 +1,10 @@
-import { FiShoppingCart, FiChevronLeft, FiX } from "react-icons/fi";
-
+import {
+  FiShoppingCart,
+  FiChevronLeft,
+  FiX,
+  FiMaximize2,
+  FiMinimize2,
+} from "react-icons/fi";
 interface ChatHeaderProps {
   cartCount: number;
   customerName?: string;
@@ -8,6 +13,8 @@ interface ChatHeaderProps {
   onClose: () => void;
   logoUrl?: string;
   headerText?: string;
+  isExpanded?: boolean;
+  onToggleExpand?: () => void;
 }
 
 export function ChatHeader({
@@ -18,6 +25,8 @@ export function ChatHeader({
   onClose,
   logoUrl,
   headerText,
+  isExpanded,
+  onToggleExpand,
 }: ChatHeaderProps) {
   // Capitalise role: "customer" → "Customer"
   const displayRole = customerRole
@@ -71,7 +80,15 @@ export function ChatHeader({
             <span className="xpert-cart-count">{cartCount}</span>
           </div>
         )}
-
+        {onToggleExpand && (
+          <button
+            className="xpert-icon-btn"
+            onClick={onToggleExpand}
+            aria-label={isExpanded ? "Collapse panel" : "Expand panel"}
+          >
+            {isExpanded ? <FiMinimize2 size={18} /> : <FiMaximize2 size={18} />}
+          </button>
+        )}
         {/* New Minimize Button */}
         <button
           className="xpert-icon-btn"

@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 interface WidgetContainerProps {
   panelOpen: boolean;
   setPanelOpen: (open: boolean) => void;
+  isExpanded: boolean;
   assetBaseUrl: string;
   children: React.ReactNode;
   overlayClickCloses?: boolean;
@@ -15,7 +16,8 @@ function ensureGlobalStyles() {
   if (document.getElementById("silfra-global-styles")) return;
   const scrollbarWidth =
     window.innerWidth - document.documentElement.clientWidth;
-  const contentWidth = `calc(100vw - ${scrollbarWidth}px - max(25vw, 320px))`;
+  const contentWidthNormal = `calc(100vw - ${scrollbarWidth}px - max(25vw, 320px))`;
+  const contentWidthExpanded = `calc(100vw - ${scrollbarWidth}px - 50vw)`;
   const style = document.createElement("style");
   style.id = "silfra-global-styles";
   style.textContent = `
@@ -29,14 +31,23 @@ function ensureGlobalStyles() {
     }
 
     body.silfra-panel-open #main-container {
-      max-width: ${contentWidth} !important;
+      max-width: ${contentWidthNormal} !important;
     }
-
     body.silfra-panel-open #wpadminbar,
     body.silfra-panel-open [data-sticky="yes"],
     body.silfra-panel-open [data-sticky="yes:shrink"] {
-      width: ${contentWidth} !important;
-      max-width: ${contentWidth} !important;
+      width: ${contentWidthNormal} !important;
+      max-width: ${contentWidthNormal} !important;
+    }
+
+    body.silfra-panel-open.silfra-panel-expanded #main-container {
+      max-width: ${contentWidthExpanded} !important;
+    }
+    body.silfra-panel-open.silfra-panel-expanded #wpadminbar,
+    body.silfra-panel-open.silfra-panel-expanded [data-sticky="yes"],
+    body.silfra-panel-open.silfra-panel-expanded [data-sticky="yes:shrink"] {
+      width: ${contentWidthExpanded} !important;
+      max-width: ${contentWidthExpanded} !important;
     }
 
     #${OVERLAY_ID} {
@@ -66,6 +77,7 @@ function unmountOverlay() {
 export function WidgetContainer({
   panelOpen,
   setPanelOpen,
+  isExpanded,
   children,
   assetBaseUrl,
   overlayClickCloses = false,
@@ -86,15 +98,25 @@ export function WidgetContainer({
   // ── Desktop: body class + content squeeze ────────────────────────────────
   useEffect(() => {
     if (isMobile) {
-      document.body.classList.remove("silfra-panel-open");
+      document.body.classList.remove(
+        "silfra-panel-open",
+        "silfra-panel-expanded",
+      );
       return;
     }
     ensureGlobalStyles();
     document.body.classList.toggle("silfra-panel-open", panelOpen);
+    document.body.classList.toggle(
+      "silfra-panel-expanded",
+      panelOpen && isExpanded,
+    );
     return () => {
-      document.body.classList.remove("silfra-panel-open");
+      document.body.classList.remove(
+        "silfra-panel-open",
+        "silfra-panel-expanded",
+      );
     };
-  }, [panelOpen, isMobile]);
+  }, [panelOpen, isExpanded, isMobile]);
 
   // ── Overlay: mount when panel is open, unmount when closed ───────────────
   useEffect(() => {
@@ -139,7 +161,11 @@ export function WidgetContainer({
         </button>
       )}
       {panelOpen && (
-        <div className="xpert-panel xpert-panel--side">{children}</div>
+        <div
+          className={`xpert-panel xpert-panel--side${isExpanded ? " xpert-panel--expanded" : ""}`}
+        >
+          {children}
+        </div>
       )}
     </>
   );

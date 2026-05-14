@@ -39,6 +39,14 @@ export function ChatWidget({
   const siteOrigin = import.meta.env.VITE_WP_BASE_URL || window.location.origin;
 
   const isLoggedIn = !!(customerId || customerEmail);
+  const [isExpanded, setIsExpanded] = useState(() => {
+    if (window.innerWidth <= 768) return false;
+    try {
+      return sessionStorage.getItem("silfra_panel_expanded") === "true";
+    } catch {
+      return false;
+    }
+  });
 
   // ── AI mode localStorage key (user-scoped) ───────────────────────────────
   const aiStorageKey = `silfra_ai_enabled_${customerId ?? customerEmail ?? "guest"}`;
@@ -85,17 +93,20 @@ export function ChatWidget({
   const [editingId, setEditingId] = useState<string | null>(null);
   /** True only when every variant axis in the current VariantPicker has a selection */
   const [canPlaceOrder, setCanPlaceOrder] = useState(false);
-
-  // Persist panel open state across refreshes (desktop only)
   useEffect(() => {
     if (window.innerWidth <= 768) return;
     try {
+      sessionStorage.setItem("silfra_panel_expanded", String(isExpanded));
+    } catch {}
+  }, [isExpanded]);
+  // Persist panel open state across refreshes (desktop only)
+  useEffect(() => {
+    if (!panelOpen) setIsExpanded(false);
+    if (window.innerWidth <= 768) return;
+    try {
       sessionStorage.setItem("silfra_panel_open", String(panelOpen));
-    } catch {
-      // sessionStorage unavailable
-    }
+    } catch {}
   }, [panelOpen]);
-
   // Persist screen state so refreshes restore the user's last screen
   useEffect(() => {
     try {
@@ -159,7 +170,7 @@ export function ChatWidget({
   // fetchCart is not called automatically; we need to trigger it here so the
   // CartPanel has data after a redirect restores isCartOpen = true.
   useEffect(() => {
-    if (isCartOpen) fetchCart();
+    if (isCartOpen || isCheckoutOpen) fetchCart();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // intentionally runs once on mount only
 
@@ -413,7 +424,7 @@ export function ChatWidget({
           panelOpen={panelOpen}
           setPanelOpen={setPanelOpen}
           assetBaseUrl={assetBaseUrl || ""}
-          // aiEnabled={aiEnabled}
+          isExpanded={isExpanded}
         >
           {!isLoggedIn ? (
             // ── Login required ─────────────────────────────────────────────
@@ -491,6 +502,8 @@ export function ChatWidget({
               isLoggedIn={isLoggedIn}
               aiMode={aiEnabled}
               onToggleAI={() => handleAiToggle(!aiEnabled)}
+              isExpanded={isExpanded}
+              onToggleExpand={() => setIsExpanded((p) => !p)}
             />
           )}
         </WidgetContainer>
@@ -529,7 +542,7 @@ export function ChatWidget({
         panelOpen={panelOpen}
         setPanelOpen={setPanelOpen}
         assetBaseUrl={assetBaseUrl || ""}
-        // aiEnabled={aiEnabled}
+        isExpanded={isExpanded}
       >
         <div
           className="xpert-chat-window"
@@ -543,6 +556,8 @@ export function ChatWidget({
             onClose={() => setPanelOpen(false)}
             logoUrl={widgetLogo || MiraQIcon}
             headerText="MiraQ Commerce Assistant"
+            isExpanded={isExpanded}
+            onToggleExpand={() => setIsExpanded((p) => !p)}
           />
 
           <div className="xpert-chat-messages">
@@ -726,6 +741,8 @@ export function ChatWidget({
                 setIsCartOpen(false);
                 setIsCheckoutOpen(true);
               }}
+              isExpanded={isExpanded}
+              onToggleExpand={() => setIsExpanded((p) => !p)}
             />
           )}
 
@@ -739,6 +756,8 @@ export function ChatWidget({
               siteOrigin={siteOrigin}
               onClose={() => setIsCheckoutOpen(false)}
               onPostBotMessage={appendBotMessage}
+              isExpanded={isExpanded}
+              onToggleExpand={() => setIsExpanded((p) => !p)}
             />
           )}
 
