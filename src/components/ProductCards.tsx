@@ -3,9 +3,16 @@ import type { Product } from "../types/api";
 interface ProductCardsProps {
   products: Product[];
   onProductClick?: (product: Product) => void;
+  onShowSimilar?: (product: Product) => void;
+  loadingSimilarId?: number | null;
 }
 
-export function ProductCards({ products, onProductClick }: ProductCardsProps) {
+export function ProductCards({
+  products,
+  onProductClick,
+  onShowSimilar,
+  loadingSimilarId,
+}: ProductCardsProps) {
   // 🚀 The exhaustive, safe extractor
   const getImgSrc = (product: any): string => {
     const candidates = [
@@ -52,7 +59,8 @@ export function ProductCards({ products, onProductClick }: ProductCardsProps) {
               <div
                 style={{
                   width: "100%",
-                  minHeight: "120px",
+                  minHeight:
+                    "160px" /* Forces a physical height so CSS can't squash it */,
                   position: "relative",
                   backgroundColor: "#f1f5f9",
                   borderBottom: "1px solid #e2e8f0",
@@ -77,7 +85,7 @@ export function ProductCards({ products, onProductClick }: ProductCardsProps) {
               <div
                 style={{
                   width: "100%",
-                  minHeight: "120px",
+                  minHeight: "160px",
                   backgroundColor: "#e2e8f0",
                   display: "flex",
                   alignItems: "center",
@@ -91,14 +99,7 @@ export function ProductCards({ products, onProductClick }: ProductCardsProps) {
             )}
 
             <div className="xpert-product-info">
-              <h4
-                className="xpert-product-name"
-                title={product.name}
-                style={{
-                  overflowWrap: "break-word",
-                  wordBreak: "break-word",
-                }}
-              >
+              <h4 className="xpert-product-name" title={product.name}>
                 {product.name}
               </h4>
               <div className="xpert-product-price">
@@ -136,6 +137,22 @@ export function ProductCards({ products, onProductClick }: ProductCardsProps) {
                   <span className="xpert-sale-badge">SALE</span>
                 ) : null}
               </div>
+
+              {onShowSimilar && (
+                <button
+                  className="xpert-similar-btn"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onShowSimilar(product);
+                  }}
+                  disabled={loadingSimilarId === product.id}
+                  type="button"
+                >
+                  {loadingSimilarId === product.id
+                    ? "Loading…"
+                    : "Show Similar Products"}
+                </button>
+              )}
             </div>
           </div>
         );

@@ -5,6 +5,11 @@ export type StoreApiFetch = (
   init?: RequestInit,
 ) => Promise<Response>;
 
+export type UseStoreApiReturn = {
+  storeApiFetch: StoreApiFetch;
+  resetCartToken: () => void;
+};
+
 interface UseStoreApiOptions {
   nonce?: string;
   nonceExpires?: number;
@@ -24,6 +29,9 @@ export function useStoreApi({
   const nonceRef = useRef<string>(nonce ?? "");
   const nonceExpiresRef = useRef<number>(nonceExpires ?? 0);
   const cartTokenRef = useRef<string>(cartToken ?? "");
+  const resetCartToken = useCallback(() => {
+    cartTokenRef.current = "";
+  }, []);
   const siteOrigin = import.meta.env.VITE_WP_BASE_URL || window.location.origin;
 
   // Returns a valid nonce, refreshing if within 1 minute of expiry
@@ -82,5 +90,5 @@ export function useStoreApi({
     [getFreshNonce, siteOrigin],
   );
 
-  return { storeApiFetch };
+  return { storeApiFetch, resetCartToken };
 }

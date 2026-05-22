@@ -19,6 +19,8 @@ interface MessageRowProps {
   onEdit: (id: string, text: string) => void;
   onOrderClick: (orderId: number, orderNumber: string) => void;
   onProductClick?: (product: Product) => void;
+  onShowSimilar?: (product: Product) => void;
+  loadingSimilarId?: number | null;
   /** Called when the user clicks a variant option — populates the input box */
   onVariantSelect: (text: string) => void;
   /**
@@ -85,6 +87,8 @@ export function MessageRow({
   onEdit,
   onOrderClick,
   onProductClick,
+  onShowSimilar,
+  loadingSimilarId,
   onVariantSelect,
   onVariantAllSelected,
   onPlaceOrder,
@@ -92,6 +96,8 @@ export function MessageRow({
   miraQIcon,
 }: MessageRowProps) {
   const formattedTime = formatTimestamp(new Date(message.timestamp));
+  // Suppress similar products nudge during guided flows (awaiting_variant_selection etc.)
+  const similarHandler = message.isFlowPrompt ? undefined : onShowSimilar;
 
   if (message.role === "user") {
     return (
@@ -151,10 +157,32 @@ export function MessageRow({
           )}
 
           {message.products && message.products.length > 0 && (
-            <ProductCards
-              products={message.products}
-              onProductClick={onProductClick}
-            />
+            <>
+              <ProductCards
+                products={message.products}
+                onProductClick={onProductClick}
+                onShowSimilar={similarHandler}
+                loadingSimilarId={loadingSimilarId}
+              />
+              {similarHandler && (
+                <div className="xpert-similar-prompt">
+                  <span className="xpert-similar-prompt__text">
+                    Would you like to see similar products like{" "}
+                    <strong>{message.products[0].name.split(" — ")[0]}</strong>?
+                  </span>
+                  <button
+                    className="xpert-similar-prompt__btn"
+                    onClick={() => similarHandler(message.products![0])}
+                    disabled={loadingSimilarId === message.products![0].id}
+                    type="button"
+                  >
+                    {loadingSimilarId === message.products![0].id
+                      ? "Loading…"
+                      : "Click here!"}
+                  </button>
+                </div>
+              )}
+            </>
           )}
 
           {message.cart && <CartDisplay cart={message.cart} />}
@@ -212,6 +240,30 @@ export function MessageRow({
               isFlowPrompt={message.isFlowPrompt}
               onSelect={onSuggestion}
             />
+          )}
+
+          {message.similarProductPrompt && similarHandler && (
+            <div className="xpert-similar-prompt">
+              <span className="xpert-similar-prompt__text">
+                Would you like to see similar products like{" "}
+                <strong>{message.similarProductPrompt.name}</strong>?
+              </span>
+              <button
+                className="xpert-similar-prompt__btn"
+                onClick={() =>
+                  similarHandler({
+                    id: message.similarProductPrompt!.id,
+                    name: message.similarProductPrompt!.name,
+                  } as Product)
+                }
+                disabled={loadingSimilarId === message.similarProductPrompt.id}
+                type="button"
+              >
+                {loadingSimilarId === message.similarProductPrompt.id
+                  ? "Loading…"
+                  : "Click here!"}
+              </button>
+            </div>
           )}
         </div>
         <p style={{ ...timestampStyle, textAlign: "left" }}>{formattedTime}</p>

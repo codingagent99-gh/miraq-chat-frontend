@@ -319,11 +319,67 @@ export function ShippingStep({
     );
   }
 
-  // ── Single-address mode (original) ────────────────────────────────────────
+  // ── Single-address mode ───────────────────────────────────────────────────
 
-  async function handleSelect(packageId: string | number, rateId: string) {
-    await selectShippingRate(packageId, rateId);
+  /**
+   * When WooCommerce splits a single-destination cart into multiple packages
+   * (e.g. one package per item), all packages typically offer the same set of
+   * shipping methods. In that case we consolidate them into a single rate
+   * picker: the user chooses once, and we apply the matching rate to every
+   * package sequentially so the WC session is fully in sync.
+   *
+   * If the packages genuinely differ (different method sets), we fall back to
+   * the original per-package UI so nothing is hidden.
+   */
+  function methodKey(rateId: string): string {
+    // rate_id format is usually "method_id:instance_id" — normalise to method_id
+    return rateId.split(":")[0];
   }
+
+  const packagesShareSameMethods =
+    shippingPackages.length <= 1 ||
+    (() => {
+      const firstMethods = shippingPackages[0].shipping_rates
+        .map((r) => methodKey(r.rate_id))
+        .sort()
+        .join(",");
+      return shippingPackages.every(
+        (pkg) =>
+          pkg.shipping_rates
+            .map((r) => methodKey(r.rate_id))
+            .sort()
+            .join(",") === firstMethods,
+      );
+    })();
+
+  /**
+   * For the consolidated UI we render pkg[0]'s rates. When the user picks one,
+   * we find the matching method in every package and call selectShippingRate
+   * for each — sequentially to avoid cart state races.
+   */
+  async function handleSelect(packageId: string | number, rateId: string) {
+    if (!packagesShareSameMethods || shippingPackages.length <= 1) {
+      // Original behaviour — single package or genuinely different methods
+      await selectShippingRate(packageId, rateId);
+      return;
+    }
+
+    const selectedMethod = methodKey(rateId);
+    for (const pkg of shippingPackages) {
+      const match = pkg.shipping_rates.find(
+        (r) => r.rate_id === rateId || methodKey(r.rate_id) === selectedMethod,
+      );
+      if (match) {
+        await selectShippingRate(pkg.package_id, match.rate_id);
+      }
+    }
+  }
+
+  // Which packages to render: one representative entry when consolidated,
+  // all entries when methods genuinely differ.
+  const packagesToRender = packagesShareSameMethods
+    ? shippingPackages.slice(0, 1)
+    : shippingPackages;
 
   const hasPackages = shippingPackages.length > 0;
   const canContinue = !isLoading && (!cartNeedsShipping || !!selectedRateId);
@@ -405,9 +461,10 @@ export function ShippingStep({
       )}
 
       {!isLoading &&
-        shippingPackages.map((pkg) => (
+        packagesToRender.map((pkg) => (
           <div key={pkg.package_id} style={{ marginBottom: "14px" }}>
-            {shippingPackages.length > 1 && (
+            {/* Only label packages when they genuinely differ (not consolidated) */}
+            {!packagesShareSameMethods && shippingPackages.length > 1 && (
               <p
                 style={{
                   fontSize: "11px",
@@ -425,7 +482,14 @@ export function ShippingStep({
               style={{ display: "flex", flexDirection: "column", gap: "8px" }}
             >
               {pkg.shipping_rates.map((rate) => {
-                const isSelected = rate.rate_id === selectedRateId;
+                const isSelected =
+                  rate.rate_id === selectedRateId ||
+                  // In consolidated mode, also highlight if the method matches
+                  // the selected rate from any package (selectedRateId may come
+                  // from a sibling package's rate_id variant).
+                  (packagesShareSameMethods &&
+                    !!selectedRateId &&
+                    methodKey(rate.rate_id) === methodKey(selectedRateId));
                 return (
                   <label
                     key={rate.rate_id}

@@ -53,6 +53,8 @@ export interface UseChatOptions {
   /** New actions envelope callback — called when `response.actions` is non-empty.
    *  When this fires, the legacy `trigger_frontend_*` handling is skipped. */
   onActions?: (actions: ChatAction[]) => void;
+  /** Called after add-to-cart so ChatWidget can surface the similar products prompt. */
+  onSimilarProductsPrompt?: (id: number, name: string) => void;
 }
 
 const WELCOME_MESSAGE: ChatMessage = {
@@ -143,6 +145,11 @@ export function useChat(options: UseChatOptions = {}) {
       if (freshNonce) {
         nonceRef.current = freshNonce;
         nonceExpiresRef.current = Date.now() + 12 * 60 * 60 * 1000;
+      }
+
+      const freshCartToken = response.headers.get("Cart-Token");
+      if (freshCartToken) {
+        cartTokenRef.current = freshCartToken;
       }
 
       return response;
@@ -382,8 +389,22 @@ export function useChat(options: UseChatOptions = {}) {
           sessionIdRef.current,
         ); // Pass Session ID to api wrapper!
 
+        // Capture product context BEFORE processChatResponse resets flowRef
+        const _pendingId = flowRef.current.pending_product_id;
+        const _pendingName = flowRef.current.pending_product_name;
+
         const botMsg = await processChatResponse(res);
         setMessages((prev) => enqueuMessages(prev, botMsg));
+
+        // ── Similar products nudge ──
+        if (
+          options.onSimilarProductsPrompt &&
+          res.intent === "add_to_cart" &&
+          _pendingId &&
+          _pendingName
+        ) {
+          options.onSimilarProductsPrompt(_pendingId, _pendingName);
+        }
       } catch (err) {
         const detail =
           err instanceof Error ? err.message : "Something went wrong.";
@@ -401,7 +422,7 @@ export function useChat(options: UseChatOptions = {}) {
         focusInput();
       }
     },
-    [buildUserContext, processChatResponse, focusInput],
+    [buildUserContext, processChatResponse, focusInput, options],
   );
 
   const editMessage = useCallback(
@@ -486,8 +507,22 @@ export function useChat(options: UseChatOptions = {}) {
           sessionIdRef.current,
         ); // 🚀 Pass Session ID!
 
+        // Capture product context BEFORE processChatResponse resets flowRef
+        const _pendingId = flowRef.current.pending_product_id;
+        const _pendingName = flowRef.current.pending_product_name;
+
         const botMsg = await processChatResponse(res);
         setMessages((prev) => enqueuMessages(prev, botMsg));
+
+        // ── Similar products nudge ──
+        if (
+          options.onSimilarProductsPrompt &&
+          res.intent === "add_to_cart" &&
+          _pendingId &&
+          _pendingName
+        ) {
+          options.onSimilarProductsPrompt(_pendingId, _pendingName);
+        }
       } catch (err) {
         const detail =
           err instanceof Error ? err.message : "Something went wrong.";
@@ -505,7 +540,7 @@ export function useChat(options: UseChatOptions = {}) {
         focusInput();
       }
     },
-    [buildUserContext, processChatResponse, focusInput],
+    [buildUserContext, processChatResponse, focusInput, options],
   );
 
   const loadMore = useCallback(async () => {
@@ -687,17 +722,23 @@ export function useChat(options: UseChatOptions = {}) {
     focusInput();
   }, [focusInput, userId]);
 
-  const appendBotMessage = useCallback((text: string) => {
-    const syntheticMsg: ChatMessage = {
-      id: uuidv4(),
-      role: "bot",
-      text,
-      timestamp: new Date(),
-      intent: "system",
-      metadata: { synthetic: true },
-    };
-    setMessages((prev) => enqueuMessages(prev, syntheticMsg));
-  }, []);
+  const appendBotMessage = useCallback(
+    (payload: string | Partial<ChatMessage>) => {
+      const overrides =
+        typeof payload === "string" ? { text: payload } : payload;
+      const syntheticMsg: ChatMessage = {
+        id: uuidv4(),
+        role: "bot",
+        text: "",
+        timestamp: new Date(),
+        intent: "system",
+        metadata: { synthetic: true },
+        ...overrides,
+      };
+      setMessages((prev) => enqueuMessages(prev, syntheticMsg));
+    },
+    [],
+  );
 
   return {
     messages,
@@ -711,6 +752,7 @@ export function useChat(options: UseChatOptions = {}) {
     handleOrderProduct,
     clearAll,
     appendBotMessage,
+    getSessionId: () => sessionIdRef.current,
     bottomRef,
     inputRef,
     pagination,

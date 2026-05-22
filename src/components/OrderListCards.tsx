@@ -60,6 +60,21 @@ export function OrderListCards({ orders, onOrderClick }: OrderListCardsProps) {
             <div className="xpert-order-card-date">
               {formatDate(order.date_created)}
             </div>
+            {order.shipping?.address_1 && (
+              <div className="xpert-order-card-shipping">
+                {[
+                  [order.shipping.first_name, order.shipping.last_name]
+                    .filter(Boolean)
+                    .join(" "),
+                  order.shipping.address_1,
+                  order.shipping.city,
+                  order.shipping.state,
+                  order.shipping.postcode,
+                ]
+                  .filter(Boolean)
+                  .join(", ")}
+              </div>
+            )}
             <div className="xpert-order-card-footer">
               <span>
                 {itemCount} item{itemCount !== 1 ? "s" : ""}

@@ -22,8 +22,10 @@ interface CheckoutPanelProps {
   siteOrigin: string;
   onClose: () => void;
   onPostBotMessage: (text: string) => void;
+  onOrderComplete?: (productId: number, productName: string) => void;
   isExpanded?: boolean;
   onToggleExpand?: () => void;
+  resetCartToken?: () => void;
 }
 
 const STEPS: { label: string; step: CheckoutStep }[] = [
@@ -64,26 +66,76 @@ function formatPrice(
 
 // ── Derive MultiShipGroups from address + assignment state ──────────────────
 
+/**
+ * Canonical key for a delivery address — name fields are intentionally
+ * excluded so that two entries pointing to the same physical location
+ * (but with different recipient names) are still consolidated.
+ */
+function addressDeliveryKey(
+  addr: import("../../types/actions").AddressDict,
+): string {
+  return [
+    addr.address_1 ?? "",
+    addr.address_2 ?? "",
+    addr.city ?? "",
+    addr.state ?? "",
+    addr.postcode ?? "",
+    addr.country ?? "",
+  ]
+    .map((s) => String(s).trim().toLowerCase())
+    .join("|");
+}
+
 function buildMultiShipGroups(
   savedAddresses: ShipAddress[],
   itemAddressMap: Record<string, string>,
   cartItems: WCCart["items"],
   groupRates: Record<string, string>, // addressId → rateId
 ): MultiShipGroup[] {
-  return savedAddresses
-    .map((addr) => ({
-      address: addr.address,
-      items: cartItems
-        .filter((item) => itemAddressMap[item.key] === addr.id)
-        .map((item) => ({
-          cart_key: item.key,
-          product_name: item.name,
-          quantity: item.quantity,
-          address_id: addr.id,
-        })),
-      selected_rate_id: groupRates[addr.id] ?? null,
-    }))
-    .filter((g) => g.items.length > 0);
+  // Map each ShipAddress.id → its canonical delivery key so we can look up
+  // which merged group an item belongs to in O(1).
+  const idToKey = new Map<string, string>();
+  // One representative group per canonical key (first address wins for the
+  // stored address object; later duplicates only contribute their rate if the
+  // existing group has none yet).
+  const keyToGroup = new Map<string, MultiShipGroup>();
+
+  for (const addr of savedAddresses) {
+    const key = addressDeliveryKey(addr.address);
+    idToKey.set(addr.id, key);
+
+    if (!keyToGroup.has(key)) {
+      keyToGroup.set(key, {
+        address: addr.address,
+        items: [],
+        selected_rate_id: groupRates[addr.id] ?? null,
+      });
+    } else {
+      // Duplicate address — inherit rate if the canonical group has none yet
+      const existing = keyToGroup.get(key)!;
+      if (!existing.selected_rate_id && groupRates[addr.id]) {
+        existing.selected_rate_id = groupRates[addr.id];
+      }
+    }
+  }
+
+  // Distribute cart items into their canonical group
+  for (const item of cartItems) {
+    const addrId = itemAddressMap[item.key];
+    if (!addrId) continue;
+    const key = idToKey.get(addrId);
+    if (!key) continue;
+    const group = keyToGroup.get(key);
+    if (!group) continue;
+    group.items.push({
+      cart_key: item.key,
+      product_name: item.name,
+      quantity: item.quantity,
+      address_id: addrId,
+    });
+  }
+
+  return [...keyToGroup.values()].filter((g) => g.items.length > 0);
 }
 
 // ── Component ────────────────────────────────────────────────────────────────
@@ -96,8 +148,10 @@ export function CheckoutPanel({
   siteOrigin,
   onClose,
   onPostBotMessage,
+  onOrderComplete,
   isExpanded,
   onToggleExpand,
+  resetCartToken,
 }: CheckoutPanelProps) {
   // ── Multi-address state (lifted here so it survives step transitions) ───────
   const [multiAddressEnabled, setMultiAddressEnabled] = useState(false);
@@ -144,6 +198,8 @@ export function CheckoutPanel({
     onCartUpdate,
     cartToken,
     multiShipGroupsRef,
+    onOrderComplete,
+    resetCartToken,
   });
 
   // ── Other lifted state ───────────────────────────────────────────────────────
@@ -181,7 +237,11 @@ export function CheckoutPanel({
     } catch {}
   }, [confirmedBilling]);
   useEffect(() => {
-    if (checkout.step === "complete" && cart) {
+    if (checkout.step === "complete" && cart && cart.items_count > 0) {
+      console.log(
+        "[MiraQ DEBUG] useEffect clear firing, cart items:",
+        cart.items?.length,
+      );
       sessionStorage.removeItem("silfra_billing");
 
       onCartUpdate({
@@ -198,8 +258,7 @@ export function CheckoutPanel({
         },
       });
     }
-  }, [checkout.step]); // eslint-disable-line react-hooks/exhaustive-deps
-
+  }, [checkout.step]);
   // ── Helpers ──────────────────────────────────────────────────────────────────
   const effectivePaymentPayload: PaymentPayload | null = (() => {
     if (paymentPayload) return paymentPayload;

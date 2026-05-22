@@ -167,6 +167,8 @@ export interface ChatMessage {
   actions?: ChatAction[];
   /** Optional metadata — e.g. { synthetic: true } for locally-injected bot messages */
   metadata?: Record<string, unknown>;
+  /** Set on synthetic nudge messages after cart/order — drives the similar products prompt UI */
+  similarProductPrompt?: { id: number; name: string };
 }
 
 // ============================================================================
@@ -329,6 +331,10 @@ export interface Product {
   type?: string;
   /** Stock quantity (may be null if not tracked) */
   stock_quantity?: number | null;
+  /** IDs of cross-sell products ("Pairing It With" on the site) */
+  cross_sell_ids?: number[];
+  /** IDs of related products ("You May Also Like" on the site) */
+  related_ids?: number[];
 }
 
 export interface WidgetOptions {

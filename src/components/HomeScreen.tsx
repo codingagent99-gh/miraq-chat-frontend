@@ -154,7 +154,7 @@ export function HomeScreen({
 
         <div className="xpert-bottom-actions single-button">
           <button className="xpert-start-chat-btn" onClick={onStartChat}>
-            Start Shopping 🚀
+            Start exploring 🚀
           </button>
         </div>
       </div>

@@ -88,6 +88,30 @@ export function createApiClient(baseURL?: string, apiKey?: string) {
     return data.product;
   }
 
+  /* ── /products/:id/similar ── */
+  async function fetchSimilarProducts(
+    id: number,
+  ): Promise<{ products: Product[]; source: "cross_sell" | "related" }> {
+    const { data } = await client.get<{
+      products: Product[];
+      source: "cross_sell" | "related";
+    }>(`/products/${id}/similar`);
+    return data;
+  }
+
+  /* ── /products/similar/save ── */
+  async function saveSimilarMessage(
+    sessionId: string,
+    text: string,
+    products: Product[],
+  ): Promise<void> {
+    await client.post("/products/similar/save", {
+      session_id: sessionId,
+      text,
+      products,
+    });
+  }
+
   /* ── /order/place ── */
   async function placeOrder(body: any, sessionId: string): Promise<any> {
     const { data } = await client.post<any>("/order/place", body, {
@@ -111,6 +135,8 @@ export function createApiClient(baseURL?: string, apiKey?: string) {
     clearHistory,
     fetchCategories,
     fetchProduct,
+    fetchSimilarProducts,
+    saveSimilarMessage,
     placeOrder,
     healthCheck,
   };
@@ -136,9 +162,6 @@ export interface WpOrderTypeOption {
 }
 
 // ── WP REST API fetch helpers ──────────────────────────────────────────────
-// These call your plugin's custom-api/v1 endpoints directly on the WP site.
-// They are intentionally separate from createApiClient (which points at the
-// MiraQ chat backend, not WordPress).
 
 export async function fetchWpCountries(wpBase: string): Promise<WpCountry[]> {
   const res = await fetch(`${wpBase}/wp-json/custom-api/v1/countries`, {
@@ -156,15 +179,6 @@ export async function fetchWpReps(wpBase: string): Promise<WpRep[]> {
   return res.json();
 }
 
-/**
- * Fetches Order Type options from the dedicated /order-types endpoint.
- *
- * billing_field_type is registered by THWCFE outside WooCommerce's standard
- * checkout fields filter, so it never appears in /checkout-fields. The plugin
- * exposes a dedicated endpoint that reads directly from THWCFE's option store.
- *
- * Response shape: [{ value: "existing_deal", label: "Existing Deal" }, ...]
- */
 export async function fetchWpOrderTypes(
   wpBase: string,
 ): Promise<WpOrderTypeOption[]> {
@@ -173,19 +187,15 @@ export async function fetchWpOrderTypes(
   });
   if (!res.ok) throw new Error(`Order types fetch failed: ${res.status}`);
   const data = await res.json();
-
   if (Array.isArray(data)) return data as WpOrderTypeOption[];
-
   console.warn("[MiraQ] Unexpected /order-types shape:", data);
   return [];
 }
 
 // ── THWMA Saved Addresses ──────────────────────────────────────────────────
-// Addresses saved by the "Multiple Addresses for WooCommerce" (THWMA) plugin.
-// Exposed via the custom /saved-addresses endpoint in class-api.php.
 
 export interface ThwmaSavedAddress {
-  id: string; // "address_0", "address_1", etc. — THWMA's key
+  id: string;
   first_name: string;
   last_name: string;
   company: string;
@@ -198,24 +208,9 @@ export interface ThwmaSavedAddress {
   heading: string;
 }
 
-/**
- * Returns the wp_rest nonce injected by PHP at page load via wp_add_inline_script.
- *
- * WHY we read from window instead of fetching /refresh-nonce:
- *   The REST endpoint runs as anonymous user (user 0) because WordPress has no
- *   prior authenticated context when it executes. wp_create_nonce('wp_rest')
- *   inside that request produces a nonce tied to user 0. When the browser then
- *   sends its WP auth cookie (real user) + that nonce (user 0), WordPress sees
- *   a mismatch and returns 403 rest_cookie_invalid_nonce.
- *
- *   PHP injects this value during a normal authenticated page load where the
- *   real user identity is already established, so the nonce is always correct.
- *   See wp_add_inline_script('silfra-chat-widget', ...) in class-widget.php.
- */
 function getWpRestNonce(): string {
   const nonce = (window as any).__miraqWpRestNonce;
   if (nonce) return nonce as string;
-
   console.warn(
     "[MiraQ] wp_rest nonce not found on window. " +
       "Ensure the user is logged in and class-widget.php is deploying the fix. " +
@@ -224,22 +219,11 @@ function getWpRestNonce(): string {
   return "";
 }
 
-/**
- * Returns all THWMA saved shipping addresses for the currently logged-in user.
- * Returns an empty array if the user is a guest or the fetch fails.
- *
- * Omits X-WP-Nonce entirely when no nonce is available (guest users) so
- * WordPress does not attempt cookie auth and return 403.
- */
 export async function fetchWpSavedAddresses(
   wpBase: string,
 ): Promise<ThwmaSavedAddress[]> {
   const nonce = getWpRestNonce();
-
-  // Do not attempt the call for guests — the endpoint requires auth and
-  // sending an empty X-WP-Nonce actively triggers a 403 from WordPress.
   if (!nonce) return [];
-
   const res = await fetch(`${wpBase}/wp-json/custom-api/v1/saved-addresses`, {
     credentials: "include",
     headers: { "X-WP-Nonce": nonce },
@@ -249,12 +233,6 @@ export async function fetchWpSavedAddresses(
   return Array.isArray(data) ? (data as ThwmaSavedAddress[]) : [];
 }
 
-/**
- * Saves a new shipping address to the THWMA address book for the current user.
- * Called when the user adds a new address in multi-address mode.
- *
- * Returns { success: false, id: "" } silently for guests (no nonce available).
- */
 export async function saveWpAddress(
   wpBase: string,
   address: {
@@ -271,7 +249,6 @@ export async function saveWpAddress(
 ): Promise<{ success: boolean; id: string }> {
   const nonce = getWpRestNonce();
   if (!nonce) return { success: false, id: "" };
-
   const res = await fetch(`${wpBase}/wp-json/custom-api/v1/saved-addresses`, {
     method: "POST",
     credentials: "include",

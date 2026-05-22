@@ -20,6 +20,9 @@ interface UseCheckoutOptionsExtended extends UseCheckoutOptions {
    * placeOrder reads it at call-time — no signature change required.
    */
   multiShipGroupsRef?: React.MutableRefObject<MultiShipGroup[] | undefined>;
+  /** Called after a successful order so ChatWidget can show the similar products prompt. */
+  onOrderComplete?: (productId: number, productName: string) => void;
+  resetCartToken?: () => void;
 }
 
 // ── Helper: extract the first field-level error from a Woo Store API error ──
@@ -98,6 +101,8 @@ export function useCheckout({
   onCartUpdate,
   cartToken,
   multiShipGroupsRef,
+  onOrderComplete,
+  resetCartToken,
 }: UseCheckoutOptionsExtended): UseCheckoutReturn {
   const [step, setStep] = useState<CheckoutStep>("idle");
   const [customer, setCustomer] = useState<{
@@ -213,12 +218,20 @@ export function useCheckout({
       setError(null);
       setStep("placing_order");
 
+      // Snapshot cart items now — before any async clears/refreshes the cart
+      const _cartItemsSnapshot = cart?.items ? [...cart.items] : [];
+
       try {
         const billing = customer?.billing ?? cart?.billing_address ?? {};
         const shipping = customer?.shipping ?? cart?.shipping_address ?? {};
 
+        // When no payment is needed, send an empty string so WooCommerce skips
+        // payment-method validation entirely. Sending any real slug (e.g. "cod")
+        // causes a 400 if that gateway isn't valid for a zero-total order.
         const paymentMethod =
-          payment.payment_method || cart?.payment_methods?.[0] || "cod";
+          cart?.needs_payment === false
+            ? ""
+            : payment.payment_method || cart?.payment_methods?.[0] || "cod";
 
         // Read multi-ship groups from the ref at call-time
         const multiShipGroups = multiShipGroupsRef?.current;
@@ -254,7 +267,8 @@ export function useCheckout({
           },
           customer_note: String((billing as any).order_notes ?? ""),
           payment_method: paymentMethod,
-          payment_data: payment.payment_data ?? [],
+          payment_data:
+            cart?.needs_payment === false ? [] : (payment.payment_data ?? []),
           extensions: {
             "miraq-checkout": {
               billing_project: String((billing as any).billing_project ?? ""),
@@ -311,19 +325,49 @@ export function useCheckout({
         setOrder(confirmation);
         setStep("complete");
 
+        // ── Force-clear cart UI immediately ──────────────────────────────────────────
+        // Must happen synchronously here, before any awaits below.
+        // The cart token still points to the old WooCommerce session at this moment —
+        // any /cart fetch using it may return stale items and re-populate the cart.
+        onCartUpdate({
+          ...(cart ?? ({} as WCCart)),
+          items: [],
+          items_count: 0,
+          totals: {
+            ...(cart?.totals ?? {
+              currency_code: "",
+              currency_symbol: "",
+              currency_minor_unit: 2,
+            }),
+            total_items: "0",
+            total_items_tax: "0",
+            total_shipping: "0",
+            total_tax: "0",
+            total_price: "0",
+          } as WCCart["totals"],
+        });
+
+        // Fire similar products nudge using snapshotted first cart item
+        if (onOrderComplete && _cartItemsSnapshot.length) {
+          const firstItem = _cartItemsSnapshot[0];
+          onOrderComplete(firstItem.id, firstItem.name);
+        }
+
         clearAddressDraft(cartToken ?? null);
 
+        // ── Reset cart token so the next /cart request starts a fresh WC session ─────
+        // Without this, fetchCart (called when the user navigates to the cart view)
+        // sends the old token, WooCommerce returns the completed order's old cart
+        // items, and setCart re-populates over the clear above.
+        resetCartToken?.();
+
+        // Silent /cart ping — only purpose is to receive the new Cart-Token header
+        // that WooCommerce issues for the fresh session. We do NOT call onCartUpdate
+        // here; the cart is already cleared above.
         try {
-          const cartRes = await storeApiFetch("/cart");
-          if (cartRes.ok) {
-            const freshCart = (await cartRes.json()) as WCCart;
-            onCartUpdate(freshCart);
-          }
+          await storeApiFetch("/cart");
         } catch (cartErr) {
-          console.warn(
-            "[MiraQ] Could not refresh cart after checkout:",
-            cartErr,
-          );
+          console.warn("[MiraQ] Could not ping cart after checkout:", cartErr);
         }
 
         return confirmation;
