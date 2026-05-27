@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
-import type { AddressDict } from "../types/actions";
+import type { AddressDict } from "../../types/actions";
 import type {
   CheckoutStep,
   ShippingPackage,
@@ -7,10 +7,10 @@ import type {
   OrderConfirmation,
   UseCheckoutReturn,
   UseCheckoutOptions,
-} from "../types/checkout";
-import type { WCCart } from "./useCart";
-import type { MultiShipGroup } from "../types/multiAddress";
-import { clearAddressDraft } from "../utils/addressDraft";
+} from "../../types/checkout";
+import type { WCCart } from "../../hooks/useCart";
+import type { MultiShipGroup } from "../../types/multiAddress";
+import { clearAddressDraft } from "../../utils/addressDraft";
 
 // ── Extend the base options type locally so types/checkout.ts needs no changes ─
 
@@ -350,7 +350,7 @@ export function useCheckout({
         // Fire similar products nudge using snapshotted first cart item
         if (onOrderComplete && _cartItemsSnapshot.length) {
           const firstItem = _cartItemsSnapshot[0];
-          onOrderComplete(firstItem.id, firstItem.name);
+          onOrderComplete(Number(firstItem.id), firstItem.name);
         }
 
         clearAddressDraft(cartToken ?? null);

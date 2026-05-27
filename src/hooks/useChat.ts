@@ -250,12 +250,42 @@ export function useChat(options: UseChatOptions = {}) {
     }
   }, [historyPage, hasMoreHistory, loadingHistory]);
 
+  /**
+   * Scrolls the chat messages container to the bottom.
+   *
+   * Uses direct scrollTop manipulation on the nearest .xpert-chat-messages
+   * ancestor instead of scrollIntoView. scrollIntoView walks up the entire
+   * DOM tree and tries to scroll every ancestor — Shopify themes commonly set
+   * overflow:hidden on <html>/<body> for their drawer animations, which the
+   * browser treats as a scroll container and silently blocks the scroll.
+   * Setting scrollTop directly on our own container is immune to this.
+   */
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = "smooth") => {
+    const el = bottomRef.current;
+    if (!el) return;
+    const container = el.closest(".xpert-chat-messages") as HTMLElement | null;
+    if (container) {
+      if (behavior === "instant") {
+        container.scrollTop = container.scrollHeight;
+      } else {
+        container.scrollTo({ top: container.scrollHeight, behavior });
+      }
+    }
+    // No fallback — if our container isn't found, do nothing.
+    // Falling back to scrollIntoView would scroll the host page.
+  }, []);
+
   // Scroll to bottom when a NEW message arrives (but NOT when loading older history)
   useEffect(() => {
     if (!loadingHistory) {
-      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+      const container = bottomRef.current?.closest(
+        ".xpert-chat-messages",
+      ) as HTMLElement | null;
+      if (container && container.offsetParent !== null) {
+        scrollToBottom("smooth");
+      }
     }
-  }, [messages.length, loading, loadingHistory]);
+  }, [messages.length, loading, loadingHistory, scrollToBottom]);
 
   const updateEmail = useCallback((email: string) => {
     setUserEmail(email);
@@ -755,6 +785,7 @@ export function useChat(options: UseChatOptions = {}) {
     getSessionId: () => sessionIdRef.current,
     bottomRef,
     inputRef,
+    scrollToBottom,
     pagination,
     loadMore,
     orderPagination,

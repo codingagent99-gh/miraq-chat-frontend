@@ -5,6 +5,7 @@ import { useChat } from "./hooks/useChat";
 import { useChatActions } from "./hooks/useChatActions";
 import { createApiClient } from "./services/api";
 import { WidgetContainer } from "./components/WidgetContainer";
+import { ShopifyWidgetContainer } from "./components/ShopifyWidgetContainer";
 import { HomeScreen } from "./components/HomeScreen";
 import { ChatHeader } from "./components/ChatHeader";
 import { MessageRow } from "./components/MessageRow";
@@ -14,6 +15,7 @@ import { useSpeechRecognition } from "./hooks/useSpeechRecognition";
 import { useCart } from "./hooks/useCart";
 import { CartPanel } from "./components/CartPanel";
 import { CheckoutPanel } from "./components/checkout/CheckoutPanel";
+import { ShopifyCheckoutPanel } from "./components/checkout/ShopifyCheckoutPanel";
 import { useStoreApi } from "./hooks/useStoreApi";
 import { AiOptInScreen } from "./components/AiOptInScreen";
 // Side-effect import: registers built-in payment adapters before PaymentStep renders
@@ -21,6 +23,8 @@ import "./components/checkout/payment";
 
 export interface ChatWidgetInterface extends WidgetOptions {
   onViewCart?: () => void;
+  storefrontToken?: string;
+  shopDomain?: string;
 }
 
 export function ChatWidget({
@@ -34,17 +38,30 @@ export function ChatWidget({
   nonce,
   cartToken,
   nonceExpires,
+  shopDomain,
+  storefrontToken,
 }: ChatWidgetInterface) {
+  // True for Shopify builds — governs checkout routing and panel choice.
+  // Shopify checkout stays in-widget (no page redirect); WC redirects to /checkout.
+  const isShopify = !!shopDomain;
+  const Container = isShopify ? ShopifyWidgetContainer : WidgetContainer;
   const MiraQIcon = `${assetBaseUrl}MiraQ-icon.png`;
-  const siteOrigin = import.meta.env.VITE_WP_BASE_URL || window.location.origin;
+
+  // Runtime shopDomain (from Liquid data-shop-domain) is the source of truth.
+  // Falls back to VITE_WP_BASE_URL for WooCommerce builds.
+  const siteOrigin = shopDomain
+    ? `https://${shopDomain}`
+    : import.meta.env.VITE_WP_BASE_URL || window.location.origin;
 
   const isLoggedIn = !!(customerId || customerEmail);
   const [isExpanded, setIsExpanded] = useState(() => {
     if (window.innerWidth <= 768) return false;
     try {
-      return sessionStorage.getItem("silfra_panel_expanded") === "true";
+      const stored = sessionStorage.getItem("silfra_panel_expanded");
+      // Default to expanded (large mode) when no preference has been saved yet
+      return stored !== null ? stored === "true" : true;
     } catch {
-      return false;
+      return true;
     }
   });
 
@@ -101,7 +118,6 @@ export function ChatWidget({
   }, [isExpanded]);
   // Persist panel open state across refreshes (desktop only)
   useEffect(() => {
-    if (!panelOpen) setIsExpanded(false);
     if (window.innerWidth <= 768) return;
     try {
       sessionStorage.setItem("silfra_panel_open", String(panelOpen));
@@ -142,30 +158,37 @@ export function ChatWidget({
   // - Skips the redirect if the browser is already on the target page.
   // - Flushes widget state + panel flags to sessionStorage synchronously so
   //   the widget reopens in the correct state after the page reloads.
+  // ChatWidget.tsx — fix the useEffect URL sync
   useEffect(() => {
+    const normPath = window.location.pathname.replace(/\/$/, ""); // strip trailing slash
+
     if (isCartOpen) {
-      if (window.location.pathname === "/cart/") return; // already here
+      if (normPath === "/cart") return; // ← was "/cart/"
       try {
         sessionStorage.setItem("silfra_panel_open", "true");
         sessionStorage.setItem(screenStorageKey, screen);
         sessionStorage.setItem("silfra_cart_open", "true");
-      } catch {
-        // sessionStorage unavailable — navigate anyway
-      }
-      window.location.href = `${siteOrigin}/cart/`;
+      } catch {}
+      window.location.href = `${siteOrigin}/cart`; // ← no trailing slash
     } else if (isCheckoutOpen) {
-      if (window.location.pathname === "/checkout/") return; // already here
+      // Shopify checkout is handled entirely inside the widget — no redirect.
+      if (isShopify) return;
+      if (normPath === "/checkout") return; // ← was "/checkout/"
       try {
         sessionStorage.setItem("silfra_panel_open", "true");
         sessionStorage.setItem(screenStorageKey, screen);
         sessionStorage.setItem("silfra_checkout_open", "true");
-      } catch {
-        // sessionStorage unavailable — navigate anyway
-      }
-      window.location.href = `${siteOrigin}/checkout/`;
+      } catch {}
+      window.location.href = `${siteOrigin}/checkout`; // ← no trailing slash
     }
-  }, [isCartOpen, isCheckoutOpen, screen, screenStorageKey, siteOrigin]);
-
+  }, [
+    isCartOpen,
+    isCheckoutOpen,
+    isShopify,
+    screen,
+    screenStorageKey,
+    siteOrigin,
+  ]);
   // ── Fetch cart on mount if panel was restored from sessionStorage ─────────
   // fetchCart is not called automatically; we need to trigger it here so the
   // CartPanel has data after a redirect restores isCartOpen = true.
@@ -217,8 +240,10 @@ export function ChatWidget({
     editMessage,
     sendFilterSuggestion,
     appendBotMessage,
+    getSessionId,
     bottomRef,
     inputRef,
+    scrollToBottom,
     pagination,
     loadMore,
     orderPagination,
@@ -246,6 +271,11 @@ export function ChatWidget({
     ) => {
       await addItem(productId, quantity, variationId, variationAttributes);
     },
+    onSimilarProductsPrompt: (id, name) => {
+      setTimeout(() => {
+        appendBotMessage({ text: "", similarProductPrompt: { id, name } });
+      }, 600);
+    },
   });
 
   // Voice
@@ -263,13 +293,13 @@ export function ChatWidget({
   // 120ms delay gives the chat DOM time to paint after a page reload.
   useEffect(() => {
     if (panelOpen && screen === "chat") {
-      const id = setTimeout(
-        () => bottomRef.current?.scrollIntoView({ behavior: "instant" }),
-        120,
-      );
+      const id = setTimeout(() => {
+        scrollToBottom("instant");
+        inputRef.current?.focus({ preventScroll: true });
+      }, 120);
       return () => clearTimeout(id);
     }
-  }, [panelOpen, screen, bottomRef]);
+  }, [panelOpen, screen, scrollToBottom]);
 
   // ── Fetch widget config (logo + text) from backend ────────────────────────
   useEffect(() => {
@@ -395,6 +425,44 @@ export function ChatWidget({
     if (url) window.location.href = url;
   }, []);
 
+  const [loadingSimilarId, setLoadingSimilarId] = useState<number | null>(null);
+
+  const handleShowSimilar = useCallback(
+    async (product: Product) => {
+      setLoadingSimilarId(product.id);
+      try {
+        const { products, source } =
+          await apiClientRef.current.fetchSimilarProducts(product.id);
+        const label =
+          source === "cross_sell" ? "Pairing It With" : "You May Also Like";
+        const text = `**${label}** — similar to *${product.name.split(" — ")[0]}*`;
+        appendBotMessage({ text, products });
+        // Persist to DB so it survives page reload
+        try {
+          await apiClientRef.current.saveSimilarMessage(
+            getSessionId(),
+            text,
+            products,
+          );
+        } catch (saveErr) {
+          console.warn(
+            "[MiraQ] Failed to persist similar products message",
+            saveErr,
+          );
+        }
+      } catch (err) {
+        console.error("[MiraQ] fetchSimilarProducts failed", err);
+        appendBotMessage({
+          text: "Sorry, I couldn't load similar products right now. Please try again.",
+          products: [],
+        });
+      } finally {
+        setLoadingSimilarId(null);
+      }
+    },
+    [appendBotMessage, getSessionId],
+  );
+
   // const handleAskAbout = useCallback(
   //   (productName: string) => {
   //     setSelectedProduct(null);
@@ -420,7 +488,7 @@ export function ChatWidget({
   if (screen !== "chat") {
     return (
       <div id="silfra-chat-widget-container">
-        <WidgetContainer
+        <Container
           panelOpen={panelOpen}
           setPanelOpen={setPanelOpen}
           assetBaseUrl={assetBaseUrl || ""}
@@ -506,7 +574,7 @@ export function ChatWidget({
               onToggleExpand={() => setIsExpanded((p) => !p)}
             />
           )}
-        </WidgetContainer>
+        </Container>
       </div>
     );
   }
@@ -538,7 +606,7 @@ export function ChatWidget({
 
   return (
     <div id="silfra-chat-widget-container">
-      <WidgetContainer
+      <Container
         panelOpen={panelOpen}
         setPanelOpen={setPanelOpen}
         assetBaseUrl={assetBaseUrl || ""}
@@ -573,6 +641,8 @@ export function ChatWidget({
                   sendMessage(`show me order #${orderNumber}`)
                 }
                 onProductClick={handleProductClick}
+                onShowSimilar={handleShowSimilar}
+                loadingSimilarId={loadingSimilarId}
                 onVariantSelect={handleVariantSelect}
                 onVariantAllSelected={setCanPlaceOrder}
                 canPlaceOrder={canPlaceOrder}
@@ -747,15 +817,41 @@ export function ChatWidget({
           )}
 
           {/* ── Checkout Panel Overlay ── */}
-          {isCheckoutOpen && (
+          {isCheckoutOpen && isShopify && (
+            <ShopifyCheckoutPanel
+              cart={cart}
+              shopDomain={shopDomain!}
+              storefrontToken={storefrontToken ?? ""}
+              customerEmail={customerEmail}
+              customerName={customerName}
+              customerId={customerId}
+              apiUrl={apiUrl}
+              onClose={() => setIsCheckoutOpen(false)}
+              isExpanded={isExpanded}
+              onToggleExpand={() => setIsExpanded((p) => !p)}
+            />
+          )}
+
+          {isCheckoutOpen && !isShopify && (
             <CheckoutPanel
               storeApiFetch={storeApiFetch}
               cart={cart}
               onCartUpdate={setCart}
               cartToken={cartToken ?? null}
               siteOrigin={siteOrigin}
-              onClose={() => setIsCheckoutOpen(false)}
+              onClose={() => {
+                setIsCheckoutOpen(false);
+                fetchCart();
+              }}
               onPostBotMessage={appendBotMessage}
+              onOrderComplete={(productId, productName) => {
+                setTimeout(() => {
+                  appendBotMessage({
+                    text: "",
+                    similarProductPrompt: { id: productId, name: productName },
+                  });
+                }, 600);
+              }}
               isExpanded={isExpanded}
               onToggleExpand={() => setIsExpanded((p) => !p)}
             />
@@ -787,7 +883,7 @@ export function ChatWidget({
             }}
           />
         </div>
-      </WidgetContainer>
+      </Container>
     </div>
   );
 }

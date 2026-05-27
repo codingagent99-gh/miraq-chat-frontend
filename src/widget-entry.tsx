@@ -41,6 +41,8 @@ function mountWidget(options?: WidgetOptions, assetBaseUrl?: string) {
 
   const customerEmail = options?.customerEmail || "";
   const customerRole = options?.customerRole || "";
+  const storefrontToken = options?.storefrontToken || "";
+  const shopDomain = options?.shopDomain || "";
 
   console.log("Widget initialized with:", {
     apiUrl,
@@ -48,6 +50,7 @@ function mountWidget(options?: WidgetOptions, assetBaseUrl?: string) {
     customerEmail,
     customerName,
     assetBaseUrl,
+    shopDomain,
   });
 
   ReactDOM.createRoot(container).render(
@@ -62,6 +65,8 @@ function mountWidget(options?: WidgetOptions, assetBaseUrl?: string) {
       nonce={options?.nonce}
       nonceExpires={options?.nonceExpires}
       cartToken={options?.cartToken}
+      storefrontToken={storefrontToken}
+      shopDomain={shopDomain}
     />,
   );
 }
@@ -98,6 +103,11 @@ window.SilfraChatWidget = {
     : script?.dataset.nonceExpires
       ? parseInt(script.dataset.nonceExpires, 10)
       : 0;
+
+  const cartToken = config.cartToken || script?.dataset.cartToken || "";
+  const storefrontToken =
+    config.storefrontToken || script?.dataset.storefrontToken || "";
+  const shopDomain = config.shopDomain || script?.dataset.shopDomain || "";
 
   // 3. Fallback for assetBaseUrl in case document.currentScript is null
   // (If script is deferred, _currentScript is null, so we hardcode your production URL as a ultimate fallback)
@@ -144,6 +154,9 @@ window.SilfraChatWidget = {
       customerRole,
       nonce,
       nonceExpires,
+      cartToken,
+      storefrontToken,
+      shopDomain,
     },
     assetBaseUrl,
   );

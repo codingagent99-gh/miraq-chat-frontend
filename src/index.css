@@ -11,10 +11,10 @@
   --color-success: #10b981;
   --color-sale: #ef4444;
 
-  --fs-xs: 0.7rem;
-  --fs-sm: 0.8125rem;
-  --fs-md: 0.9375rem;
-  --fs-lg: 1.0625rem;
+  --fs-xs: 11px;
+  --fs-sm: 13px;
+  --fs-md: 15px;
+  --fs-lg: 17px;
 
   --font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
   --line-height: 1.5;
@@ -293,7 +293,7 @@
 }
 
 #silfra-chat-widget-container .xpert-feature-icon {
-  font-size: 1.2rem;
+  font-size: 19px;
   margin-top: 2px;
 }
 
@@ -327,7 +327,7 @@
   color: white;
   border: none;
   border-radius: 8px;
-  font-size: 1rem;
+  font-size: 16px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -410,7 +410,7 @@
   right: -6px;
   background: var(--color-sale);
   color: white;
-  font-size: 0.65rem;
+  font-size: 10px;
   font-weight: 700;
   width: 18px;
   height: 18px;
@@ -450,7 +450,7 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  font-size: 1.2rem;
+  font-size: 19px;
 }
 
 #silfra-chat-widget-container .xpert-user-avatar {
@@ -463,7 +463,7 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  font-size: 1.2rem;
+  font-size: 19px;
 }
 
 #silfra-chat-widget-container .xpert-message-content {
@@ -478,6 +478,10 @@
   min-width: 0;
   max-width: 100%;
   overflow: hidden;
+}
+
+#silfra-chat-widget-container .xpert-message-row.bot .xpert-message-bubble {
+  flex: 1;
 }
 
 #silfra-chat-widget-container .xpert-message-row.user .xpert-message-bubble {
@@ -546,7 +550,7 @@
 }
 
 #silfra-chat-widget-container .xpert-product-name {
-  font-size: 0.8rem;
+  font-size: 13px;
   font-weight: 600;
   color: #1f2937;
   margin: 0;
@@ -566,19 +570,19 @@
 }
 
 #silfra-chat-widget-container .xpert-price {
-  font-size: 0.9rem;
+  font-size: 14px;
   font-weight: 700;
   color: var(--color-primary);
 }
 
 #silfra-chat-widget-container .xpert-price-sale {
-  font-size: 0.9rem;
+  font-size: 14px;
   font-weight: 700;
   color: var(--color-sale);
 }
 
 #silfra-chat-widget-container .xpert-price-regular {
-  font-size: 0.75rem;
+  font-size: 12px;
   color: #9ca3af;
   text-decoration: line-through;
 }
@@ -589,7 +593,7 @@
   right: 8px;
   background: var(--color-sale);
   color: white;
-  font-size: 0.65rem;
+  font-size: 10px;
   font-weight: 700;
   padding: 0.25rem 0.5rem;
   border-radius: 4px;
@@ -659,7 +663,7 @@
   color: white !important;
   border: none;
   border-radius: 6px;
-  font-size: 0.75rem;
+  font-size: 12px;
   font-weight: 600;
   cursor: pointer;
   text-align: center;
@@ -725,19 +729,19 @@
 }
 
 #silfra-chat-widget-container .xpert-cart-item-name {
-  font-size: 0.8rem;
+  font-size: 13px;
   font-weight: 600;
   color: #1f2937;
   margin-bottom: 0.25rem;
 }
 
 #silfra-chat-widget-container .xpert-cart-item-meta {
-  font-size: 0.7rem;
+  font-size: 11px;
   color: #6b7280;
 }
 
 #silfra-chat-widget-container .xpert-cart-item-total {
-  font-size: 0.85rem;
+  font-size: 14px;
   font-weight: 700;
   color: var(--color-primary);
 }
@@ -753,12 +757,12 @@
 #silfra-chat-widget-container .xpert-cart-total-row {
   display: flex;
   justify-content: space-between;
-  font-size: 0.85rem;
+  font-size: 14px;
   color: #4b5563;
 }
 
 #silfra-chat-widget-container .xpert-cart-total-final {
-  font-size: 1rem;
+  font-size: 16px;
   font-weight: 700;
   color: #1f2937;
   padding-top: 0.5rem;
@@ -791,14 +795,14 @@
 }
 
 #silfra-chat-widget-container .xpert-order-header h4 {
-  font-size: 1.1rem;
+  font-size: 18px;
   font-weight: 700;
   color: #065f46;
   margin-bottom: 0.5rem;
 }
 
 #silfra-chat-widget-container .xpert-order-number {
-  font-size: 0.9rem;
+  font-size: 14px;
   color: #047857;
   font-weight: 600;
 }
@@ -814,7 +818,7 @@
   display: flex;
   justify-content: space-between;
   margin-bottom: 0.5rem;
-  font-size: 0.85rem;
+  font-size: 14px;
 }
 
 #silfra-chat-widget-container .xpert-order-detail-row:last-child {
@@ -824,7 +828,7 @@
 #silfra-chat-widget-container .xpert-order-status {
   padding: 0.25rem 0.75rem;
   border-radius: 12px;
-  font-size: 0.75rem;
+  font-size: 12px;
   font-weight: 600;
 }
 
@@ -844,7 +848,7 @@
 }
 
 #silfra-chat-widget-container .xpert-order-total {
-  font-size: 1.1rem;
+  font-size: 18px;
   font-weight: 700;
   color: var(--color-primary);
 }
@@ -860,7 +864,7 @@
 }
 
 #silfra-chat-widget-container .xpert-payment-label {
-  font-size: 0.85rem;
+  font-size: 14px;
   font-weight: 600;
   color: #374151;
   margin-bottom: 0.25rem;
@@ -880,7 +884,7 @@
   color: white;
   border: none;
   border-radius: 8px;
-  font-size: 1rem;
+  font-size: 16px;
   font-weight: 700;
   text-decoration: none;
   cursor: pointer;
@@ -899,7 +903,7 @@
   color: var(--color-primary);
   border: 2px solid var(--color-primary);
   border-radius: 8px;
-  font-size: 0.85rem;
+  font-size: 14px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
@@ -924,7 +928,7 @@
   border: 1.5px solid var(--color-primary);
   color: var(--color-primary);
   border-radius: 20px;
-  font-size: 0.8rem;
+  font-size: 13px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
@@ -1329,7 +1333,7 @@
 }
 
 #silfra-chat-widget-container .xpert-locked-icon {
-  font-size: 2.5rem;
+  font-size: 40px;
   line-height: 1;
   margin-bottom: 0.25rem;
 }
@@ -2113,4 +2117,89 @@
   writing-mode: vertical-rl;
   text-orientation: mixed;
   transform: rotate(180deg);
+}
+
+#silfra-chat-widget-container .xpert-similar-btn {
+  margin-top: 8px;
+  width: 100%;
+  padding: 5px 8px;
+  background: transparent;
+  border: 1px solid var(--color-primary-light);
+  color: var(--color-primary);
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: center;
+  line-height: 1.4;
+}
+
+#silfra-chat-widget-container .xpert-similar-btn:hover:not(:disabled) {
+  background: var(--color-primary-light);
+  color: #ffffff;
+}
+
+#silfra-chat-widget-container .xpert-similar-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+#silfra-chat-widget-container .xpert-similar-prompt {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 10px 12px;
+  background: var(--color-background-secondary, #f8fafc);
+  border: 1px solid var(--color-border-tertiary, #e2e8f0);
+  border-radius: 10px;
+}
+
+#silfra-chat-widget-container .xpert-similar-prompt__text {
+  font-size: 12px;
+  color: var(--color-text-secondary, #475569);
+  line-height: 1.4;
+}
+
+#silfra-chat-widget-container .xpert-similar-prompt__text strong {
+  color: var(--color-text-primary, #1f2937);
+  font-weight: 600;
+}
+
+#silfra-chat-widget-container .xpert-similar-prompt__btn {
+  flex-shrink: 0;
+  padding: 6px 14px;
+  background: var(--color-primary);
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+  white-space: nowrap;
+}
+
+#silfra-chat-widget-container .xpert-similar-prompt__btn:hover:not(:disabled) {
+  opacity: 0.88;
+}
+
+#silfra-chat-widget-container .xpert-similar-prompt__btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+#silfra-chat-widget-container .xpert-message-row.bot .xpert-message-bubble {
+  flex: 1;
+}
+
+/* Row 3: shipping address */
+#silfra-chat-widget-container .xpert-order-card-shipping {
+  font-size: var(--fs-xs);
+  color: #6b7280;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }

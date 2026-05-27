@@ -2,22 +2,22 @@ import { useCallback } from "react";
 import { toast } from "react-toastify";
 import { assertNever } from "../types/actions";
 import type { ChatAction } from "../types/actions";
-import type { WCCartItem } from "./useCart";
+import type { PlatformCartItem } from "../platform/types";
 
 // ── Dependency injection — keeps the hook testable and decoupled ──────────────
 
 export interface ActionHandlerDeps {
   addItem: (
-    productId: number,
+    productId: number | string,
     quantity: number,
-    variationId?: number,
+    variationId?: number | string,
     variation?: { attribute: string; value: string }[],
   ) => Promise<void>;
   updateQuantity: (key: string, quantity: number) => Promise<void>;
   removeItem: (key: string) => Promise<void>;
   fetchCart: () => Promise<void>;
   /** Current cart items — used to resolve product_id/variation_id → cart item key */
-  cartItems: WCCartItem[] | undefined;
+  cartItems: PlatformCartItem[] | undefined;
   setIsCartOpen: (open: boolean) => void;
   setIsCheckoutOpen: (open: boolean) => void;
 }
@@ -54,7 +54,15 @@ async function handleSingleAction(
       const { product_id, quantity, variation_id, variation } = action.payload;
       await deps.addItem(product_id, quantity, variation_id, variation);
       toast.success("Added to cart 🛒");
+      break;
+    }
 
+    case "SHOPIFY_ADD_TO_CART": {
+      // variant_id is the full Shopify GID ("gid://shopify/ProductVariant/…").
+      // useCart.ts → addItem passes it straight to cartLinesAdd as merchandiseId.
+      const { variant_id, quantity } = action.payload;
+      await deps.addItem(variant_id, quantity);
+      toast.success("Added to cart 🛒");
       break;
     }
 
@@ -139,7 +147,10 @@ export function useChatActions({
           await handleSingleAction(action, deps);
         } catch (err) {
           console.error("[ChatAction] failed", action.type, err);
-          if (action.type === "ADD_TO_CART") {
+          if (
+            action.type === "ADD_TO_CART" ||
+            action.type === "SHOPIFY_ADD_TO_CART"
+          ) {
             toast.error("Could not add item to cart. Please try again.");
           }
         }

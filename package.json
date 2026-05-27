@@ -9,6 +9,8 @@
     "build:prod": "tsc -b && vite build --mode production",
     "build:wip": "tsc -b && vite build --mode wip",
     "build:geoffg7": "tsc -b && vite build --mode geoffg7",
+    "build:staging": "tsc -b && vite build --mode staging",
+    "build:shopify": "tsc -b && vite build --mode shopify",
     "lint": "eslint .",
     "preview": "vite preview"
   },

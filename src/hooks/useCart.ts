@@ -1,199 +1,40 @@
-import { useState, useCallback, useEffect } from "react";
-import type { StoreApiFetch } from "./useStoreApi";
-import type { AddressDict } from "../types/actions";
-import type { ShippingPackage } from "../types/checkout";
+/**
+ * hooks/useCart.ts
+ *
+ * Platform-switching re-export.
+ * Set VITE_PLATFORM=woocommerce (default) or VITE_PLATFORM=shopify in your
+ * .env file. The correct implementation is resolved at build time — no
+ * runtime branching, no bundle bloat from the unused platform.
+ *
+ * Usage throughout the app stays identical:
+ *   import { useCart } from "./hooks/useCart";
+ *
+ * Also re-exports shared cart types so the rest of the app has a single
+ * import location:
+ *   import { useCart, PlatformCart } from "./hooks/useCart";
+ */
 
-// ── WooCommerce Store API cart shape ──────────────────────────────────────────
-// Prices are in minor currency units (e.g. paise for INR, cents for USD).
-// Divide by 10^currency_minor_unit to get display value.
+import { useCart as wcUseCart } from "../platform/woocommerce/useCart";
+import { useCart as shopifyUseCart } from "../platform/shopify/useCart";
 
-export interface WCCartItemPrices {
-  price: string;
-  regular_price: string;
-  currency_code: string;
-  currency_symbol: string;
-  currency_minor_unit: number;
-}
+const PLATFORM = (import.meta.env.VITE_PLATFORM ?? "woocommerce") as
+  | "woocommerce"
+  | "shopify";
 
-export interface WCCartItem {
-  key: string;
-  id: number;
-  name: string;
-  quantity: number;
-  images: { src: string; thumbnail: string }[];
-  prices: WCCartItemPrices;
-  totals: {
-    line_total: string;
-    line_subtotal: string;
-  };
-  variation: { attribute: string; value: string }[];
-}
+export const useCart = PLATFORM === "shopify" ? shopifyUseCart : wcUseCart;
 
-export interface WCCart {
-  items: WCCartItem[];
-  items_count: number;
-  totals: {
-    total_items: string;
-    total_items_tax: string;
-    total_shipping: string;
-    total_tax: string;
-    total_price: string;
-    currency_code: string;
-    currency_symbol: string;
-    currency_minor_unit: number;
-  };
-  /** Customer billing address — present in Store API /cart response */
-  billing_address?: AddressDict;
-  /** Customer shipping address — present in Store API /cart response */
-  shipping_address?: AddressDict;
-  /** Shipping packages with available rates — present in Store API /cart response */
-  shipping_rates?: ShippingPackage[];
-  /** Available payment method slugs — e.g. ['cod', 'stripe'] */
-  payment_methods?: string[];
+// ── Shared type re-exports ────────────────────────────────────────────────────
+export type {
+  PlatformCart,
+  PlatformCartItem,
+  PlatformCartItemPrices,
+  UseCartReturn,
+  AddItemFn,
+} from "../platform/types";
 
-  // ── Shipping / fulfilment signals from Store API ──────────────────────────
-  /**
-   * Whether this cart requires physical shipping. Woo sets this to `false`
-   * when every item is virtual/downloadable, when local-pickup is forced,
-   * or when no shipping zone applies. When `false`, the checkout should
-   * skip the shipping-rate selection step.
-   */
-  needs_shipping?: boolean;
-  /** Whether shipping totals have been calculated yet for the current address. */
-  has_calculated_shipping?: boolean;
-  /** Whether the order requires payment (false for zero-total carts). */
-  needs_payment?: boolean;
-  /** Items requiring payment, e.g. ["products"]. */
-  payment_requirements?: string[];
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-
-export function useCart(storeApiFetch: StoreApiFetch) {
-  const [cart, setCart] = useState<WCCart | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  // ── Fetch current cart state ──
-  const fetchCart = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await storeApiFetch("/cart");
-      if (!res.ok) throw new Error(`Cart fetch failed: ${res.status}`);
-      const data: WCCart = await res.json();
-      setCart(data);
-    } catch (e) {
-      setError("Could not load cart.");
-      console.error("[MiraQ] fetchCart:", e);
-    } finally {
-      setLoading(false);
-    }
-  }, [storeApiFetch]);
-  // Add this useEffect inside useChat, after storeApiFetch is defined
-  useEffect(() => {
-    async function bootstrapCart() {
-      try {
-        const res = await storeApiFetch("/cart");
-        console.log("store api res", res);
-        // storeApiFetch already captures Nonce + Cart-Token from response headers
-        // into nonceRef and cartTokenRef automatically — nothing else needed here
-      } catch (e) {
-        console.warn("[MiraQ] Cart bootstrap failed", e);
-      }
-    }
-    bootstrapCart();
-  }, []); // runs once on mount
-
-  // ── Add item (called by useChat when backend fires trigger_frontend_cart_add) ──
-  const addItem = useCallback(
-    async (
-      productId: number,
-      quantity = 1,
-      variationId?: number,
-      variationAttributes?: { attribute: string; value: string }[],
-    ): Promise<void> => {
-      setLoading(true);
-      setError(null);
-      try {
-        const res = await storeApiFetch("/cart/add-item", {
-          method: "POST",
-          body: JSON.stringify({
-            id: variationId ?? productId, // ← use variation ID if provided, else parent
-            quantity,
-            ...(variationAttributes?.length
-              ? { variation: variationAttributes }
-              : {}),
-          }),
-        });
-        if (!res.ok) throw new Error(`Add item failed: ${res.status}`);
-        const data: WCCart = await res.json();
-        setCart(data);
-      } catch (e) {
-        setError("Could not add item to cart.");
-        console.error("[MiraQ] addItem:", e);
-        throw e;
-      } finally {
-        setLoading(false);
-      }
-    },
-    [storeApiFetch],
-  );
-
-  // ── Remove item by cart item key ──
-  const removeItem = useCallback(
-    async (key: string): Promise<void> => {
-      setLoading(true);
-      try {
-        const res = await storeApiFetch("/cart/remove-item", {
-          method: "POST",
-          body: JSON.stringify({ key }),
-        });
-        if (!res.ok) throw new Error(`Remove item failed: ${res.status}`);
-        const data: WCCart = await res.json();
-        setCart(data);
-      } catch (e) {
-        console.error("[MiraQ] removeItem:", e);
-      } finally {
-        setLoading(false);
-      }
-    },
-    [storeApiFetch],
-  );
-
-  // ── Update quantity (removeItem if qty < 1) ──
-  const updateQuantity = useCallback(
-    async (key: string, quantity: number): Promise<void> => {
-      if (quantity < 1) {
-        await removeItem(key);
-        return;
-      }
-      setLoading(true);
-      try {
-        const res = await storeApiFetch("/cart/update-item", {
-          method: "POST",
-          body: JSON.stringify({ key, quantity }),
-        });
-        if (!res.ok) throw new Error(`Update quantity failed: ${res.status}`);
-        const data: WCCart = await res.json();
-        setCart(data);
-      } catch (e) {
-        console.error("[MiraQ] updateQuantity:", e);
-      } finally {
-        setLoading(false);
-      }
-    },
-    [storeApiFetch, removeItem],
-  );
-
-  return {
-    cart,
-    loading,
-    error,
-    fetchCart,
-    addItem,
-    removeItem,
-    updateQuantity,
-    setCart,
-  };
-}
+// Backward-compat aliases — migrate callers to PlatformCart when convenient.
+export type {
+  WCCart,
+  WCCartItem,
+  WCCartItemPrices,
+} from "../platform/woocommerce/useCart";

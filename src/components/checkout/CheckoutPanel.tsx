@@ -11,7 +11,7 @@ import { ReviewStep } from "./steps/ReviewStep";
 import { ConfirmationStep } from "./steps/ConfirmationStep";
 import { getPaymentAdapter } from "./payment/PaymentGatewayAdapter";
 import "./CheckoutPanel.css";
-import { useCheckout } from "../../hooks/useCheckout";
+import { useCheckout } from "../../platform/woocommerce/useCheckout";
 import { FiX, FiPackage, FiMaximize2, FiMinimize2 } from "react-icons/fi";
 
 interface CheckoutPanelProps {
