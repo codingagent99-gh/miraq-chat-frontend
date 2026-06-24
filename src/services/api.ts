@@ -37,18 +37,32 @@ export function createApiClient(baseURL?: string, apiKey?: string) {
   });
 
   /* ── /chat ── */
+  // In sendChat — replace the existing function body:
   async function sendChat(
     body: ChatRequest,
     sessionId: string,
   ): Promise<ChatResponse> {
-    const { data } = await client.post<ChatResponse>("/chat", body, {
-      headers: {
-        "X-MiraQ-Session": sessionId,
-        "X-WC-Session": getWooCommerceSession(),
-      },
-      timeout: 60_000,
-    });
-    return data;
+    try {
+      const { data } = await client.post<ChatResponse>("/chat", body, {
+        headers: {
+          "X-MiraQ-Session": sessionId,
+          "X-WC-Session": getWooCommerceSession(),
+        },
+        timeout: 60_000,
+      });
+      return data;
+    } catch (err: any) {
+      if (
+        err.response?.status === 429 &&
+        err.response?.data?.error?.code === "DAILY_LIMIT_REACHED"
+      ) {
+        const e: any = new Error("DAILY_LIMIT_REACHED");
+        e.isDailyLimitError = true;
+        e.limitData = err.response.data.error; // { limit, used, reset_at }
+        throw e;
+      }
+      throw err;
+    }
   }
 
   /* ── /chat/history ── */

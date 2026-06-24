@@ -115,7 +115,15 @@ export type FlowState =
   | "awaiting_anything_else"
   | "closing"
   | "awaiting_variant_selection"
-  | "awaiting_filter_clarification";
+  | "awaiting_filter_clarification"
+  | "awaiting_cart_confirmation"
+  | "awaiting_reorder_id"
+  | "awaiting_order_detail"
+  // ── Bulk order states ────────────────────────────────────────────────────
+  | "awaiting_bulk_order_input"
+  | "awaiting_bulk_order_confirmation"
+  | "awaiting_bulk_address_confirmation"
+  | "awaiting_bulk_variant_selection";
 
 /** Context carried across turns for multi-step flows */
 export interface FlowContext {
@@ -180,6 +188,7 @@ export interface ChatRequest {
   session_id?: string;
   /** Page number for paginated product results (default: 1) */
   page?: number;
+  platform?: "shopify" | "woocommerce";
   /** Full filter suggestion object to retry a zero-result search */
   suggestion_retry?: FilterSuggestion;
   user_context?: {
@@ -335,6 +344,9 @@ export interface Product {
   cross_sell_ids?: number[];
   /** IDs of related products ("You May Also Like" on the site) */
   related_ids?: number[];
+  /** Categories/sub-categories, tags, and attributes this product matched against
+   *  the active search filters — display labels, e.g. ["Wall (Interior)", "Bestseller", "Color: Red"] */
+  matched_against?: string[];
 }
 
 export interface WidgetOptions {
@@ -351,4 +363,15 @@ export interface WidgetOptions {
   cartToken?: string;
   storefrontToken?: string; // ← add
   shopDomain?: string; // ← add
+}
+
+export interface DailyLimitError {
+  isDailyLimitError: true;
+  limitData: {
+    code: "DAILY_LIMIT_REACHED";
+    message: string;
+    limit: number;
+    used: number;
+    reset_at: string; // ISO datetime string
+  };
 }

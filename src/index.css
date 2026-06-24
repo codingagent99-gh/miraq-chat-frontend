@@ -2056,6 +2056,19 @@
   box-shadow: none;
 }
 
+/* --- Shopify full-height panel override ---
+     When the widget is mounted inside #silfra-panel-root (ShopifyWidgetContainer),
+     the panel fills the full fixed container instead of floating as a bubble. */
+#silfra-panel-root #silfra-chat-widget-container .xpert-panel {
+  position: static !important;
+  width: 100% !important;
+  height: 100vh !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  bottom: auto !important;
+  right: auto !important;
+}
+
 /* --- Desktop Side Panel --- */
 @media (min-width: 769px) {
   #silfra-chat-widget-container .xpert-panel--side {
@@ -2120,7 +2133,6 @@
 }
 
 #silfra-chat-widget-container .xpert-similar-btn {
-  margin-top: 8px;
   width: 100%;
   padding: 5px 8px;
   background: transparent;
@@ -2143,6 +2155,27 @@
 #silfra-chat-widget-container .xpert-similar-btn:disabled {
   opacity: 0.55;
   cursor: not-allowed;
+}
+
+#silfra-chat-widget-container .xpert-add-to-cart-btn {
+  width: 32px;
+  height: 100%;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: transparent;
+  border: 1px solid var(--color-primary-light);
+  color: var(--color-primary);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+#silfra-chat-widget-container .xpert-add-to-cart-btn:hover {
+  background: var(--color-primary-light);
+  color: #ffffff;
 }
 
 #silfra-chat-widget-container .xpert-similar-prompt {
@@ -2171,9 +2204,9 @@
 #silfra-chat-widget-container .xpert-similar-prompt__btn {
   flex-shrink: 0;
   padding: 6px 14px;
-  background: var(--color-primary);
-  color: #ffffff;
-  border: none;
+  background: #ffffff;
+  color: var(--color-primary);
+  border: 1px solid var(--color-primary);
   border-radius: 6px;
   font-size: 12px;
   font-weight: 600;
@@ -2202,4 +2235,553 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.miraq-limit-banner {
+  margin: 10px 14px;
+  padding: 14px 16px;
+  background: #fff8f0;
+  border: 1.5px solid #f5d9b0;
+  border-radius: 12px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.miraq-limit-icon {
+  font-size: 22px;
+}
+.miraq-limit-title {
+  font-weight: 700;
+  font-size: 13px;
+  color: #1c1c1a;
+  margin: 0;
+}
+.miraq-limit-subtitle {
+  font-size: 12px;
+  color: #888;
+  margin: 0;
+}
+.miraq-limit-upgrade-btn {
+  margin-top: 6px;
+  padding: 9px 20px;
+  background: #1c1c1a;
+  color: #fff;
+  border: none;
+  border-radius: 9px;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  letter-spacing: 0.03em;
+}
+.miraq-limit-upgrade-btn:hover {
+  background: #333;
+}
+
+.miraq-cart-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 12px;
+  padding: 7px 14px;
+  background: none;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #4b5563;
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+
+.miraq-cart-back-btn:hover {
+  background: #f3f4f6;
+  color: #1c1c1a;
+}
+
+/* ── Shared button system ─────────────────────────────────────── */
+.bo-btn {
+  padding: 7px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  border: none;
+  cursor: pointer;
+  transition:
+    opacity 0.15s,
+    transform 0.1s;
+  white-space: nowrap;
+}
+.bo-btn:active {
+  transform: scale(0.97);
+}
+.bo-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.bo-btn--primary {
+  background: #2563eb;
+  color: #fff;
+}
+.bo-btn--primary:hover:not(:disabled) {
+  background: #1d4ed8;
+}
+
+.bo-btn--secondary {
+  background: #f1f5f9;
+  color: #334155;
+  border: 1px solid #cbd5e1;
+}
+.bo-btn--secondary:hover:not(:disabled) {
+  background: #e2e8f0;
+}
+
+.bo-btn--ghost {
+  background: transparent;
+  color: #64748b;
+  border: 1px solid #e2e8f0;
+}
+.bo-btn--ghost:hover:not(:disabled) {
+  background: #f8fafc;
+}
+
+.bo-btn--danger {
+  background: transparent;
+  color: #ef4444;
+  border: 1px solid #fca5a5;
+}
+.bo-btn--danger:hover:not(:disabled) {
+  background: #fef2f2;
+}
+
+.bo-confirm__cancel-row {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #f1f5f9;
+}
+
+/* ── Bulk Order trigger button (above textarea) ───────────────── */
+.xpert-bulk-trigger-row {
+  padding: 6px 12px 0;
+  display: flex;
+  gap: 6px;
+}
+.xpert-bulk-trigger-btn {
+  padding: 5px 14px;
+  border-radius: 20px;
+  background: #eff6ff;
+  color: #2563eb;
+  border: 1px solid #bfdbfe;
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.xpert-bulk-trigger-btn:hover {
+  background: #dbeafe;
+}
+
+/* ── Confirmation card ────────────────────────────────────────── */
+.bo-confirm {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 14px;
+  margin-top: 8px;
+  font-size: 13px;
+}
+.bo-confirm__title {
+  font-weight: 600;
+  margin: 0 0 10px;
+  color: #1e293b;
+}
+.bo-confirm__table {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 10px;
+}
+.bo-confirm__thead,
+.bo-confirm__row {
+  display: grid;
+  grid-template-columns: 2fr 2fr 1fr 2fr;
+  gap: 8px;
+  padding: 7px 10px;
+  align-items: center;
+}
+.bo-confirm__thead {
+  background: #f1f5f9;
+  font-weight: 600;
+  font-size: 11.5px;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.bo-confirm__row {
+  border-top: 1px solid #f1f5f9;
+}
+.bo-confirm__row--skip {
+  opacity: 0.5;
+}
+.bo-confirm__row:hover {
+  background: #f8fafc;
+}
+.bo-confirm__status {
+  font-size: 12px;
+}
+.bo-confirm__warning {
+  color: #92400e;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 12px;
+  margin: 6px 0;
+}
+.bo-confirm__ready {
+  color: #166534;
+  font-size: 12.5px;
+  margin: 6px 0 10px;
+}
+.bo-confirm__btns {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* ── Variant prompt card ──────────────────────────────────────── */
+.bo-variant {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 14px;
+  margin-top: 8px;
+}
+.bo-variant__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.bo-variant__progress {
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748b;
+  background: #e2e8f0;
+  border-radius: 20px;
+  padding: 2px 8px;
+}
+.bo-variant__product {
+  font-size: 14px;
+  color: #1e293b;
+}
+.bo-variant__company {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.bo-variant__axis {
+  margin-bottom: 12px;
+}
+.bo-variant__axis-label {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 0 0 6px;
+}
+.bo-variant__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.bo-chip {
+  padding: 4px 12px;
+  border-radius: 20px;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  color: #475569;
+  font-size: 12.5px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.bo-chip:hover {
+  border-color: #2563eb;
+  color: #2563eb;
+  background: #eff6ff;
+}
+.bo-chip--on {
+  background: #2563eb;
+  color: #fff;
+  border-color: #2563eb;
+}
+
+.bo-variant__qty-input {
+  margin-top: 8px;
+  padding: 6px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 13px;
+  width: 120px;
+  outline: none;
+}
+.bo-variant__qty-input:focus {
+  border-color: #2563eb;
+}
+.bo-variant__confirm {
+  width: 100%;
+  margin-top: 4px;
+  justify-content: center;
+}
+
+/* ── Address confirmation card ────────────────────────────────── */
+.bo-address {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 14px;
+  margin-top: 8px;
+  font-size: 13px;
+}
+.bo-address__header {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.bo-address__progress {
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748b;
+  background: #e2e8f0;
+  border-radius: 20px;
+  padding: 2px 8px;
+}
+.bo-address__name {
+  font-size: 14px;
+  color: #1e293b;
+}
+.bo-address__items {
+  color: #475569;
+  margin: 0 0 10px;
+}
+.bo-address__block {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+}
+.bo-address__label {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #64748b;
+  margin: 0 0 4px;
+}
+.bo-address__value {
+  color: #1e293b;
+  margin: 0;
+  line-height: 1.5;
+}
+
+/* ── Address confirmation card — editing panel (all new) ──────── */
+
+.bo-address__panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 4px;
+}
+
+.bo-address__panel-section {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Section heading row: label left, "Same as billing" button right */
+.bo-address__panel-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: -2px; /* tighten gap to first field */
+}
+
+/* Remove bottom margin from label when it sits inside section-head */
+.bo-address__panel-section-head .bo-address__label {
+  margin: 0;
+}
+
+/* Each label + input pair stacked vertically */
+.bo-address__field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.bo-address__field-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  line-height: 1;
+}
+
+/* Shared input / select style */
+.bo-address__input {
+  width: 100%;
+  padding: 7px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 7px;
+  font-size: 13px;
+  color: #1e293b;
+  background: #f8fafc;
+  font-family: inherit;
+  outline: none;
+  appearance: none;
+  -webkit-appearance: none;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.bo-address__input:focus {
+  border-color: #2563eb;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+/* Chevron for selects */
+select.bo-address__input {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2.5'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  padding-right: 28px;
+  cursor: pointer;
+}
+
+/* "Same as billing" — compact ghost pill */
+.bo-address__copy.bo-btn {
+  padding: 3px 10px;
+  font-size: 11.5px;
+  border-radius: 6px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* ── Two small fixes to existing rules ───────────────────────── */
+
+/* Give the Save/Cancel buttons row a top margin so it breathes */
+.bo-address .bo-confirm__btns {
+  margin-top: 6px;
+}
+
+/* Align items label with a little bottom spacing */
+.bo-address__items {
+  margin: 0 0 12px; /* was 0 0 10px — just a touch more room */
+}
+
+/* ── Product Recent Orders Card ─────────────────────────────────────────── */
+
+#silfra-chat-widget-container .xpert-product-recent-orders {
+  margin-top: 10px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 12px;
+}
+
+#silfra-chat-widget-container .xpert-product-recent-orders__heading {
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 0 0 8px;
+}
+
+#silfra-chat-widget-container .xpert-product-recent-orders__list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+#silfra-chat-widget-container .xpert-product-recent-orders__item {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 10px 12px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.15s ease;
+}
+
+#silfra-chat-widget-container .xpert-product-recent-orders__item:hover {
+  border-color: var(--color-primary-light);
+  background: #f0f9ff;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(0, 78, 100, 0.1);
+}
+
+#silfra-chat-widget-container .xpert-product-recent-orders__item-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+#silfra-chat-widget-container .xpert-product-recent-orders__order-number {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-primary);
+}
+
+#silfra-chat-widget-container .xpert-product-recent-orders__date {
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+#silfra-chat-widget-container .xpert-product-recent-orders__item-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+#silfra-chat-widget-container .xpert-product-recent-orders__customer {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: #1e293b;
+}
+
+#silfra-chat-widget-container .xpert-product-recent-orders__items-text {
+  font-size: 11.5px;
+  color: #64748b;
+}
+
+#silfra-chat-widget-container .xpert-product-recent-orders__reorder-cta {
+  margin-top: 4px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--color-primary-light);
+  text-align: right;
+}
+
+#silfra-chat-widget-container .xpert-product-recent-orders__email {
+  font-size: 11px;
+  color: #94a3b8;
 }

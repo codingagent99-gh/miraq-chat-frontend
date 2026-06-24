@@ -40,6 +40,7 @@ export interface UseChatOptions {
   customerId?: number;
   customerEmail?: string;
   customerRole?: string;
+  platform?: "shopify" | "woocommerce";
   nonce?: string;
   nonceExpires?: number;
   cartToken?: string;
@@ -53,6 +54,8 @@ export interface UseChatOptions {
   /** New actions envelope callback — called when `response.actions` is non-empty.
    *  When this fires, the legacy `trigger_frontend_*` handling is skipped. */
   onActions?: (actions: ChatAction[]) => void;
+  /** Called with SHOW_BULK_ORDER_BUTTON / SHOW_RECENTLY_ORDERED_BUTTON */
+  onPersistentActions?: (actions: ChatAction[]) => void;
   /** Called after add-to-cart so ChatWidget can surface the similar products prompt. */
   onSimilarProductsPrompt?: (id: number, name: string) => void;
 }
@@ -79,6 +82,8 @@ export function useChat(options: UseChatOptions = {}) {
   const [orderPagination, setOrderPagination] = useState<PaginationData | null>(
     null,
   );
+  const [dailyLimitHit, setDailyLimitHit] = useState(false);
+  const [limitResetAt, setLimitResetAt] = useState<string | null>(null);
   const lastQueryRef = useRef<string | null>(null);
 
   // State Variables for History Pagination
@@ -95,6 +100,7 @@ export function useChat(options: UseChatOptions = {}) {
 
   const messagesRef = useRef<ChatMessage[]>([]);
   messagesRef.current = messages;
+  const justLoadedHistoryRef = useRef(false);
 
   const apiRef = useRef(createApiClient(options.apiUrl, options.apiKey));
 
@@ -159,6 +165,7 @@ export function useChat(options: UseChatOptions = {}) {
 
   // ── INITIAL CHAT HISTORY FROM POSTGRES ──
   useEffect(() => {
+    if (!userId) return;
     const prevUserId = prevUserIdRef.current;
 
     // If the user changed (e.g., they logged in), reset the session anchor
@@ -238,6 +245,7 @@ export function useChat(options: UseChatOptions = {}) {
           metadata: m.metadata,
         }));
 
+        justLoadedHistoryRef.current = true;
         // Prepend older messages to the top of the array
         setMessages((prev) => [...olderMessages, ...prev]);
         setHasMoreHistory(res.has_more);
@@ -277,13 +285,15 @@ export function useChat(options: UseChatOptions = {}) {
 
   // Scroll to bottom when a NEW message arrives (but NOT when loading older history)
   useEffect(() => {
-    if (!loadingHistory) {
-      const container = bottomRef.current?.closest(
-        ".xpert-chat-messages",
-      ) as HTMLElement | null;
-      if (container && container.offsetParent !== null) {
-        scrollToBottom("smooth");
-      }
+    if (justLoadedHistoryRef.current) {
+      justLoadedHistoryRef.current = false;
+      return;
+    }
+    const container = bottomRef.current?.closest(
+      ".xpert-chat-messages",
+    ) as HTMLElement | null;
+    if (container && container.offsetParent !== null) {
+      scrollToBottom("smooth");
     }
   }, [messages.length, loading, loadingHistory, scrollToBottom]);
 
@@ -298,6 +308,13 @@ export function useChat(options: UseChatOptions = {}) {
     }, 50);
   }, []);
 
+  const handleDailyLimit = useCallback((err: any): boolean => {
+    if (!err?.isDailyLimitError) return false;
+    setDailyLimitHit(true);
+    setLimitResetAt(err.limitData?.reset_at ?? null);
+    return true;
+  }, []);
+
   const processChatResponse = useCallback(
     async (res: ChatResponse) => {
       if (res.session_id) {
@@ -309,19 +326,39 @@ export function useChat(options: UseChatOptions = {}) {
       setPagination(res.pagination || null);
       setOrderPagination(res.order_pagination || null);
 
-      // ── New actions envelope (PR 2) ──────────────────────────────────────
-      // If the backend sends a non-empty `actions[]` array, dispatch it via
-      // onActions and skip the legacy trigger_frontend_* handling entirely.
-      // This prevents double-fires while both backends co-exist during rollout.
-      if (res.actions && res.actions.length > 0) {
-        options.onActions?.(res.actions);
-      } else {
-        // ── Legacy trigger_frontend_* fallback ──────────────────────────────
+      // ── Action categorisation ───────────────────────────────────────────
+      // Three buckets:
+      //   • imperativeActions  – fire-and-forget (ADD_TO_CART, OPEN_CART_PANEL …)
+      //   • renderActions      – stored on botMsg so MessageRow can render them
+      //   • persistentActions  – drive persistent UI state (Bulk Order button …)
+      const allActions = res.actions ?? [];
+
+      const RENDER_TYPES = new Set([
+        "SHOW_BULK_ORDER_CONFIRMATION",
+        "SHOW_BULK_VARIANT_PROMPT",
+        "SHOW_BULK_ADDRESS_CONFIRMATION",
+        "SHOW_PRODUCT_RECENT_ORDERS",
+      ]);
+      const PERSISTENT_TYPES = new Set([
+        "SHOW_BULK_ORDER_BUTTON",
+        "SHOW_RECENTLY_ORDERED_BUTTON",
+      ]);
+
+      const imperativeActions = allActions.filter(
+        (a) => !RENDER_TYPES.has(a.type) && !PERSISTENT_TYPES.has(a.type),
+      );
+      const renderActions = allActions.filter((a) => RENDER_TYPES.has(a.type));
+      const persistentActions = allActions.filter((a) =>
+        PERSISTENT_TYPES.has(a.type),
+      );
+
+      if (imperativeActions.length > 0) {
+        options.onActions?.(imperativeActions);
+      } else if (allActions.length === 0) {
+        // ── Legacy trigger_frontend_* fallback ────────────────────────────
         if (res.action === "trigger_frontend_view_cart") {
           options.onViewCart?.();
         }
-
-        // ADD the parallel block:
         if (res.action === "trigger_frontend_cart_add") {
           const { product_id, quantity, variation_id, variation_attributes } =
             res.metadata ?? {};
@@ -333,20 +370,23 @@ export function useChat(options: UseChatOptions = {}) {
                 variation_id,
                 variation_attributes ?? [],
               );
-            } catch (e) {
-              // Cart add failed — return an error message instead of the success message
+            } catch {
               return {
                 id: uuidv4(),
                 role: "bot" as const,
                 text: "❌ Sorry, I couldn't add that item to your cart. Please try selecting the item again.",
                 timestamp: new Date(),
-                // suggestions: ["Try again", "View cart", "Browse products"],
                 isFlowPrompt: false,
               };
             }
           }
         }
       }
+
+      if (persistentActions.length > 0) {
+        options.onPersistentActions?.(persistentActions);
+      }
+      // ───────────────────────────────────────────────────────────────────
 
       const botMsg: ChatMessage = {
         id: uuidv4(),
@@ -368,6 +408,7 @@ export function useChat(options: UseChatOptions = {}) {
         pagination: res.pagination,
         orderPagination: res.order_pagination,
         variantOptions: res.variant_options,
+        actions: renderActions.length > 0 ? renderActions : undefined,
       };
       return botMsg;
     },
@@ -398,10 +439,18 @@ export function useChat(options: UseChatOptions = {}) {
       if (!text.trim()) return;
       setError(null);
 
+      // The bulk-address edit panel sends a structured payload encoded as
+      // "__BULK_ADDR__<json>". Send the full encoded string to the API, but
+      // show a friendly bubble instead of raw JSON in the conversation.
+      const _isBulkAddr = text.trim().startsWith("__BULK_ADDR__");
+      const _displayText = _isBulkAddr
+        ? "✏️ Updated billing & shipping address"
+        : text.trim();
+
       const userMsg: ChatMessage = {
         id: uuidv4(),
         role: "user",
-        text: text.trim(),
+        text: _displayText,
         timestamp: new Date(),
       };
       setMessages((prev) => enqueuMessages(prev, userMsg));
@@ -414,6 +463,7 @@ export function useChat(options: UseChatOptions = {}) {
             message: text.trim(),
             session_id: sessionIdRef.current,
             page: 1,
+            platform: options.platform ?? "woocommerce",
             user_context: buildUserContext(),
           },
           sessionIdRef.current,
@@ -436,6 +486,7 @@ export function useChat(options: UseChatOptions = {}) {
           options.onSimilarProductsPrompt(_pendingId, _pendingName);
         }
       } catch (err) {
+        if (handleDailyLimit(err)) return; // ← add this one line, rest unchanged
         const detail =
           err instanceof Error ? err.message : "Something went wrong.";
         setError(detail);
@@ -452,7 +503,13 @@ export function useChat(options: UseChatOptions = {}) {
         focusInput();
       }
     },
-    [buildUserContext, processChatResponse, focusInput, options],
+    [
+      buildUserContext,
+      processChatResponse,
+      focusInput,
+      handleDailyLimit,
+      options,
+    ],
   );
 
   const editMessage = useCallback(
@@ -485,6 +542,7 @@ export function useChat(options: UseChatOptions = {}) {
             message: newText.trim(),
             session_id: sessionIdRef.current,
             page: 1,
+            platform: options.platform ?? "woocommerce",
             user_context: buildUserContext(),
           },
           sessionIdRef.current,
@@ -493,9 +551,11 @@ export function useChat(options: UseChatOptions = {}) {
         const botMsg = await processChatResponse(res);
         setMessages((prev) => enqueuMessages(prev, botMsg));
       } catch (err) {
+        if (handleDailyLimit(err)) return; // ← add this one line, rest unchanged
         const detail =
           err instanceof Error ? err.message : "Something went wrong.";
         setError(detail);
+        setPagination(null);
         const errMsg: ChatMessage = {
           id: uuidv4(),
           role: "bot",
@@ -508,7 +568,14 @@ export function useChat(options: UseChatOptions = {}) {
         focusInput();
       }
     },
-    [loading, buildUserContext, processChatResponse, focusInput],
+    [
+      loading,
+      buildUserContext,
+      handleDailyLimit,
+      options,
+      processChatResponse,
+      focusInput,
+    ],
   );
 
   const sendFilterSuggestion = useCallback(
@@ -531,6 +598,7 @@ export function useChat(options: UseChatOptions = {}) {
             message: suggestion.label,
             session_id: sessionIdRef.current,
             page: 1,
+            platform: options.platform ?? "woocommerce",
             suggestion_retry: suggestion,
             user_context: buildUserContext(),
           },
@@ -554,6 +622,7 @@ export function useChat(options: UseChatOptions = {}) {
           options.onSimilarProductsPrompt(_pendingId, _pendingName);
         }
       } catch (err) {
+        if (handleDailyLimit(err)) return; // ← add this one line, rest unchanged
         const detail =
           err instanceof Error ? err.message : "Something went wrong.";
         setError(detail);
@@ -570,7 +639,13 @@ export function useChat(options: UseChatOptions = {}) {
         focusInput();
       }
     },
-    [buildUserContext, processChatResponse, focusInput, options],
+    [
+      buildUserContext,
+      handleDailyLimit,
+      options,
+      processChatResponse,
+      focusInput,
+    ],
   );
 
   const loadMore = useCallback(async () => {
@@ -587,6 +662,7 @@ export function useChat(options: UseChatOptions = {}) {
           message: lastQueryRef.current,
           session_id: sessionIdRef.current,
           page: nextPage,
+          platform: options.platform ?? "woocommerce",
           user_context: buildUserContext(),
         },
         sessionIdRef.current,
@@ -595,9 +671,11 @@ export function useChat(options: UseChatOptions = {}) {
       const botMsg = await processChatResponse(res);
       setMessages((prev) => enqueuMessages(prev, botMsg));
     } catch (err) {
+      if (handleDailyLimit(err)) return; // ← add this one line, rest unchanged
       const detail =
-        err instanceof Error ? err.message : "Failed to load more results.";
+        err instanceof Error ? err.message : "Something went wrong.";
       setError(detail);
+      setPagination(null);
       const errMsg: ChatMessage = {
         id: uuidv4(),
         role: "bot",
@@ -609,7 +687,15 @@ export function useChat(options: UseChatOptions = {}) {
       setLoading(false);
       focusInput();
     }
-  }, [pagination, loading, buildUserContext, processChatResponse, focusInput]);
+  }, [
+    pagination,
+    handleDailyLimit,
+    options,
+    loading,
+    buildUserContext,
+    processChatResponse,
+    focusInput,
+  ]);
 
   const loadMoreOrders = useCallback(async () => {
     if (
@@ -630,6 +716,7 @@ export function useChat(options: UseChatOptions = {}) {
           message: lastQueryRef.current,
           session_id: sessionIdRef.current,
           page: nextPage,
+          platform: options.platform ?? "woocommerce",
           user_context: buildUserContext(),
         },
         sessionIdRef.current,
@@ -638,9 +725,11 @@ export function useChat(options: UseChatOptions = {}) {
       const botMsg = await processChatResponse(res);
       setMessages((prev) => enqueuMessages(prev, botMsg));
     } catch (err) {
+      if (handleDailyLimit(err)) return; // ← add this one line, rest unchanged
       const detail =
-        err instanceof Error ? err.message : "Failed to load more orders.";
+        err instanceof Error ? err.message : "Something went wrong.";
       setError(detail);
+      setPagination(null);
       const errMsg: ChatMessage = {
         id: uuidv4(),
         role: "bot",
@@ -658,6 +747,8 @@ export function useChat(options: UseChatOptions = {}) {
     buildUserContext,
     processChatResponse,
     focusInput,
+    handleDailyLimit,
+    options,
   ]);
 
   const handleOrderProduct = useCallback(
@@ -793,5 +884,7 @@ export function useChat(options: UseChatOptions = {}) {
     loadMoreHistory,
     hasMoreHistory,
     loadingHistory,
+    dailyLimitHit,
+    limitResetAt,
   };
 }

@@ -135,8 +135,11 @@ export interface UseCheckoutReturn {
   setBillingAddress: React.Dispatch<React.SetStateAction<ContactAddress>>;
   // ── Redirect ──────────────────────────────────────────────────────────────
   /**
-   * Calls cartBuyerIdentityUpdate then opens checkoutUrl in a new tab.
-   * When billingOption is "different", appends Shopify billing pre-fill params.
+   * Calls cartBuyerIdentityUpdate then opens checkoutUrl in a new tab with
+   * Shopify checkout pre-fill params for shipping and billing.
+   * checkout[billing_address_selector] is set explicitly to shipping_address
+   * or custom_billing_address so Shopify selects the correct radio button.
+   * When "custom_billing_address", billing address fields are also pre-filled.
    * Failure in the mutation is non-fatal — the customer is still redirected.
    */
   prefillAndRedirect: (checkoutUrl: string) => Promise<void>;
@@ -250,28 +253,84 @@ function buildSavedAddressLabel(a: ContactAddress): string {
 }
 
 /**
- * Appends Shopify checkout billing pre-fill query params to a URL.
- * Called only when billingOption === "different".
+ * Builds Shopify checkout URL pre-fill query params.
+ *
+ * BILLING RADIO SELECTION — checkout[billing_address_selector]:
+ * The billing section on Shopify's checkout has two radio buttons whose
+ * form name is "billing_address_selector". We control which one is pre-
+ * selected via the corresponding URL param:
+ *
+ *   checkout[billing_address_selector]=shipping_address
+ *     → selects "Same as shipping address"
+ *
+ *   checkout[billing_address_selector]=custom_billing_address
+ *     → selects "Use a different billing address"
+ *
+ * Setting this explicitly avoids the flip-flop that occurs when Shopify
+ * tries to infer the radio state from whether billing fields are present
+ * or from cartBuyerIdentityUpdate's deliveryAddressPreferences.
+ *
+ * When "custom_billing_address" is selected, the billing address fields are
+ * also included so the form is pre-filled and the customer doesn't have to
+ * re-enter the address they already provided in our checkout panel.
+ *
+ * Returns a raw query string (no leading "?") so the caller can append with
+ * either "?" or "&" depending on whether the base URL already has params.
  */
-function buildBillingQueryParams(a: ContactAddress): string {
+function buildCheckoutPrefillParams(
+  shipping: ContactAddress,
+  billingOption: BillingOption,
+  billing: ContactAddress,
+): string {
   const p = new URLSearchParams();
-  const fields: [string, string][] = [
-    ["checkout[billing_address][first_name]", a.firstName],
-    ["checkout[billing_address][last_name]", a.lastName],
-    ["checkout[billing_address][address1]", a.address1],
-    ["checkout[billing_address][address2]", a.address2],
-    ["checkout[billing_address][city]", a.city],
-    ["checkout[billing_address][province]", a.province],
-    ["checkout[billing_address][zip]", a.zip],
-    ["checkout[billing_address][country]", a.country],
-    ["checkout[billing_address][phone]", a.phone],
-    ["checkout[billing_address][company]", a.company],
+
+  // Email
+  if (shipping.email.trim()) {
+    p.set("checkout[email]", shipping.email.trim());
+  }
+
+  // Shipping address — always included
+  const shippingFields: [string, string][] = [
+    ["checkout[shipping_address][first_name]", shipping.firstName],
+    ["checkout[shipping_address][last_name]", shipping.lastName],
+    ["checkout[shipping_address][company]", shipping.company],
+    ["checkout[shipping_address][address1]", shipping.address1],
+    ["checkout[shipping_address][address2]", shipping.address2],
+    ["checkout[shipping_address][city]", shipping.city],
+    ["checkout[shipping_address][province]", shipping.province],
+    ["checkout[shipping_address][zip]", shipping.zip],
+    ["checkout[shipping_address][country]", shipping.country],
+    ["checkout[shipping_address][phone]", shipping.phone],
   ];
-  for (const [k, v] of fields) {
+  for (const [k, v] of shippingFields) {
     if (v.trim()) p.set(k, v.trim());
   }
-  const qs = p.toString();
-  return qs ? `?${qs}` : "";
+
+  // Billing radio — explicit selector so Shopify doesn't have to infer it
+  if (billingOption === "same_as_shipping") {
+    p.set("checkout[billing_address_selector]", "shipping_address");
+    // No billing address fields needed; Shopify copies the shipping address.
+  } else {
+    p.set("checkout[billing_address_selector]", "custom_billing_address");
+    // Also pre-fill the billing form so the customer doesn't re-enter data.
+    const billingFields: [string, string][] = [
+      ["checkout[billing_address][first_name]", billing.firstName],
+      ["checkout[billing_address][last_name]", billing.lastName],
+      ["checkout[billing_address][company]", billing.company],
+      ["checkout[billing_address][address1]", billing.address1],
+      ["checkout[billing_address][address2]", billing.address2],
+      ["checkout[billing_address][city]", billing.city],
+      ["checkout[billing_address][province]", billing.province],
+      ["checkout[billing_address][zip]", billing.zip],
+      ["checkout[billing_address][country]", billing.country],
+      ["checkout[billing_address][phone]", billing.phone],
+    ];
+    for (const [k, v] of billingFields) {
+      if (v.trim()) p.set(k, v.trim());
+    }
+  }
+
+  return p.toString(); // raw qs, no leading "?"
 }
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
@@ -542,8 +601,17 @@ export function useCheckout(
         setIsLoading(false);
       }
 
-      if (billingOption === "different") {
-        resolvedUrl = resolvedUrl + buildBillingQueryParams(billingAddress);
+      // Always append shipping params; billing params only added when "different".
+      // Use "&" if cartBuyerIdentityUpdate returned a URL already containing "?".
+      const prefillQs = buildCheckoutPrefillParams(
+        address,
+        billingOption,
+        billingAddress,
+      );
+      if (prefillQs) {
+        resolvedUrl = resolvedUrl.includes("?")
+          ? `${resolvedUrl}&${prefillQs}`
+          : `${resolvedUrl}?${prefillQs}`;
       }
 
       setStep("redirecting");

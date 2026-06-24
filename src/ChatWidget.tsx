@@ -46,7 +46,7 @@ export function ChatWidget({
   const isShopify = !!shopDomain;
   const Container = isShopify ? ShopifyWidgetContainer : WidgetContainer;
   const MiraQIcon = `${assetBaseUrl}MiraQ-icon.png`;
-
+  const redirectingRef = useRef(false); // ← a navigation already committed for this page load
   // Runtime shopDomain (from Liquid data-shop-domain) is the source of truth.
   // Falls back to VITE_WP_BASE_URL for WooCommerce builds.
   const siteOrigin = shopDomain
@@ -152,34 +152,41 @@ export function ChatWidget({
   });
   const originalInputRef = useRef("");
 
+  const [showBulkOrderBtn, setShowBulkOrderBtn] = useState(false);
+  console.log(showBulkOrderBtn);
   // ── URL sync ──────────────────────────────────────────────────────────────
-  // Watches isCartOpen / isCheckoutOpen and performs a full-page redirect to
-  // the WooCommerce cart / checkout pages.
-  // - Skips the redirect if the browser is already on the target page.
-  // - Flushes widget state + panel flags to sessionStorage synchronously so
-  //   the widget reopens in the correct state after the page reloads.
-  // ChatWidget.tsx — fix the useEffect URL sync
   useEffect(() => {
-    const normPath = window.location.pathname.replace(/\/$/, ""); // strip trailing slash
-
+    if (redirectingRef.current) return; // navigation already in flight — don't thrash
+    const normPath = window.location.pathname.replace(/\/$/, "");
+    console.log("[MiraQ redirect]", {
+      isCartOpen,
+      isCheckoutOpen,
+      isShopify,
+      normPath,
+    });
     if (isCartOpen) {
-      if (normPath === "/cart") return; // ← was "/cart/"
+      if (normPath === "/cart") return;
       try {
         sessionStorage.setItem("silfra_panel_open", "true");
         sessionStorage.setItem(screenStorageKey, screen);
         sessionStorage.setItem("silfra_cart_open", "true");
       } catch {}
-      window.location.href = `${siteOrigin}/cart`; // ← no trailing slash
+      redirectingRef.current = true;
+      window.location.href = `${siteOrigin}/cart`;
     } else if (isCheckoutOpen) {
-      // Shopify checkout is handled entirely inside the widget — no redirect.
       if (isShopify) return;
-      if (normPath === "/checkout") return; // ← was "/checkout/"
+      if (normPath === "/checkout") return;
       try {
         sessionStorage.setItem("silfra_panel_open", "true");
         sessionStorage.setItem(screenStorageKey, screen);
         sessionStorage.setItem("silfra_checkout_open", "true");
       } catch {}
-      window.location.href = `${siteOrigin}/checkout`; // ← no trailing slash
+      redirectingRef.current = true;
+      if (normPath !== "/cart") {
+        window.location.href = `${siteOrigin}/cart`; // ← /cart first, not /checkout
+      } else {
+        window.location.href = `${siteOrigin}/checkout`;
+      }
     }
   }, [
     isCartOpen,
@@ -189,7 +196,6 @@ export function ChatWidget({
     screenStorageKey,
     siteOrigin,
   ]);
-  // ── Fetch cart on mount if panel was restored from sessionStorage ─────────
   // fetchCart is not called automatically; we need to trigger it here so the
   // CartPanel has data after a redirect restores isCartOpen = true.
   useEffect(() => {
@@ -231,7 +237,6 @@ export function ChatWidget({
     setIsCartOpen,
     setIsCheckoutOpen,
   });
-
   // ── Chat ──────────────────────────────────────────────────────────────────
   const {
     messages,
@@ -248,6 +253,11 @@ export function ChatWidget({
     loadMore,
     orderPagination,
     loadMoreOrders,
+    dailyLimitHit,
+    limitResetAt,
+    loadMoreHistory,
+    hasMoreHistory,
+    loadingHistory,
   } = useChat({
     apiUrl,
     apiKey,
@@ -275,6 +285,12 @@ export function ChatWidget({
       setTimeout(() => {
         appendBotMessage({ text: "", similarProductPrompt: { id, name } });
       }, 600);
+    },
+    platform: isShopify ? "shopify" : "woocommerce",
+    onPersistentActions: (actions) => {
+      for (const a of actions) {
+        if (a.type === "SHOW_BULK_ORDER_BUTTON") setShowBulkOrderBtn(true);
+      }
     },
   });
 
@@ -433,6 +449,17 @@ export function ChatWidget({
       try {
         const { products, source } =
           await apiClientRef.current.fetchSimilarProducts(product.id);
+
+        // ── Guard: nothing to show ──────────────────────────────────────────
+        if (!products || products.length === 0) {
+          appendBotMessage({
+            text: `No similar products found for *${product.name.split(" — ")[0]}*.`,
+            products: [],
+          });
+          return;
+        }
+        // ───────────────────────────────────────────────────────────────────
+
         const label =
           source === "cross_sell" ? "Pairing It With" : "You May Also Like";
         const text = `**${label}** — similar to *${product.name.split(" — ")[0]}*`;
@@ -628,7 +655,18 @@ export function ChatWidget({
             onToggleExpand={() => setIsExpanded((p) => !p)}
           />
 
-          <div className="xpert-chat-messages">
+          <div
+            className="xpert-chat-messages"
+            onScroll={(e) => {
+              if (
+                e.currentTarget.scrollTop < 50 &&
+                hasMoreHistory &&
+                !loadingHistory
+              ) {
+                loadMoreHistory();
+              }
+            }}
+          >
             {messages.map((message) => (
               <MessageRow
                 key={message.id}
@@ -646,6 +684,7 @@ export function ChatWidget({
                 onVariantSelect={handleVariantSelect}
                 onVariantAllSelected={setCanPlaceOrder}
                 canPlaceOrder={canPlaceOrder}
+                siteOrigin={siteOrigin}
                 onPlaceOrder={() => {
                   handleSend();
                   setCanPlaceOrder(false);
@@ -734,6 +773,30 @@ export function ChatWidget({
             </div>
           )}
 
+          {dailyLimitHit && (
+            <div className="miraq-limit-banner">
+              <span className="miraq-limit-icon">🔒</span>
+              <p className="miraq-limit-title">Daily limit reached</p>
+              <p className="miraq-limit-subtitle">
+                You've used all 25 free questions for today.
+                {limitResetAt && <> Resets at midnight.</>}
+              </p>
+              {/* <button
+                className="miraq-limit-upgrade-btn"
+                onClick={() => window.open("/premium", "_blank", "noopener")}
+                type="button"
+              > */}
+              <div
+                className="miraq-limit-upgrade-btn"
+                style={{ cursor: "default !important" }}
+              >
+                Upgrade for unlimited
+              </div>
+
+              {/* </button> */}
+            </div>
+          )}
+
           <div
             className={`xpert-chat-input-area${editingId ? " xpert-chat-input-area--editing" : ""}`}
             style={{ display: "flex", alignItems: "center", gap: "8px" }}
@@ -742,17 +805,19 @@ export function ChatWidget({
               ref={inputRef}
               className="xpert-chat-input"
               placeholder={
-                isListening
-                  ? "Listening... Speak now"
-                  : editingId
-                    ? "Edit your message… (Enter to send, Esc to cancel)"
-                    : "Ask about products, orders, or your cart..."
+                dailyLimitHit
+                  ? "Upgrade to keep chatting" // ← add
+                  : isListening
+                    ? "Listening... Speak now"
+                    : editingId
+                      ? "Edit your message… (Enter to send, Esc to cancel)"
+                      : "Ask about products, orders, or your cart..."
               }
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               onKeyDown={handleKeyDown}
               rows={1}
-              disabled={loading}
+              disabled={loading || dailyLimitHit}
               autoFocus
               spellCheck={true}
               style={{ flex: 1 }}
@@ -783,7 +848,7 @@ export function ChatWidget({
             <button
               className="xpert-send-btn"
               onClick={handleSend}
-              disabled={!inputValue.trim() || loading}
+              disabled={!inputValue.trim() || loading || dailyLimitHit} // ← add dailyLimitHit
               aria-label={editingId ? "Send edited message" : "Send message"}
               type="button"
             >
@@ -808,6 +873,10 @@ export function ChatWidget({
               onRemove={removeItem}
               onUpdateQuantity={updateQuantity}
               onCheckout={() => {
+                try {
+                  sessionStorage.setItem("silfra_checkout_open", "true");
+                  sessionStorage.removeItem("silfra_cart_open"); // prevent CartPanel from reopening on /cart
+                } catch {}
                 setIsCartOpen(false);
                 setIsCheckoutOpen(true);
               }}

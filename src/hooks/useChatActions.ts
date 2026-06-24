@@ -112,6 +112,16 @@ async function handleSingleAction(
       break;
     }
 
+    // ── UI-only actions — rendered inside MessageRow, not dispatched ──────
+    case "SHOW_BULK_ORDER_BUTTON":
+    case "SHOW_RECENTLY_ORDERED_BUTTON":
+    case "SHOW_BULK_ORDER_CONFIRMATION":
+    case "SHOW_BULK_VARIANT_PROMPT":
+    case "SHOW_BULK_ADDRESS_CONFIRMATION":
+    case "SHOW_PRODUCT_RECENT_ORDERS":
+      // Rendered directly in MessageRow; nothing for the action dispatcher to do.
+      break;
+
     default:
       assertNever(action);
   }

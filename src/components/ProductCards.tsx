@@ -1,9 +1,11 @@
 import type { Product } from "../types/api";
+import { FiShoppingCart } from "react-icons/fi";
 
 interface ProductCardsProps {
   products: Product[];
   onProductClick?: (product: Product) => void;
   onShowSimilar?: (product: Product) => void;
+  onAddToCart?: (product: Product) => void;
   loadingSimilarId?: number | null;
 }
 
@@ -11,6 +13,7 @@ export function ProductCards({
   products,
   onProductClick,
   onShowSimilar,
+  onAddToCart,
   loadingSimilarId,
 }: ProductCardsProps) {
   // 🚀 The exhaustive, safe extractor
@@ -102,57 +105,119 @@ export function ProductCards({
               <h4 className="xpert-product-name" title={product.name}>
                 {product.name}
               </h4>
-              <div className="xpert-product-price">
-                {product.on_sale && product.sale_price ? (
-                  <>
-                    {product.sale_price > 0 && (
-                      <span className="xpert-price-sale">
-                        ${product.sale_price}
+
+              {product.matched_against &&
+                product.matched_against.length > 0 && (
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: "4px",
+                      flexWrap: "wrap",
+                      marginTop: "2px",
+                      marginBottom: "2px",
+                    }}
+                  >
+                    {product.matched_against.map((label, i) => (
+                      <span
+                        key={i}
+                        title={label}
+                        style={{
+                          fontSize: "10px",
+                          fontWeight: 600,
+                          color: "#3b82f6",
+                          backgroundColor: "#eff6ff",
+                          border: "1px solid #bfdbfe",
+                          borderRadius: "4px",
+                          padding: "2px 6px",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {label}
                       </span>
-                    )}
-                    {product.regular_price > 0 && (
-                      <span className="xpert-price-regular">
-                        ${product.regular_price}
-                      </span>
-                    )}
-                  </>
-                ) : (
-                  product.price > 0 && (
-                    <span className="xpert-price">${product.price}</span>
-                  )
+                    ))}
+                  </div>
                 )}
-              </div>
+
+              {(product.on_sale
+                ? (product.sale_price ?? 0) > 0 ||
+                  (product.regular_price ?? 0) > 0
+                : (product.price ?? 0) > 0) && (
+                <div className="xpert-product-price">
+                  {product.on_sale && product.sale_price ? (
+                    <>
+                      {product.sale_price > 0 && (
+                        <span className="xpert-price-sale">
+                          ${product.sale_price}
+                        </span>
+                      )}
+                      {product.regular_price > 0 && (
+                        <span className="xpert-price-regular">
+                          ${product.regular_price}
+                        </span>
+                      )}
+                    </>
+                  ) : (
+                    product.price > 0 && (
+                      <span className="xpert-price">${product.price}</span>
+                    )
+                  )}
+                </div>
+              )}
+
+              {(product.in_stock === false || product.on_sale) && (
+                <div
+                  style={{
+                    display: "flex",
+                    gap: "6px",
+                    marginTop: "4px",
+                    flexWrap: "wrap",
+                  }}
+                >
+                  {product.in_stock === false ? (
+                    <span className="xpert-sale-badge">OUT OF STOCK</span>
+                  ) : (
+                    <span className="xpert-sale-badge">SALE</span>
+                  )}
+                </div>
+              )}
 
               <div
                 style={{
                   display: "flex",
                   gap: "6px",
+                  alignItems: "center",
                   marginTop: "4px",
-                  flexWrap: "wrap",
                 }}
               >
-                {product.in_stock === false ? (
-                  <span className="xpert-sale-badge">OUT OF STOCK</span>
-                ) : product.on_sale ? (
-                  <span className="xpert-sale-badge">SALE</span>
-                ) : null}
+                {onAddToCart && (
+                  <button
+                    className="xpert-add-to-cart-btn"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onAddToCart(product);
+                    }}
+                    title="Add to Cart"
+                    type="button"
+                  >
+                    <FiShoppingCart size={16} />
+                  </button>
+                )}
+                {onShowSimilar && (
+                  <button
+                    className="xpert-similar-btn"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onShowSimilar(product);
+                    }}
+                    disabled={loadingSimilarId === product.id}
+                    type="button"
+                  >
+                    {loadingSimilarId === product.id
+                      ? "Loading…"
+                      : "Show Similar Products"}
+                  </button>
+                )}
               </div>
-
-              {onShowSimilar && (
-                <button
-                  className="xpert-similar-btn"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onShowSimilar(product);
-                  }}
-                  disabled={loadingSimilarId === product.id}
-                  type="button"
-                >
-                  {loadingSimilarId === product.id
-                    ? "Loading…"
-                    : "Show Similar Products"}
-                </button>
-              )}
             </div>
           </div>
         );

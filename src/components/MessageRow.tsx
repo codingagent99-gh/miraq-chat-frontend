@@ -9,6 +9,10 @@ import { SuggestionChips } from "./SuggestionChips";
 import { FilterSuggestionChips } from "./FilterSuggestionChips";
 import { CategoryGrid } from "./CategoryGrid";
 import { VariantPicker } from "./VariantPicker";
+import { BulkAddressConfirmationCard } from "./BulkAddressConfirmationCard";
+import { BulkVariantPromptCard } from "./BulkVariantPromptCard";
+import { BulkOrderConfirmationCard } from "./BulkOrderConfirmationCard";
+import { ProductRecentOrdersCard } from "./ProductRecentOrdersCard";
 
 interface MessageRowProps {
   message: ChatMessage;
@@ -32,6 +36,8 @@ interface MessageRowProps {
   onPlaceOrder?: () => void;
   /** Whether a variant has been selected (enables the Place Order button) */
   canPlaceOrder?: boolean;
+  /** Site origin (WP base) passed to the bulk address card's checkout-fields hook */
+  siteOrigin: string;
   miraQIcon: string;
 }
 
@@ -93,6 +99,7 @@ export function MessageRow({
   onVariantAllSelected,
   onPlaceOrder,
   canPlaceOrder = false,
+  siteOrigin,
   miraQIcon,
 }: MessageRowProps) {
   const formattedTime = formatTimestamp(new Date(message.timestamp));
@@ -100,6 +107,36 @@ export function MessageRow({
   const similarHandler = message.isFlowPrompt ? undefined : onShowSimilar;
 
   if (message.role === "user") {
+    // ── Sentinel: programmatic reorder trigger — render a muted pill, not raw JSON ──
+    if (message.text.startsWith("__PRODUCT_REORDER__")) {
+      try {
+        const payload = JSON.parse(
+          message.text.slice("__PRODUCT_REORDER__".length),
+        );
+        const label: string =
+          (payload.items as { product_name: string; quantity: number }[])
+            ?.map((i) => `${i.product_name} ×${i.quantity}`)
+            .join(", ") ?? "Reorder";
+        return (
+          <div className="xpert-message-row user">
+            <div className="xpert-user-message-wrapper">
+              <div
+                className="xpert-message-bubble"
+                style={{ opacity: 0.6, fontStyle: "italic", fontSize: "12px" }}
+              >
+                🔁 Reorder: {label}
+                <p style={{ ...timestampStyle, textAlign: "right" }}>
+                  {formattedTime}
+                </p>
+              </div>
+            </div>
+          </div>
+        );
+      } catch {
+        return null;
+      }
+    }
+
     return (
       <div
         className={`xpert-message-row user${isBeingEdited ? " xpert-message-row--editing" : ""}`}
@@ -130,6 +167,16 @@ export function MessageRow({
   }
 
   // Bot message
+  const BULK_CARD_TYPES = new Set([
+    "SHOW_BULK_ORDER_CONFIRMATION",
+    "SHOW_BULK_VARIANT_PROMPT",
+    "SHOW_BULK_ADDRESS_CONFIRMATION",
+    // NOTE: SHOW_PRODUCT_RECENT_ORDERS is intentionally excluded so
+    // suggestion chips still render alongside the order history card.
+  ]);
+  const hasBulkCard =
+    message.actions?.some((a) => BULK_CARD_TYPES.has(a.type)) ?? false;
+
   return (
     <div className="xpert-message-row bot">
       <div className="xpert-bot-avatar">
@@ -162,6 +209,7 @@ export function MessageRow({
                 products={message.products}
                 onProductClick={onProductClick}
                 onShowSimilar={similarHandler}
+                onAddToCart={(product) => onSuggestion(`order ${product.name}`)}
                 loadingSimilarId={loadingSimilarId}
               />
               {similarHandler && (
@@ -234,13 +282,65 @@ export function MessageRow({
               </>
             )}
 
-          {message.suggestions && message.suggestions.length > 0 && (
-            <SuggestionChips
-              suggestions={message.suggestions}
-              isFlowPrompt={message.isFlowPrompt}
-              onSelect={onSuggestion}
-            />
+          {/* ── Action cards ─────────────────────────────────────────────── */}
+          {message.actions && message.actions.length > 0 && (
+            <>
+              {message.actions.map((action, idx) => {
+                if (action.type === "SHOW_BULK_ORDER_CONFIRMATION") {
+                  return (
+                    <BulkOrderConfirmationCard
+                      key={idx}
+                      {...action.payload}
+                      onConfirm={() => onSuggestion("Yes, confirm")}
+                      onCancel={() => onSuggestion("No, cancel")}
+                    />
+                  );
+                }
+                if (action.type === "SHOW_BULK_VARIANT_PROMPT") {
+                  return (
+                    <BulkVariantPromptCard
+                      key={idx}
+                      {...action.payload}
+                      onConfirm={(msg) => onSuggestion(msg)}
+                    />
+                  );
+                }
+                if (action.type === "SHOW_BULK_ADDRESS_CONFIRMATION") {
+                  return (
+                    <BulkAddressConfirmationCard
+                      key={idx}
+                      {...action.payload}
+                      siteOrigin={siteOrigin}
+                      onConfirm={() => onSuggestion("Yes, confirm")}
+                      onSkip={() => onSuggestion("Skip this order")}
+                      onSave={(msg) => onSuggestion(msg)}
+                      onCancel={() => onSuggestion("__BULK_CANCEL__")}
+                    />
+                  );
+                }
+                if (action.type === "SHOW_PRODUCT_RECENT_ORDERS") {
+                  return (
+                    <ProductRecentOrdersCard
+                      key={idx}
+                      orders={action.payload.orders}
+                      onReorder={(msg) => onSuggestion(msg)}
+                    />
+                  );
+                }
+                return null;
+              })}
+            </>
           )}
+
+          {!hasBulkCard &&
+            message.suggestions &&
+            message.suggestions.length > 0 && (
+              <SuggestionChips
+                suggestions={message.suggestions}
+                isFlowPrompt={message.isFlowPrompt}
+                onSelect={onSuggestion}
+              />
+            )}
 
           {message.similarProductPrompt && similarHandler && (
             <div className="xpert-similar-prompt">

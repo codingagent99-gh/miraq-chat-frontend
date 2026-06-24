@@ -33,28 +33,21 @@ export function VariantPicker({
   const [selections, setSelections] = useState<Record<string, string>>({});
 
   const handleClick = (axis: string, option: string) => {
-    setSelections((prev) => {
-      const next = { ...prev };
-      if (next[axis] === option) {
-        // Toggle off
-        delete next[axis];
-      } else {
-        next[axis] = option;
-      }
+    const next = { ...selections };
+    if (next[axis] === option) {
+      delete next[axis];
+    } else {
+      next[axis] = option;
+    }
 
-      // Compose the full selection string in axis order, skipping unselected axes
-      const composed = axes
-        .filter((a) => next[a] !== undefined)
-        .map((a) => next[a])
-        .join(", ");
+    const composed = axes
+      .filter((a) => next[a] !== undefined)
+      .map((a) => next[a])
+      .join(", ");
 
-      onSelect(composed);
-
-      // Notify parent whether every axis now has a selection
-      onAllSelected?.(axes.every((a) => next[a] !== undefined));
-
-      return next;
-    });
+    onSelect(composed);
+    onAllSelected?.(axes.every((a) => next[a] !== undefined));
+    setSelections(next);
   };
 
   return (

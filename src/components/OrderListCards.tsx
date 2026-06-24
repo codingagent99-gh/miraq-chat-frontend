@@ -10,6 +10,13 @@ const STATUS_COLOR: Record<string, string> = {
   failed: "#ef4444",
 };
 
+function decodeCurrency(raw: string | undefined): string {
+  if (!raw) return "₹";
+  return raw.replace(/&#(\d+);/g, (_, code) =>
+    String.fromCharCode(Number(code)),
+  );
+}
+
 function formatDate(dateStr: string) {
   try {
     return new Date(dateStr).toLocaleDateString("en-IN", {
@@ -60,6 +67,18 @@ export function OrderListCards({ orders, onOrderClick }: OrderListCardsProps) {
             <div className="xpert-order-card-date">
               {formatDate(order.date_created)}
             </div>
+            <div className="xpert-order-card-items">
+              {order.items?.map((item, idx) => (
+                <div key={idx} className="xpert-order-card-item-line">
+                  <span className="xpert-order-card-item-name">
+                    {item.name}
+                  </span>
+                  <span className="xpert-order-card-item-qty">
+                    × {item.quantity}
+                  </span>
+                </div>
+              ))}
+            </div>
             {order.shipping?.address_1 && (
               <div className="xpert-order-card-shipping">
                 {[
@@ -80,7 +99,7 @@ export function OrderListCards({ orders, onOrderClick }: OrderListCardsProps) {
                 {itemCount} item{itemCount !== 1 ? "s" : ""}
               </span>
               <span className="xpert-order-card-total">
-                {order.currency ?? "₹"}
+                {decodeCurrency(order.currency)}
                 {totalStr}
               </span>
             </div>

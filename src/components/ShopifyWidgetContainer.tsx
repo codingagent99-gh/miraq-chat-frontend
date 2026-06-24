@@ -160,35 +160,11 @@ export function ShopifyWidgetContainer({
       <div ref={widgetRootRef}>
         {!panelOpen && (
           <button
+            className="xpert-floating-btn"
             onClick={() => setPanelOpen(true)}
-            aria-label="Open MiraQ chat"
-            style={{
-              position: "fixed",
-              bottom: "24px",
-              right: "24px",
-              width: "56px",
-              height: "56px",
-              borderRadius: "50%",
-              background: "#1c1c1a",
-              border: "none",
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              boxShadow: "0 4px 20px rgba(0,0,0,0.22)",
-              zIndex: 99999,
-              transition: "transform 0.2s ease, box-shadow 0.2s ease",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.transform = "scale(1.08)";
-              e.currentTarget.style.boxShadow = "0 6px 28px rgba(0,0,0,0.30)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = "scale(1)";
-              e.currentTarget.style.boxShadow = "0 4px 20px rgba(0,0,0,0.22)";
-            }}
+            aria-label="Open chat"
           >
-            <img src={MiraQIcon} width={26} height={26} alt="MiraQ" />
+            <img src={MiraQIcon} height={24} width={24} alt="MiraQ" />
           </button>
         )}
         {panelOpen && (
@@ -213,35 +189,12 @@ export function ShopifyWidgetContainer({
       {/* Floating trigger button (visible when panel is closed) */}
       {!panelOpen && (
         <button
+          className="xpert-side-tab"
           onClick={() => setPanelOpen(true)}
           aria-label="Open MiraQ chat"
-          style={{
-            position: "fixed",
-            bottom: "24px",
-            right: "24px",
-            width: "56px",
-            height: "56px",
-            borderRadius: "50%",
-            background: "#1c1c1a",
-            border: "none",
-            cursor: "pointer",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            boxShadow: "0 4px 20px rgba(0,0,0,0.22)",
-            zIndex: 99999,
-            transition: "transform 0.2s ease, box-shadow 0.2s ease",
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.transform = "scale(1.08)";
-            e.currentTarget.style.boxShadow = "0 6px 28px rgba(0,0,0,0.30)";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.transform = "scale(1)";
-            e.currentTarget.style.boxShadow = "0 4px 20px rgba(0,0,0,0.22)";
-          }}
         >
-          <img src={MiraQIcon} width={26} height={26} alt="MiraQ" />
+          <img src={MiraQIcon} height={28} width={28} alt="MiraQ" />
+          <span className="xpert-side-tab-label">Chat</span>
         </button>
       )}
 
@@ -251,6 +204,8 @@ export function ShopifyWidgetContainer({
           id="silfra-panel-root"
           style={{
             animation: "silfra-slide-in 0.28s cubic-bezier(0.22,1,0.36,1)",
+            display: "flex",
+            flexDirection: "column",
           }}
         >
           {children}

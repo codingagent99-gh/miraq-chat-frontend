@@ -393,8 +393,10 @@ export function AddressForm({
                 <select
                   id={`addr-${field}`}
                   value={currentValue}
-                  onChange={(e) => handleChange(field, e.target.value)}
-                  onBlur={() => handleBlur(field)}
+                  onChange={(e) =>
+                    handleChange(field as string, e.target.value)
+                  }
+                  onBlur={() => handleBlur(field as string)}
                   style={selectStyle(!!error)}
                 >
                   <option value="">Select a country…</option>
@@ -411,8 +413,10 @@ export function AddressForm({
                 <select
                   id={`addr-${field}`}
                   value={currentValue}
-                  onChange={(e) => handleChange(field, e.target.value)}
-                  onBlur={() => handleBlur(field)}
+                  onChange={(e) =>
+                    handleChange(field as string, e.target.value)
+                  }
+                  onBlur={() => handleBlur(field as string)}
                   style={selectStyle(!!error)}
                 >
                   <option value="">Select a state…</option>
@@ -429,8 +433,10 @@ export function AddressForm({
                   id={`addr-${field}`}
                   type="text"
                   value={currentValue}
-                  onChange={(e) => handleChange(field, e.target.value)}
-                  onBlur={() => handleBlur(field)}
+                  onChange={(e) =>
+                    handleChange(field as string, e.target.value)
+                  }
+                  onBlur={() => handleBlur(field as string)}
                   style={{
                     ...INPUT_BASE,
                     border: `1.5px solid ${error ? "#ef4444" : "#e8e6e0"}`,
@@ -443,8 +449,10 @@ export function AddressForm({
                 <select
                   id={`addr-${field}`}
                   value={currentValue}
-                  onChange={(e) => handleChange(field, e.target.value)}
-                  onBlur={() => handleBlur(field)}
+                  onChange={(e) =>
+                    handleChange(field as string, e.target.value)
+                  }
+                  onBlur={() => handleBlur(field as string)}
                   style={selectStyle(!!error)}
                 >
                   <option value="">Select your rep…</option>
@@ -461,8 +469,10 @@ export function AddressForm({
                 <select
                   id={`addr-${field}`}
                   value={currentValue}
-                  onChange={(e) => handleChange(field, e.target.value)}
-                  onBlur={() => handleBlur(field)}
+                  onChange={(e) =>
+                    handleChange(field as string, e.target.value)
+                  }
+                  onBlur={() => handleBlur(field as string)}
                   style={selectStyle(!!error)}
                 >
                   <option value="">Select order type…</option>
@@ -481,8 +491,10 @@ export function AddressForm({
                   type="text"
                   placeholder="e.g. City Centre Hotel Refurb"
                   value={currentValue}
-                  onChange={(e) => handleChange(field, e.target.value)}
-                  onBlur={() => handleBlur(field)}
+                  onChange={(e) =>
+                    handleChange(field as string, e.target.value)
+                  }
+                  onBlur={() => handleBlur(field as string)}
                   style={{
                     ...INPUT_BASE,
                     border: `1.5px solid ${error ? "#ef4444" : "#e8e6e0"}`,
@@ -496,8 +508,10 @@ export function AddressForm({
                   id={`addr-${field}`}
                   placeholder="Any special delivery instructions or notes about your order…"
                   value={currentValue}
-                  onChange={(e) => handleChange(field, e.target.value)}
-                  onBlur={() => handleBlur(field)}
+                  onChange={(e) =>
+                    handleChange(field as string, e.target.value)
+                  }
+                  onBlur={() => handleBlur(field as string)}
                   rows={3}
                   style={{
                     ...INPUT_BASE,
@@ -525,8 +539,10 @@ export function AddressForm({
                           : "text"
                     }
                     value={currentValue}
-                    onChange={(e) => handleChange(field, e.target.value)}
-                    onBlur={() => handleBlur(field)}
+                    onChange={(e) =>
+                      handleChange(field as string, e.target.value)
+                    }
+                    onBlur={() => handleBlur(field as string)}
                     style={{
                       ...INPUT_BASE,
                       border: `1.5px solid ${error ? "#ef4444" : "#e8e6e0"}`,

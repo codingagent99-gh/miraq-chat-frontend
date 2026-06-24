@@ -5,6 +5,7 @@ import {
   FiPlus,
   FiMinus,
   FiShoppingCart,
+  FiArrowLeft,
   FiArrowRight,
   FiMaximize2,
   FiMinimize2,
@@ -124,6 +125,14 @@ export function CartPanel({
               <FiShoppingCart size={22} />
             </div>
             <p>Your cart is empty</p>
+            <button
+              className="miraq-cart-back-btn"
+              onClick={onClose}
+              type="button"
+            >
+              <FiArrowLeft size={13} />
+              Back to chat
+            </button>
           </div>
         )}
 

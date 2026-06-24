@@ -952,8 +952,20 @@ function BillingStep({
   >({});
   const [submitted, setSubmitted] = useState(false);
 
-  const billingErrors =
-    billingOption === "different" ? validateAddress(billingAddress) : {};
+  // Name fields are required for a separate billing address — Shopify's checkout
+  // billing form won't know the name if we don't send it via URL pre-fill params.
+  const billingErrors: Partial<ValidationErrors> =
+    billingOption === "different"
+      ? {
+          ...(!billingAddress.firstName.trim() && {
+            firstName: "First name is required",
+          }),
+          ...(!billingAddress.lastName.trim() && {
+            lastName: "Last name is required",
+          }),
+          ...validateAddress(billingAddress),
+        }
+      : {};
 
   function fieldB(key: keyof ContactAddress) {
     return (e: React.ChangeEvent<HTMLInputElement>) =>
@@ -1062,6 +1074,52 @@ function BillingStep({
       {/* Inline billing address form */}
       {billingOption === "different" && (
         <div style={{ marginTop: "14px" }}>
+          {/* Name — required so Shopify's checkout billing form is fully pre-filled */}
+          <div style={{ ...halfGrid, marginBottom: "12px" }}>
+            <div>
+              <label style={labelStyle}>First name *</label>
+              <input
+                type="text"
+                value={billingAddress.firstName}
+                onChange={fieldB("firstName")}
+                onBlur={touch("firstName")}
+                placeholder="First name"
+                style={inputStyle("firstName")}
+                autoComplete="billing given-name"
+              />
+              {shouldShowError("firstName") && billingErrors.firstName && (
+                <p style={inlineErrorStyle}>{billingErrors.firstName}</p>
+              )}
+            </div>
+            <div>
+              <label style={labelStyle}>Last name *</label>
+              <input
+                type="text"
+                value={billingAddress.lastName}
+                onChange={fieldB("lastName")}
+                onBlur={touch("lastName")}
+                placeholder="Last name"
+                style={inputStyle("lastName")}
+                autoComplete="billing family-name"
+              />
+              {shouldShowError("lastName") && billingErrors.lastName && (
+                <p style={inlineErrorStyle}>{billingErrors.lastName}</p>
+              )}
+            </div>
+          </div>
+
+          <div style={fieldGroup}>
+            <label style={labelStyle}>Phone</label>
+            <input
+              type="tel"
+              value={billingAddress.phone}
+              onChange={fieldB("phone")}
+              placeholder="+91 99999 99999"
+              style={fieldStyle}
+              autoComplete="billing tel"
+            />
+          </div>
+
           <div style={fieldGroup}>
             <label style={labelStyle}>Company</label>
             <input
