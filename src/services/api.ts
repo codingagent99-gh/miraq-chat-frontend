@@ -137,6 +137,37 @@ export function createApiClient(baseURL?: string, apiKey?: string) {
     return data;
   }
 
+  async function submitCartResult(
+    body: {
+      session_id: string;
+      success: boolean;
+      product_name: string;
+      quantity: number;
+    },
+    sessionId: string,
+  ): Promise<{ bot_message: string; actions: any[]; suggestions: string[] }> {
+    const { data } = await client.post("/chat/cart-result", body, {
+      headers: {
+        "X-MiraQ-Session": sessionId,
+        "X-WC-Session": getWooCommerceSession(),
+      },
+    });
+    return data;
+  }
+
+  async function submitOrderConfirmation(
+    body: { session_id: string; order_id: string | number },
+    sessionId: string,
+  ): Promise<{ success: boolean; bot_message: string }> {
+    const { data } = await client.post("/chat/order-confirmed", body, {
+      headers: {
+        "X-MiraQ-Session": sessionId,
+        "X-WC-Session": getWooCommerceSession(),
+      },
+    });
+    return data;
+  }
+
   /* ── /health ── */
   async function healthCheck(): Promise<any> {
     const { data } = await client.get("/health");
@@ -152,6 +183,8 @@ export function createApiClient(baseURL?: string, apiKey?: string) {
     fetchSimilarProducts,
     saveSimilarMessage,
     placeOrder,
+    submitCartResult,
+    submitOrderConfirmation,
     healthCheck,
   };
 }

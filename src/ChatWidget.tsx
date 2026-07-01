@@ -212,9 +212,20 @@ export function ChatWidget({
     apiClientRef.current = createApiClient(apiUrl, apiKey);
   }
 
-  // ── Store API (shared nonce + fetch) ──────────────────────────────────────
-  const { storeApiFetch } = useStoreApi({ nonce, nonceExpires, cartToken });
+  type CartResultHandler = (opts: {
+    success: boolean;
+    name: string;
+    quantity: number;
+  }) => Promise<void>;
 
+  const onCartResultRef = useRef<CartResultHandler | undefined>(undefined);
+
+  // ── Store API (shared nonce + fetch) ──────────────────────────────────────
+  const { storeApiFetch, resetCartToken } = useStoreApi({
+    nonce,
+    nonceExpires,
+    cartToken,
+  });
   // ── Cart state ────────────────────────────────────────────────────────────
   const {
     cart,
@@ -236,6 +247,8 @@ export function ChatWidget({
     cartItems: cart?.items,
     setIsCartOpen,
     setIsCheckoutOpen,
+    onCartResult: (opts) =>
+      onCartResultRef.current?.(opts) ?? Promise.resolve(),
   });
   // ── Chat ──────────────────────────────────────────────────────────────────
   const {
@@ -245,6 +258,7 @@ export function ChatWidget({
     editMessage,
     sendFilterSuggestion,
     appendBotMessage,
+    handleCartResult,
     getSessionId,
     bottomRef,
     inputRef,
@@ -293,6 +307,7 @@ export function ChatWidget({
       }
     },
   });
+  onCartResultRef.current = handleCartResult;
 
   // Voice
   const { isListening, isSupported, transcript, toggleListening } =
@@ -908,11 +923,18 @@ export function ChatWidget({
               onCartUpdate={setCart}
               cartToken={cartToken ?? null}
               siteOrigin={siteOrigin}
+              resetCartToken={resetCartToken}
               onClose={() => {
                 setIsCheckoutOpen(false);
                 fetchCart();
               }}
               onPostBotMessage={appendBotMessage}
+              onPersistOrderConfirmation={(orderId) =>
+                apiClientRef.current.submitOrderConfirmation(
+                  { session_id: getSessionId(), order_id: orderId },
+                  getSessionId(),
+                )
+              }
               onOrderComplete={(productId, productName) => {
                 setTimeout(() => {
                   appendBotMessage({

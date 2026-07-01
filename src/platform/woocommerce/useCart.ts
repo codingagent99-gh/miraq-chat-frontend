@@ -6,7 +6,7 @@
  * Now returns PlatformCart so it satisfies UseCartReturn.
  */
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback } from "react";
 import type { StoreApiFetch } from "../types";
 import type {
   PlatformCart,
@@ -30,20 +30,6 @@ export function useCart(storeApiFetch: StoreApiFetch): UseCartReturn {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // ── Bootstrap: prime the nonce + Cart-Token refs on first render ──────────
-  useEffect(() => {
-    async function bootstrap() {
-      try {
-        await storeApiFetch("/cart");
-        // storeApiFetch captures Nonce + Cart-Token from response headers
-        // automatically — nothing else needed here.
-      } catch (e) {
-        console.warn("[MiraQ] WC cart bootstrap failed", e);
-      }
-    }
-    bootstrap();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
   // ── Fetch current cart state ──────────────────────────────────────────────
   const fetchCart = useCallback(async () => {
     setLoading(true);
@@ -52,6 +38,10 @@ export function useCart(storeApiFetch: StoreApiFetch): UseCartReturn {
       const res = await storeApiFetch("/cart");
       if (!res.ok) throw new Error(`Cart fetch failed: ${res.status}`);
       const data: PlatformCart = await res.json();
+      console.log("[MiraQ DEBUG] fetchCart() result:", {
+        items_count: data.items_count,
+        items: data.items.map((i) => i.name),
+      });
       setCart(data);
     } catch (e) {
       setError("Could not load cart.");
@@ -82,8 +72,15 @@ export function useCart(storeApiFetch: StoreApiFetch): UseCartReturn {
               : {}),
           }),
         });
-        if (!res.ok) throw new Error(`Add item failed: ${res.status}`);
-        const data: PlatformCart = await res.json();
+        const body = await res.json().catch(() => null);
+        if (!res.ok) {
+          console.error("[MiraQ DEBUG] addItem failed — response body:", {
+            status: res.status,
+            body,
+          });
+          throw new Error(`Add item failed: ${res.status}`);
+        }
+        const data = body as PlatformCart;
         setCart(data);
       } catch (e) {
         setError("Could not add item to cart.");

@@ -188,6 +188,10 @@ export function useChat(options: UseChatOptions = {}) {
       setLoading(true);
       try {
         const res = await apiRef.current.fetchHistory(sessionIdRef.current, 1);
+        console.log("[MiraQ DEBUG] fetchHistory on mount", {
+          sessionId: sessionIdRef.current,
+          messageCount: res.messages?.length,
+        });
         if (res.messages && res.messages.length > 0) {
           // Rebuild React message objects from DB rows
           const formattedHistory: ChatMessage[] = res.messages.map(
@@ -861,6 +865,59 @@ export function useChat(options: UseChatOptions = {}) {
     [],
   );
 
+  const handleCartResult = useCallback(
+    async ({
+      success,
+      name,
+      quantity,
+    }: {
+      success: boolean;
+      name: string;
+      quantity: number;
+    }) => {
+      let botText = success
+        ? `✅ Added **${name}** ×${quantity} to your cart.`
+        : `⚠️ Couldn't add **${name}** to your cart. Please try again.`;
+      let resultActions: ChatAction[] = success
+        ? [{ type: "OPEN_CART_PANEL" as const, payload: {} }]
+        : [];
+      let resultSuggestions = success
+        ? ["Proceed to checkout", "Continue shopping", "View cart"]
+        : ["Try again", "View cart", "Browse products"];
+
+      try {
+        const data = await apiRef.current.submitCartResult(
+          {
+            session_id: sessionIdRef.current,
+            success,
+            product_name: name,
+            quantity,
+          },
+          sessionIdRef.current,
+        );
+        botText = data.bot_message ?? botText;
+        resultActions = data.actions ?? resultActions;
+        resultSuggestions = data.suggestions ?? resultSuggestions;
+      } catch (err) {
+        console.warn(
+          "[useChat] handleCartResult: backend unreachable, using fallback",
+          err,
+        );
+      }
+
+      appendBotMessage({
+        text: botText,
+        suggestions: resultSuggestions,
+        intent: success ? "add_to_cart" : "error",
+      });
+
+      if (resultActions.length > 0) {
+        options.onActions?.(resultActions);
+      }
+    },
+    [appendBotMessage, options],
+  );
+
   return {
     messages,
     loading,
@@ -873,6 +930,7 @@ export function useChat(options: UseChatOptions = {}) {
     handleOrderProduct,
     clearAll,
     appendBotMessage,
+    handleCartResult,
     getSessionId: () => sessionIdRef.current,
     bottomRef,
     inputRef,

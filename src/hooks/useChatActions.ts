@@ -1,5 +1,4 @@
 import { useCallback } from "react";
-import { toast } from "react-toastify";
 import { assertNever } from "../types/actions";
 import type { ChatAction } from "../types/actions";
 import type { PlatformCartItem } from "../platform/types";
@@ -20,6 +19,11 @@ export interface ActionHandlerDeps {
   cartItems: PlatformCartItem[] | undefined;
   setIsCartOpen: (open: boolean) => void;
   setIsCheckoutOpen: (open: boolean) => void;
+  onCartResult?: (opts: {
+    success: boolean;
+    name: string;
+    quantity: number;
+  }) => Promise<void>;
 }
 
 // ── Resolve a cart item key from optional key / product_id / variation_id ────
@@ -51,18 +55,43 @@ async function handleSingleAction(
 ): Promise<void> {
   switch (action.type) {
     case "ADD_TO_CART": {
-      const { product_id, quantity, variation_id, variation } = action.payload;
-      await deps.addItem(product_id, quantity, variation_id, variation);
-      toast.success("Added to cart 🛒");
+      const { product_id, quantity, variation_id, variation, name } =
+        action.payload;
+      try {
+        await deps.addItem(product_id, quantity, variation_id, variation);
+        await deps.onCartResult?.({
+          success: true,
+          name: name ?? "item",
+          quantity,
+        });
+      } catch (err) {
+        console.error("[ChatAction] ADD_TO_CART failed", err);
+        await deps.onCartResult?.({
+          success: false,
+          name: name ?? "item",
+          quantity,
+        });
+      }
       break;
     }
 
     case "SHOPIFY_ADD_TO_CART": {
-      // variant_id is the full Shopify GID ("gid://shopify/ProductVariant/…").
-      // useCart.ts → addItem passes it straight to cartLinesAdd as merchandiseId.
-      const { variant_id, quantity } = action.payload;
-      await deps.addItem(variant_id, quantity);
-      toast.success("Added to cart 🛒");
+      const { variant_id, quantity, name } = action.payload;
+      try {
+        await deps.addItem(variant_id, quantity);
+        await deps.onCartResult?.({
+          success: true,
+          name: name ?? "item",
+          quantity,
+        });
+      } catch (err) {
+        console.error("[ChatAction] SHOPIFY_ADD_TO_CART failed", err);
+        await deps.onCartResult?.({
+          success: false,
+          name: name ?? "item",
+          quantity,
+        });
+      }
       break;
     }
 
@@ -137,6 +166,7 @@ export function useChatActions({
   cartItems,
   setIsCartOpen,
   setIsCheckoutOpen,
+  onCartResult,
 }: ActionHandlerDeps) {
   const dispatchActions = useCallback(
     async (actions: ChatAction[] | undefined) => {
@@ -150,6 +180,7 @@ export function useChatActions({
         cartItems,
         setIsCartOpen,
         setIsCheckoutOpen,
+        onCartResult,
       };
 
       for (const action of actions) {
@@ -157,12 +188,6 @@ export function useChatActions({
           await handleSingleAction(action, deps);
         } catch (err) {
           console.error("[ChatAction] failed", action.type, err);
-          if (
-            action.type === "ADD_TO_CART" ||
-            action.type === "SHOPIFY_ADD_TO_CART"
-          ) {
-            toast.error("Could not add item to cart. Please try again.");
-          }
         }
       }
     },
@@ -174,6 +199,7 @@ export function useChatActions({
       cartItems,
       setIsCartOpen,
       setIsCheckoutOpen,
+      onCartResult,
     ],
   );
 

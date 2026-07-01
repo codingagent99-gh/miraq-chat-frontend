@@ -355,17 +355,23 @@ export function useCheckout({
 
         clearAddressDraft(cartToken ?? null);
 
-        // ── Reset cart token so the next /cart request starts a fresh WC session ─────
-        // Without this, fetchCart (called when the user navigates to the cart view)
-        // sends the old token, WooCommerce returns the completed order's old cart
-        // items, and setCart re-populates over the clear above.
+        console.log(
+          "[MiraQ DEBUG] placeOrder complete — resetCartToken wired?",
+          typeof resetCartToken === "function" ? "yes" : "NO — prop missing!",
+        );
         resetCartToken?.();
 
         // Silent /cart ping — only purpose is to receive the new Cart-Token header
         // that WooCommerce issues for the fresh session. We do NOT call onCartUpdate
         // here; the cart is already cleared above.
         try {
-          await storeApiFetch("/cart");
+          const pingRes = await storeApiFetch("/cart");
+          const pingBody = await pingRes.json().catch(() => null);
+          console.log("[MiraQ DEBUG] post-order /cart ping:", {
+            status: pingRes.status,
+            items_count: pingBody?.items_count,
+            items: pingBody?.items?.map((i: any) => i.name),
+          });
         } catch (cartErr) {
           console.warn("[MiraQ] Could not ping cart after checkout:", cartErr);
         }

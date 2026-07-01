@@ -22,6 +22,7 @@ interface CheckoutPanelProps {
   siteOrigin: string;
   onClose: () => void;
   onPostBotMessage: (text: string) => void;
+  onPersistOrderConfirmation?: (orderId: string) => Promise<any>;
   onOrderComplete?: (productId: number, productName: string) => void;
   isExpanded?: boolean;
   onToggleExpand?: () => void;
@@ -148,6 +149,7 @@ export function CheckoutPanel({
   siteOrigin,
   onClose,
   onPostBotMessage,
+  onPersistOrderConfirmation,
   onOrderComplete,
   isExpanded,
   onToggleExpand,
@@ -259,6 +261,43 @@ export function CheckoutPanel({
       });
     }
   }, [checkout.step]);
+
+  // ── Order complete: hand off confirmation, leave the now-stale checkout page ──
+  useEffect(() => {
+    if (checkout.step === "complete" && checkout.order) {
+      const orderReceivedUrl = checkout.order.payment_result?.redirect_url;
+      const goHome = () => {
+        window.location.href = siteOrigin;
+      };
+
+      // Both of these race the navigation below otherwise — window.location
+      // assignment can abort an in-flight fetch before it lands. Wait for
+      // both (each with its own failure swallowed) before leaving the page.
+      const persistConfirmation = onPersistOrderConfirmation
+        ? onPersistOrderConfirmation(String(checkout.order.order_id))
+            .then(() =>
+              console.log("[MiraQ DEBUG] order-confirmed persisted OK"),
+            )
+            .catch((err) =>
+              console.error(
+                "[MiraQ DEBUG] order-confirmed persist FAILED",
+                err,
+              ),
+            )
+        : Promise.resolve();
+      const pingOrderReceived = orderReceivedUrl
+        ? fetch(orderReceivedUrl, { credentials: "include" }).catch(() => {})
+        : Promise.resolve();
+
+      console.log("[MiraQ DEBUG] redirect effect firing", {
+        order_id: checkout.order.order_id,
+        hasOnPersist: !!onPersistOrderConfirmation,
+      });
+
+      Promise.allSettled([persistConfirmation, pingOrderReceived]).then(goHome);
+    }
+  }, [checkout.step, checkout.order, siteOrigin]);
+
   // ── Helpers ──────────────────────────────────────────────────────────────────
   const effectivePaymentPayload: PaymentPayload | null = (() => {
     if (paymentPayload) return paymentPayload;
