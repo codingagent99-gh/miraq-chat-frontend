@@ -25,6 +25,7 @@ export interface ChatWidgetInterface extends WidgetOptions {
   onViewCart?: () => void;
   storefrontToken?: string;
   shopDomain?: string;
+  wpBaseUrl?: string;
 }
 
 export function ChatWidget({
@@ -39,7 +40,9 @@ export function ChatWidget({
   cartToken,
   nonceExpires,
   shopDomain,
+  wpBaseUrl,
   storefrontToken,
+  licenseId,
 }: ChatWidgetInterface) {
   // True for Shopify builds — governs checkout routing and panel choice.
   // Shopify checkout stays in-widget (no page redirect); WC redirects to /checkout.
@@ -47,12 +50,12 @@ export function ChatWidget({
   const Container = isShopify ? ShopifyWidgetContainer : WidgetContainer;
   const MiraQIcon = `${assetBaseUrl}MiraQ-icon.png`;
   const redirectingRef = useRef(false); // ← a navigation already committed for this page load
+
   // Runtime shopDomain (from Liquid data-shop-domain) is the source of truth.
   // Falls back to VITE_WP_BASE_URL for WooCommerce builds.
   const siteOrigin = shopDomain
     ? `https://${shopDomain}`
-    : import.meta.env.VITE_WP_BASE_URL || window.location.origin;
-
+    : wpBaseUrl || window.location.origin;
   const isLoggedIn = !!(customerId || customerEmail);
   const [isExpanded, setIsExpanded] = useState(() => {
     if (window.innerWidth <= 768) return false;
@@ -206,12 +209,20 @@ export function ChatWidget({
   // ── Widget config (logo + header text from backend) ──────────────────────
   const [widgetLogo, setWidgetLogo] = useState<string>("");
   const [widgetText, setWidgetText] = useState<string>("");
+  console.log("[MiraQ DEBUG] licenseId prop:", licenseId);
 
   const apiClientRef = useRef<any>(null);
-  if (!apiClientRef.current) {
-    apiClientRef.current = createApiClient(apiUrl, apiKey);
+  if (
+    !apiClientRef.current ||
+    (licenseId &&
+      !apiClientRef.current.defaults?.headers?.common?.["X-MiraQ-License-Id"])
+  ) {
+    apiClientRef.current = createApiClient(apiUrl, apiKey, licenseId);
   }
-
+  console.log(
+    "[MiraQ DEBUG] apiClient headers:",
+    apiClientRef.current?.defaults?.headers,
+  );
   type CartResultHandler = (opts: {
     success: boolean;
     name: string;
@@ -279,6 +290,8 @@ export function ChatWidget({
       typeof customerId === "string" ? parseInt(customerId, 10) : customerId,
     customerEmail,
     customerRole,
+    licenseId,
+    wpBaseUrl,
     // New actions envelope — primary signal channel
     onActions: dispatchActions,
     // Backend fires "trigger_frontend_view_cart" → open panel + fetch latest

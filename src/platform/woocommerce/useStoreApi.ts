@@ -13,11 +13,13 @@ interface UseStoreApiOptions {
   nonce?: string;
   nonceExpires?: number;
   cartToken?: string;
+  wpBaseUrl?: string;
 }
 
 export function useStoreApi({
   nonce,
   cartToken,
+  wpBaseUrl,
 }: UseStoreApiOptions): UseStoreApiReturn {
   const nonceRef = useRef<string>(nonce ?? "");
   const nonceExpiresRef = useRef<number>(0);
@@ -32,8 +34,7 @@ export function useStoreApi({
     cartTokenRef.current = "";
   }, []);
 
-  const siteOrigin = import.meta.env.VITE_WP_BASE_URL || window.location.origin;
-
+  const siteOrigin = wpBaseUrl || window.location.origin;
   // Returns a valid nonce, refreshing if within 1 minute of expiry.
   const getFreshNonce = useCallback(async (): Promise<string> => {
     if (Date.now() < nonceExpiresRef.current - 60_000) {

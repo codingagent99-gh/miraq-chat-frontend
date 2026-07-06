@@ -43,7 +43,8 @@ function mountWidget(options?: WidgetOptions, assetBaseUrl?: string) {
   const customerRole = options?.customerRole || "";
   const storefrontToken = options?.storefrontToken || "";
   const shopDomain = options?.shopDomain || "";
-
+  const licenseId = options?.licenseId || "";
+  const wpBaseUrl = options?.wpBaseUrl || window.location.origin;
   console.log("Widget initialized with:", {
     apiUrl,
     customerId,
@@ -67,6 +68,8 @@ function mountWidget(options?: WidgetOptions, assetBaseUrl?: string) {
       cartToken={options?.cartToken}
       storefrontToken={storefrontToken}
       shopDomain={shopDomain}
+      licenseId={licenseId}
+      wpBaseUrl={wpBaseUrl}
     />,
   );
 }
@@ -97,7 +100,7 @@ window.SilfraChatWidget = {
   const customerRole =
     config.customerRole || script?.dataset.customerRole || "guest";
   const nonce = config.nonce || script?.dataset.nonce || "";
-
+  const licenseId = config.licenseId || script?.dataset.licenseId || "";
   const nonceExpires = config.nonceExpires
     ? parseInt(config.nonceExpires, 10)
     : script?.dataset.nonceExpires
@@ -108,7 +111,8 @@ window.SilfraChatWidget = {
   const storefrontToken =
     config.storefrontToken || script?.dataset.storefrontToken || "";
   const shopDomain = config.shopDomain || script?.dataset.shopDomain || "";
-
+  const wpBaseUrl =
+    config.wpBaseUrl || script?.dataset.wpBaseUrl || window.location.origin;
   // 3. Fallback for assetBaseUrl in case document.currentScript is null
   // (If script is deferred, _currentScript is null, so we hardcode your production URL as a ultimate fallback)
   const assetBaseUrl = config.assetBaseUrl
@@ -157,6 +161,8 @@ window.SilfraChatWidget = {
       cartToken,
       storefrontToken,
       shopDomain,
+      licenseId,
+      wpBaseUrl,
     },
     assetBaseUrl,
   );

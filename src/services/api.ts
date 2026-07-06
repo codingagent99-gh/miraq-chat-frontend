@@ -18,9 +18,12 @@ function getWooCommerceSession() {
   return "";
 }
 
-export function createApiClient(baseURL?: string, apiKey?: string) {
-  const resolvedBase = baseURL || import.meta.env.VITE_BASE || "";
-
+export function createApiClient(
+  baseURL?: string,
+  apiKey?: string,
+  licenseId?: string,
+) {
+  const resolvedBase = baseURL || "";
   console.log("[MiraQ API] baseURL resolved to:", resolvedBase);
 
   const headers: Record<string, string> = {
@@ -28,6 +31,9 @@ export function createApiClient(baseURL?: string, apiKey?: string) {
   };
   if (apiKey) {
     headers["Authorization"] = `Bearer ${apiKey}`;
+  }
+  if (licenseId) {
+    headers["X-MiraQ-License-Id"] = licenseId;
   }
 
   const client: AxiosInstance = axios.create({
