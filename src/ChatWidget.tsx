@@ -52,7 +52,6 @@ export function ChatWidget({
   const redirectingRef = useRef(false); // ← a navigation already committed for this page load
 
   // Runtime shopDomain (from Liquid data-shop-domain) is the source of truth.
-  // Falls back to VITE_WP_BASE_URL for WooCommerce builds.
   const siteOrigin = shopDomain
     ? `https://${shopDomain}`
     : wpBaseUrl || window.location.origin;
@@ -168,7 +167,7 @@ export function ChatWidget({
       normPath,
     });
     if (isCartOpen) {
-      if (normPath === "/cart") return;
+      if (normPath.endsWith("/cart")) return;
       try {
         sessionStorage.setItem("silfra_panel_open", "true");
         sessionStorage.setItem(screenStorageKey, screen);
@@ -178,15 +177,15 @@ export function ChatWidget({
       window.location.href = `${siteOrigin}/cart`;
     } else if (isCheckoutOpen) {
       if (isShopify) return;
-      if (normPath === "/checkout") return;
+      if (normPath.endsWith("/checkout")) return;
       try {
         sessionStorage.setItem("silfra_panel_open", "true");
         sessionStorage.setItem(screenStorageKey, screen);
         sessionStorage.setItem("silfra_checkout_open", "true");
       } catch {}
       redirectingRef.current = true;
-      if (normPath !== "/cart") {
-        window.location.href = `${siteOrigin}/cart`; // ← /cart first, not /checkout
+      if (!normPath.endsWith("/cart")) {
+        window.location.href = `${siteOrigin}/cart`;
       } else {
         window.location.href = `${siteOrigin}/checkout`;
       }
@@ -236,6 +235,7 @@ export function ChatWidget({
     nonce,
     nonceExpires,
     cartToken,
+    wpBaseUrl,
   });
   // ── Cart state ────────────────────────────────────────────────────────────
   const {
@@ -348,7 +348,11 @@ export function ChatWidget({
   // ── Fetch widget config (logo + text) from backend ────────────────────────
   useEffect(() => {
     if (!apiUrl) return;
-    fetch(`${apiUrl}/widget-config`)
+    fetch(`${apiUrl}/widget-config`, {
+      headers: {
+        "X-MiraQ-License-Id": licenseId || "",
+      },
+    })
       .then((r) => r.json())
       .then((data) => {
         if (data.image_url) setWidgetLogo(data.image_url);
@@ -357,7 +361,7 @@ export function ChatWidget({
       .catch(() => {
         // silently fall back to default MiraQIcon
       });
-  }, [apiUrl]);
+  }, [apiUrl, licenseId]);
   // ─────────────────────────────────────────────────────────────────────────
 
   // ── AI mode toggle handler ────────────────────────────────────────────────
@@ -895,7 +899,6 @@ export function ChatWidget({
               siteOrigin={siteOrigin}
               onClose={() => setIsCartOpen(false)}
               onCloseWidget={() => {
-                setIsCartOpen(false);
                 setPanelOpen(false);
               }}
               onRemove={removeItem}
@@ -940,6 +943,9 @@ export function ChatWidget({
               onClose={() => {
                 setIsCheckoutOpen(false);
                 fetchCart();
+              }}
+              onCloseWidget={() => {
+                setPanelOpen(false);
               }}
               onPostBotMessage={appendBotMessage}
               onPersistOrderConfirmation={(orderId) =>

@@ -80,6 +80,13 @@ window.SilfraChatWidget = {
     mountWidget(options, assetBaseUrl);
   },
 };
+const _isLocalDevBuild = import.meta.env.MODE === "localdev";
+const DEV_API_URL = _isLocalDevBuild
+  ? import.meta.env.VITE_DEV_API_URL
+  : undefined;
+const DEV_LICENSE_ID = _isLocalDevBuild
+  ? import.meta.env.VITE_DEV_LICENSE_ID
+  : undefined;
 
 (function autoInit() {
   // 1. Safely grab the global config object, defaulting to an empty object
@@ -91,7 +98,7 @@ window.SilfraChatWidget = {
   const script = _currentScript;
 
   // 2. Extract values: Prefer the global config first, then dataset, then empty strings
-  const apiUrl = config.apiUrl || script?.dataset.apiUrl || "";
+  const apiUrl = DEV_API_URL || config.apiUrl || script?.dataset.apiUrl || "";
   const customerId = config.customerId || script?.dataset.customerId || "";
   const customerEmail =
     config.customerEmail || script?.dataset.customerEmail || "";
@@ -100,7 +107,9 @@ window.SilfraChatWidget = {
   const customerRole =
     config.customerRole || script?.dataset.customerRole || "guest";
   const nonce = config.nonce || script?.dataset.nonce || "";
-  const licenseId = config.licenseId || script?.dataset.licenseId || "";
+  const licenseId =
+    DEV_LICENSE_ID || config.licenseId || script?.dataset.licenseId || "";
+
   const nonceExpires = config.nonceExpires
     ? parseInt(config.nonceExpires, 10)
     : script?.dataset.nonceExpires

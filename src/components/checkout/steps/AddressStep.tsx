@@ -15,7 +15,7 @@ import { useCheckoutFields } from "../../../hooks/useCheckoutFields";
 import { BillingAddressForm } from "../fields/BillingAddressForm";
 import { SavedAddressConfirmCard } from "../SavedAddressConfirmCard";
 import { fetchWpSavedAddresses, saveWpAddress } from "../../../services/api";
-
+import type { AddressFormProps, CustomField } from "../fields/AddressForm";
 interface AddressStepProps {
   cart: WCCart | null;
   cartToken: string | null;
@@ -36,6 +36,7 @@ interface AddressStepProps {
   setSavedShipAddresses: (addrs: ShipAddress[]) => void;
   itemAddressMap: Record<string, string>; // cart_key → ShipAddress.id
   setItemAddressMap: (map: Record<string, string>) => void;
+  siteOrigin: string;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -571,6 +572,7 @@ interface BillingSubStepProps {
   orderTypeOptions: ReturnType<typeof useCheckoutFields>["orderTypeOptions"];
   fieldOverrides: ReturnType<typeof useCheckoutFields>["billingFieldOverrides"];
   prefillValues?: AddressDict | null;
+  dynamicFields?: AddressFormProps["visibleFields"];
 }
 
 function BillingSubStep({
@@ -584,6 +586,7 @@ function BillingSubStep({
   orderTypeOptions,
   fieldOverrides,
   prefillValues,
+  dynamicFields,
 }: BillingSubStepProps) {
   const savedBilling = prefillValues ?? cart?.billing_address;
   const hasSavedBilling = isSavedAddress(savedBilling);
@@ -592,6 +595,10 @@ function BillingSubStep({
     <div style={{ padding: "16px" }}>
       <h3 style={heading}>Billing Details</h3>
       <BillingAddressForm
+        dynamicFields={dynamicFields}
+        countries={countries}
+        orderTypeOptions={orderTypeOptions}
+        fieldOverrides={fieldOverrides}
         key={hasSavedBilling ? "prefilled" : "empty"}
         cartToken={cartToken}
         initialValues={hasSavedBilling ? savedBilling : undefined}
@@ -601,10 +608,7 @@ function BillingSubStep({
         isLoading={isLoading}
         submitLabel="Continue →"
         onSubmit={onConfirmed}
-        countries={countries}
         repOptions={repOptions}
-        orderTypeOptions={orderTypeOptions}
-        fieldOverrides={fieldOverrides}
       />
     </div>
   );
@@ -624,6 +628,7 @@ interface ShippingSubStepProps {
   fieldOverrides: ReturnType<
     typeof useCheckoutFields
   >["shippingFieldOverrides"];
+  dynamicFields?: AddressFormProps["visibleFields"];
 }
 
 function ShippingSubStep({
@@ -634,6 +639,7 @@ function ShippingSubStep({
   onConfirmed,
   countries,
   fieldOverrides,
+  dynamicFields,
 }: ShippingSubStepProps) {
   const savedShipping = cart?.shipping_address;
   const hasSavedShipping = isSavedAddress(savedShipping);
@@ -664,6 +670,7 @@ function ShippingSubStep({
 
       {phase === "form" && (
         <ShippingAddressForm
+          dynamicFields={dynamicFields}
           cartToken={cartToken}
           initialValues={
             draft ?? (hasSavedShipping ? savedShipping : undefined)
@@ -719,19 +726,32 @@ export function AddressStep({
   setSavedShipAddresses,
   itemAddressMap,
   setItemAddressMap,
+  siteOrigin,
 }: AddressStepProps) {
-  const siteOrigin =
-    (import.meta as any).env?.VITE_WP_BASE_URL || window.location.origin;
+  console.log(
+    "[AddressStep] siteOrigin passed to useCheckoutFields:",
+    siteOrigin,
+  );
 
   const {
     countries,
     reps,
     orderTypeOptions,
+    billingFields,
+    shippingFields,
     billingFieldOverrides,
     shippingFieldOverrides,
     isLoading: fieldsLoading,
   } = useCheckoutFields(siteOrigin);
 
+  console.log("[AddressStep] billingFieldOverrides:", billingFieldOverrides);
+  console.log("[AddressStep] fieldsLoading:", fieldsLoading);
+  const dynamicBillingFields = billingFields.map(
+    (f) => f.key.replace(/^billing_/, "") as keyof AddressDict | CustomField,
+  );
+  const dynamicShippingFields = shippingFields.map(
+    (f) => f.key.replace(/^shipping_/, "") as keyof AddressDict | CustomField,
+  );
   const [view, setView] = useState<"billing" | "shipping">("billing");
 
   // "billing" | "single" | "multi"
@@ -853,6 +873,7 @@ export function AddressStep({
   if (view === "billing") {
     return (
       <BillingSubStep
+        dynamicFields={dynamicBillingFields}
         cart={cart}
         cartToken={cartToken}
         isLoading={isLoading}
@@ -930,6 +951,7 @@ export function AddressStep({
         <div style={{ marginTop: "14px" }}>
           <p style={subHeading as CSSProperties}>Enter shipping address</p>
           <ShippingSubStep
+            dynamicFields={dynamicShippingFields}
             key={isSavedAddress(cart.shipping_address) ? "prefilled" : "empty"}
             cart={cart}
             cartToken={cartToken}

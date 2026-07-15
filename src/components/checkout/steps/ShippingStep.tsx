@@ -292,6 +292,29 @@ export function ShippingStep({
           </p>
         )}
 
+        {!multiCanContinue && !isLoading && !multiSubmitting && (
+          <p
+            style={{
+              fontSize: "12px",
+              color: "#888",
+              margin: "0 0 8px",
+              textAlign: "center",
+            }}
+          >
+            {(() => {
+              const missing = multiAddressGroups
+                .map((_, idx) => idx + 1)
+                .filter(
+                  (_, idx) => multiAddressGroups[idx].selected_rate_id === null,
+                );
+              if (missing.length === 0) return null;
+              return missing.length === 1
+                ? `Select a shipping method for Shipment ${missing[0]} to continue.`
+                : `Select a shipping method for shipments ${missing.join(", ")} to continue.`;
+            })()}
+          </p>
+        )}
+
         <button
           type="button"
           disabled={!multiCanContinue}
@@ -381,7 +404,9 @@ export function ShippingStep({
     ? shippingPackages.slice(0, 1)
     : shippingPackages;
 
-  const hasPackages = shippingPackages.length > 0;
+  const hasPackages = shippingPackages.some(
+    (pkg) => pkg.shipping_rates.length > 0,
+  );
   const canContinue = !isLoading && (!cartNeedsShipping || !!selectedRateId);
 
   return (
@@ -561,6 +586,19 @@ export function ShippingStep({
       {error && (
         <p style={{ fontSize: "12px", color: "#ef4444", margin: "8px 0" }}>
           {error.message}
+        </p>
+      )}
+
+      {!canContinue && !isLoading && cartNeedsShipping && hasPackages && (
+        <p
+          style={{
+            fontSize: "12px",
+            color: "#888",
+            margin: "0 0 8px",
+            textAlign: "center",
+          }}
+        >
+          Select a shipping method to continue.
         </p>
       )}
 

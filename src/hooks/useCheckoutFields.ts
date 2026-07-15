@@ -446,21 +446,40 @@ export function useCheckoutFields(wpBase: string): CheckoutFieldsData {
     setIsLoading(true);
     setError(null);
 
-    Promise.all([
+    Promise.allSettled([
       fetchWpCountries(wpBase),
       fetchWpReps(wpBase),
       fetchWpOrderTypes(wpBase),
-      fetchFieldMeta(wpBase), // single fetch replaces two separate calls
+      fetchFieldMeta(wpBase),
     ])
       .then(([c, r, ot, meta]) => {
         if (cancelled) return;
-        setCountries(c);
-        setReps(r);
-        setOrderTypeOptions(ot);
-        setBillingFields(meta.billingFields);
-        setShippingFields(meta.shippingFields);
-        setBillingFieldOverrides(meta.billingFieldOverrides);
-        setShippingFieldOverrides(meta.shippingFieldOverrides);
+        setCountries(c.status === "fulfilled" ? c.value : []);
+        setReps(r.status === "fulfilled" ? r.value : []);
+        setOrderTypeOptions(ot.status === "fulfilled" ? ot.value : []);
+        const metaValue =
+          meta.status === "fulfilled"
+            ? meta.value
+            : {
+                billingFields: BILLING_FIELDS_FALLBACK,
+                shippingFields: SHIPPING_FIELDS_FALLBACK,
+                billingFieldOverrides: BILLING_REQUIRED_FALLBACK,
+                shippingFieldOverrides: SHIPPING_REQUIRED_FALLBACK,
+              };
+        setBillingFields(metaValue.billingFields);
+        setShippingFields(metaValue.shippingFields);
+        setBillingFieldOverrides(metaValue.billingFieldOverrides);
+        setShippingFieldOverrides(metaValue.shippingFieldOverrides);
+        if (r.status === "rejected")
+          console.warn(
+            "[useCheckoutFields] reps fetch failed — no reps available:",
+            r.reason,
+          );
+        if (ot.status === "rejected")
+          console.warn(
+            "[useCheckoutFields] order-types fetch failed — no order types available:",
+            ot.reason,
+          );
       })
       .catch((err) => {
         if (cancelled) return;

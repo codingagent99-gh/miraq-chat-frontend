@@ -12,7 +12,13 @@ import { ConfirmationStep } from "./steps/ConfirmationStep";
 import { getPaymentAdapter } from "./payment/PaymentGatewayAdapter";
 import "./CheckoutPanel.css";
 import { useCheckout } from "../../platform/woocommerce/useCheckout";
-import { FiX, FiPackage, FiMaximize2, FiMinimize2 } from "react-icons/fi";
+import {
+  FiX,
+  FiPackage,
+  FiMaximize2,
+  FiMinimize2,
+  FiArrowLeft,
+} from "react-icons/fi";
 
 interface CheckoutPanelProps {
   storeApiFetch: StoreApiFetch;
@@ -27,6 +33,7 @@ interface CheckoutPanelProps {
   isExpanded?: boolean;
   onToggleExpand?: () => void;
   resetCartToken?: () => void;
+  onCloseWidget?: () => void;
 }
 
 const STEPS: { label: string; step: CheckoutStep }[] = [
@@ -154,6 +161,7 @@ export function CheckoutPanel({
   isExpanded,
   onToggleExpand,
   resetCartToken,
+  onCloseWidget,
 }: CheckoutPanelProps) {
   // ── Multi-address state (lifted here so it survives step transitions) ───────
   const [multiAddressEnabled, setMultiAddressEnabled] = useState(false);
@@ -362,6 +370,7 @@ export function CheckoutPanel({
             setSavedShipAddresses={setSavedShipAddresses}
             itemAddressMap={itemAddressMap}
             setItemAddressMap={setItemAddressMap}
+            siteOrigin={siteOrigin}
           />
         );
 
@@ -441,7 +450,18 @@ export function CheckoutPanel({
   return (
     <div className="miraq-checkout-panel">
       <div className="miraq-checkout-header">
-        <div className="miraq-checkout-title">
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <button
+            className="miraq-checkout-close"
+            onClick={() => {
+              if (checkout.step === "complete") checkout.reset();
+              onClose();
+            }}
+            aria-label="Back to chat"
+            title="Back to chat"
+          >
+            <FiArrowLeft size={16} />
+          </button>
           <FiPackage size={16} color="#1c1c1a" />
           <span className="miraq-checkout-title-text">Checkout</span>
         </div>
@@ -461,11 +481,9 @@ export function CheckoutPanel({
           )}
           <button
             className="miraq-checkout-close"
-            onClick={() => {
-              if (checkout.step === "complete") checkout.reset();
-              onClose();
-            }}
-            aria-label="Close checkout"
+            onClick={onCloseWidget}
+            aria-label="Minimize widget"
+            title="Minimize widget"
           >
             <FiX size={16} />
           </button>

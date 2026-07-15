@@ -361,8 +361,10 @@ export interface WidgetOptions {
   nonce?: string;
   nonceExpires?: number; // JS timestamp in ms
   cartToken?: string;
-  storefrontToken?: string; // ← add
-  shopDomain?: string; // ← add
+  storefrontToken?: string;
+  shopDomain?: string;
+  licenseId?: string;
+  wpBaseUrl?: string;
 }
 
 export interface DailyLimitError {

@@ -7,7 +7,11 @@
  *   city | state | postcode | phone | email | project_rep
  */
 import { AddressForm } from "./AddressForm";
-import type { AddressFormProps, FieldOverrides } from "./AddressForm";
+import type {
+  AddressFormProps,
+  FieldOverrides,
+  CustomField,
+} from "./AddressForm";
 import type { AddressDict } from "../../../types/actions";
 import type {
   WpCountry,
@@ -60,13 +64,15 @@ export function BillingAddressForm({
   repOptions,
   orderTypeOptions,
   fieldOverrides,
+  dynamicFields,
   ...rest
-}: BillingAddressFormProps) {
+}: BillingAddressFormProps & {
+  dynamicFields?: (keyof AddressDict | CustomField)[];
+}) {
   // Merge label-only overrides with API-supplied required flags.
   const mergedOverrides: FieldOverrides = {
     ...BILLING_LABEL_OVERRIDES,
     ...fieldOverrides,
-    // FIX ISSUE 2: Force Order Type to be required
     billing_field_type: {
       label: fieldOverrides?.billing_field_type?.label,
       required: true,
@@ -76,11 +82,12 @@ export function BillingAddressForm({
       ...fieldOverrides?.state,
     },
   };
+  const resolvedFields = dynamicFields?.length ? dynamicFields : BILLING_FIELDS;
 
   return (
     <AddressForm
       {...rest}
-      visibleFields={BILLING_FIELDS}
+      visibleFields={resolvedFields}
       fieldOverrides={mergedOverrides}
       submitLabel={submitLabel}
       countries={countries}
