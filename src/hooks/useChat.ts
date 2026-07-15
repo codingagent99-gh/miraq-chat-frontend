@@ -44,6 +44,7 @@ export interface UseChatOptions {
   nonce?: string;
   nonceExpires?: number;
   cartToken?: string;
+  wpBaseUrl?: string;
   onViewCart?: () => void;
   onAddToCart?: (
     productId: number,
@@ -51,6 +52,7 @@ export interface UseChatOptions {
     variationId?: number,
     variationAttributes?: { attribute: string; value: string }[],
   ) => Promise<void>;
+  licenseId?: string;
   /** New actions envelope callback — called when `response.actions` is non-empty.
    *  When this fires, the legacy `trigger_frontend_*` handling is skipped. */
   onActions?: (actions: ChatAction[]) => void;
@@ -102,15 +104,15 @@ export function useChat(options: UseChatOptions = {}) {
   messagesRef.current = messages;
   const justLoadedHistoryRef = useRef(false);
 
-  const apiRef = useRef(createApiClient(options.apiUrl, options.apiKey));
-
+  const apiRef = useRef(
+    createApiClient(options.apiUrl, options.apiKey, options.licenseId),
+  );
   // ── Nonce state for WooCommerce Store API ──
   const nonceRef = useRef<string>(options.nonce ?? "");
   const nonceExpiresRef = useRef<number>(options.nonceExpires ?? 0);
   const cartTokenRef = useRef<string>(options.cartToken ?? "");
   // Site URL = current origin since widget runs ON the WP site
-  const siteOrigin = import.meta.env.VITE_WP_BASE_URL || window.location.origin;
-
+  const siteOrigin = options.wpBaseUrl || window.location.origin;
   const getFreshNonce = useCallback(async (): Promise<string> => {
     // 1-minute buffer before actual expiry
     if (Date.now() < nonceExpiresRef.current - 60_000) {

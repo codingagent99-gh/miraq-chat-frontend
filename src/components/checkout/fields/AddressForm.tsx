@@ -19,7 +19,7 @@ import type {
 } from "../../../hooks/useCheckoutFields";
 
 /** All custom (non-AddressDict) fields supported by this form. */
-type CustomField =
+export type CustomField =
   | "project_rep" // Your Rep — select from /wp-json/custom-api/v1/reps
   | "billing_field_type" // Order Type — select from /wp-json/custom-api/v1/checkout-fields
   | "billing_project" // Project Name — free-text input
