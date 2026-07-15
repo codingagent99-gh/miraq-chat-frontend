@@ -71,7 +71,15 @@ export function CartPanel({
     <div className="miraq-cart-panel">
       {/* ── Header ── */}
       <div className="miraq-cart-header">
-        <div className="miraq-cart-title">
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <button
+            className="miraq-cart-close"
+            onClick={onClose}
+            aria-label="Back to chat"
+            title="Back to chat"
+          >
+            <FiArrowLeft size={16} />
+          </button>
           <FiShoppingCart size={16} color="#1c1c1a" />
           <span className="miraq-cart-title-text">Your Cart</span>
           {cart && cart.items_count > 0 && (
@@ -94,8 +102,9 @@ export function CartPanel({
           )}
           <button
             className="miraq-cart-close"
-            onClick={onCloseWidget ?? onClose}
-            aria-label="Close widget"
+            onClick={onCloseWidget}
+            aria-label="Minimize widget"
+            title="Minimize widget"
           >
             <FiX size={16} />
           </button>

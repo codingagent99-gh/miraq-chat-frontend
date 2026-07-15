@@ -41,7 +41,7 @@ const SHIPPING_FIELDS: (keyof AddressDict)[] = [
 const SHIPPING_LABEL_OVERRIDES: FieldOverrides = {
   state: { label: "County (optional)" },
 };
-
+import type { CustomField } from "./AddressForm";
 // visibleFields is intentionally omitted from the public props —
 // callers never need to touch it.
 type ShippingAddressFormProps = Omit<AddressFormProps, "visibleFields"> & {
@@ -54,12 +54,14 @@ type ShippingAddressFormProps = Omit<AddressFormProps, "visibleFields"> & {
    * shipping_state.
    */
   fieldOverrides?: FieldOverrides;
+  dynamicFields?: (keyof AddressDict | CustomField)[];
 };
 
 export function ShippingAddressForm({
   submitLabel = "Continue to Payment →",
   countries,
   fieldOverrides,
+  dynamicFields,
   ...rest
 }: ShippingAddressFormProps) {
   // Merge label-only overrides with API-supplied required flags.
@@ -76,11 +78,14 @@ export function ShippingAddressForm({
       ...fieldOverrides?.state,
     },
   };
+  const resolvedFields = dynamicFields?.length
+    ? dynamicFields
+    : SHIPPING_FIELDS;
 
   return (
     <AddressForm
       {...rest}
-      visibleFields={SHIPPING_FIELDS}
+      visibleFields={resolvedFields}
       fieldOverrides={mergedOverrides}
       submitLabel={submitLabel}
       countries={countries}
