@@ -324,7 +324,10 @@ export function CheckoutPanel({
   const activeIndex = stepToIndex(checkout.step);
   const symbol = cart?.totals.currency_symbol ?? "₹";
   const minorUnit = cart?.totals.currency_minor_unit ?? 2;
-
+  // Whole order is free (all sample/enquiry items) — don't show a ₹0 total.
+  const orderIsFree = cart
+    ? parseInt(cart.totals.total_price, 10) === 0
+    : false;
   function handleStepClick(targetIndex: number) {
     if (targetIndex >= activeIndex) return;
     if (targetIndex === 2) confirmedPayloadRef.current = null;
@@ -526,48 +529,54 @@ export function CheckoutPanel({
               <span className="miraq-checkout-summary-item">
                 {item.quantity} × {item.name}
               </span>
-              <span>
-                {formatPrice(item.totals.line_total, symbol, minorUnit)}
-              </span>
+              {parseInt(item.totals.line_total, 10) > 0 && (
+                <span>
+                  {formatPrice(item.totals.line_total, symbol, minorUnit)}
+                </span>
+              )}
             </div>
           ))}
 
-          <div
-            className="miraq-checkout-summary-divider"
-            style={{ margin: "8px 0" }}
-          />
+          {!orderIsFree && (
+            <>
+              <div
+                className="miraq-checkout-summary-divider"
+                style={{ margin: "8px 0" }}
+              />
 
-          <div className="miraq-checkout-summary-row">
-            <span>Subtotal</span>
-            <span>
-              {formatPrice(cart.totals.total_items, symbol, minorUnit)}
-            </span>
-          </div>
+              <div className="miraq-checkout-summary-row">
+                <span>Subtotal</span>
+                <span>
+                  {formatPrice(cart.totals.total_items, symbol, minorUnit)}
+                </span>
+              </div>
 
-          {parseInt(cart.totals.total_shipping, 10) > 0 && (
-            <div className="miraq-checkout-summary-row">
-              <span>Shipping</span>
-              <span>
-                {formatPrice(cart.totals.total_shipping, symbol, minorUnit)}
-              </span>
-            </div>
+              {parseInt(cart.totals.total_shipping, 10) > 0 && (
+                <div className="miraq-checkout-summary-row">
+                  <span>Shipping</span>
+                  <span>
+                    {formatPrice(cart.totals.total_shipping, symbol, minorUnit)}
+                  </span>
+                </div>
+              )}
+
+              {parseInt(cart.totals.total_tax, 10) > 0 && (
+                <div className="miraq-checkout-summary-row">
+                  <span>Tax</span>
+                  <span>
+                    {formatPrice(cart.totals.total_tax, symbol, minorUnit)}
+                  </span>
+                </div>
+              )}
+
+              <div className="miraq-checkout-summary-row miraq-checkout-summary-total">
+                <span>Total</span>
+                <span>
+                  {formatPrice(cart.totals.total_price, symbol, minorUnit)}
+                </span>
+              </div>
+            </>
           )}
-
-          {parseInt(cart.totals.total_tax, 10) > 0 && (
-            <div className="miraq-checkout-summary-row">
-              <span>Tax</span>
-              <span>
-                {formatPrice(cart.totals.total_tax, symbol, minorUnit)}
-              </span>
-            </div>
-          )}
-
-          <div className="miraq-checkout-summary-row miraq-checkout-summary-total">
-            <span>Total</span>
-            <span>
-              {formatPrice(cart.totals.total_price, symbol, minorUnit)}
-            </span>
-          </div>
         </div>
       )}
     </div>

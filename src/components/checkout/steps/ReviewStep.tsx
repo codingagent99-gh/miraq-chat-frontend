@@ -196,7 +196,7 @@ function MultiShipmentSummary({
                     {item.product_name}{" "}
                     <span style={{ color: "#999" }}>×{item.quantity}</span>
                   </span>
-                  {total && (
+                  {total && parseInt(total, 10) > 0 && (
                     <span
                       style={{
                         fontSize: "12px",
@@ -467,15 +467,17 @@ export function ReviewStep({
                   Qty: {item.quantity}
                 </p>
               </div>
-              <span
-                style={{
-                  fontSize: "12.5px",
-                  fontWeight: 600,
-                  color: "#1c1c1a",
-                }}
-              >
-                {formatPrice(item.totals.line_total, symbol, minorUnit)}
-              </span>
+              {parseInt(item.totals.line_total, 10) > 0 && (
+                <span
+                  style={{
+                    fontSize: "12.5px",
+                    fontWeight: 600,
+                    color: "#1c1c1a",
+                  }}
+                >
+                  {formatPrice(item.totals.line_total, symbol, minorUnit)}
+                </span>
+              )}
             </div>
           ))}
         </div>

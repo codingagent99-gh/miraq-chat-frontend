@@ -747,10 +747,10 @@ export function AddressStep({
   console.log("[AddressStep] billingFieldOverrides:", billingFieldOverrides);
   console.log("[AddressStep] fieldsLoading:", fieldsLoading);
   const dynamicBillingFields = billingFields.map(
-    (f) => f.key.replace(/^billing_/, "") as keyof AddressDict | CustomField,
+    (f) => f.key as keyof AddressDict | CustomField,
   );
   const dynamicShippingFields = shippingFields.map(
-    (f) => f.key.replace(/^shipping_/, "") as keyof AddressDict | CustomField,
+    (f) => f.key as keyof AddressDict | CustomField,
   );
   const [view, setView] = useState<"billing" | "shipping">("billing");
 

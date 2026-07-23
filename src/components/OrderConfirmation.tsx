@@ -6,7 +6,10 @@ interface OrderConfirmationProps {
   paymentUrl?: string;
 }
 
-export function OrderConfirmation({ order, paymentUrl }: OrderConfirmationProps) {
+export function OrderConfirmation({
+  order,
+  paymentUrl,
+}: OrderConfirmationProps) {
   const [copied, setCopied] = useState(false);
 
   const copyLink = () => {
@@ -51,13 +54,15 @@ export function OrderConfirmation({ order, paymentUrl }: OrderConfirmationProps)
           </div>
         )}
 
-        <div className="xpert-order-detail-row">
-          <span>Total:</span>
-          <span className="xpert-order-total">${order.total.toFixed(2)}</span>
-        </div>
+        {order.total > 0 && (
+          <div className="xpert-order-detail-row">
+            <span>Total:</span>
+            <span className="xpert-order-total">${order.total.toFixed(2)}</span>
+          </div>
+        )}
       </div>
 
-      {paymentUrl && (
+      {paymentUrl && order.total > 0 && (
         <div className="xpert-payment-section">
           <p className="xpert-payment-label">Complete Your Payment:</p>
           <a

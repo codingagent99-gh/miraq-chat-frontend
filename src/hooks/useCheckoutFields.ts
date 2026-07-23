@@ -466,9 +466,43 @@ export function useCheckoutFields(wpBase: string): CheckoutFieldsData {
                 billingFieldOverrides: BILLING_REQUIRED_FALLBACK,
                 shippingFieldOverrides: SHIPPING_REQUIRED_FALLBACK,
               };
-        setBillingFields(metaValue.billingFields);
+
+        // ── billing_field_type recovery ──────────────────────────────────
+        // THWCFE evaluates conditional-display rules when its
+        // woocommerce_checkout_fields hook runs. In the REST context (fresh
+        // session, empty cart) the Order Type field's condition can evaluate
+        // false, so it's stripped from /checkout-fields even though the real
+        // checkout page renders it. /order-types reads thwcfe_sections
+        // directly and bypasses that, so a non-empty options list is proof
+        // the site uses the field — inject it if the parsed list lacks it.
+        const orderTypes = ot.status === "fulfilled" ? ot.value : [];
+        let billingFields = metaValue.billingFields;
+        let billingFieldOverrides = metaValue.billingFieldOverrides;
+        if (
+          orderTypes.length > 0 &&
+          !billingFields.some((f) => f.key === "billing_field_type")
+        ) {
+          billingFields = [
+            ...billingFields,
+            {
+              key: "billing_field_type",
+              wcKey: "billing_field_type",
+              label: "Order Type",
+              required: true,
+              type: "select",
+              priority: 91, // matches THWCFE's data-priority on the live form
+              kind: "orderType" as const,
+            },
+          ].sort((a, b) => a.priority - b.priority);
+          billingFieldOverrides = {
+            ...billingFieldOverrides,
+            billing_field_type: { required: true },
+          };
+        }
+
+        setBillingFields(billingFields);
         setShippingFields(metaValue.shippingFields);
-        setBillingFieldOverrides(metaValue.billingFieldOverrides);
+        setBillingFieldOverrides(billingFieldOverrides);
         setShippingFieldOverrides(metaValue.shippingFieldOverrides);
         if (r.status === "rejected")
           console.warn(

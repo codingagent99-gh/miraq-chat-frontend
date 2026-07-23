@@ -217,11 +217,14 @@ export async function fetchWpCountries(wpBase: string): Promise<WpCountry[]> {
   if (!res.ok) throw new Error(`Countries fetch failed: ${res.status}`);
   return res.json();
 }
-
 export async function fetchWpReps(wpBase: string): Promise<WpRep[]> {
+  const nonce = getWpRestNonce();
+  if (!nonce) return [];
   const res = await fetch(`${wpBase}/wp-json/custom-api/v1/reps`, {
     credentials: "include",
+    headers: { "X-WP-Nonce": nonce },
   });
+
   if (!res.ok) throw new Error(`Reps fetch failed: ${res.status}`);
   return res.json();
 }

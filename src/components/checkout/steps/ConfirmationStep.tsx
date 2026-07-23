@@ -68,7 +68,7 @@ export function ConfirmationStep({
         <p style={{ margin: "0 0 4px 0", fontWeight: 600, color: "#1c1c1a" }}>
           Order #{order.order_id}
         </p>
-        {order.total && (
+        {Number(order.total) > 0 && (
           <p style={{ margin: "0 0 4px 0" }}>Total: {order.total}</p>
         )}
       </div>
