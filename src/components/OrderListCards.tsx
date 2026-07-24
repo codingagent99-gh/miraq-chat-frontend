@@ -42,6 +42,10 @@ export function OrderListCards({ orders, onOrderClick }: OrderListCardsProps) {
           STATUS_COLOR[order.status?.toLowerCase()] ?? "#94a3b8";
         const statusBg = statusColor + "18";
         const itemCount = order.item_count ?? order.items?.length ?? 0;
+        const totalNum =
+          typeof order.total === "number"
+            ? order.total
+            : parseFloat(order.total);
         const totalStr =
           typeof order.total === "number"
             ? order.total.toFixed(2)
@@ -98,10 +102,12 @@ export function OrderListCards({ orders, onOrderClick }: OrderListCardsProps) {
               <span>
                 {itemCount} item{itemCount !== 1 ? "s" : ""}
               </span>
-              <span className="xpert-order-card-total">
-                {decodeCurrency(order.currency)}
-                {totalStr}
-              </span>
+              {totalNum > 0 && (
+                <span className="xpert-order-card-total">
+                  {decodeCurrency(order.currency)}
+                  {totalStr}
+                </span>
+              )}
             </div>
           </button>
         );
