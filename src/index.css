@@ -2785,3 +2785,35 @@ select.bo-address__input {
   font-size: 11px;
   color: #94a3b8;
 }
+
+#silfra-chat-widget-container .xpert-order-card-item {
+  margin-bottom: 8px;
+}
+
+#silfra-chat-widget-container .xpert-order-card-item:last-child {
+  margin-bottom: 0;
+}
+
+#silfra-chat-widget-container .xpert-order-card-item-variation {
+  font-size: 11px;
+  color: #999;
+  margin: 2px 0 0 0;
+  text-transform: capitalize;
+  letter-spacing: 0.02em;
+}
+
+#silfra-chat-widget-container .xpert-order-detail-item {
+  margin-bottom: 8px;
+}
+
+#silfra-chat-widget-container .xpert-order-detail-item:last-child {
+  margin-bottom: 0;
+}
+
+#silfra-chat-widget-container .xpert-order-detail-variation {
+  font-size: 11px;
+  color: #999;
+  margin: 2px 0 0 0;
+  text-transform: capitalize;
+  letter-spacing: 0.02em;
+}

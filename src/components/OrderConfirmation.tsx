@@ -35,9 +35,17 @@ export function OrderConfirmation({
       <div className="xpert-order-details">
         {order.items && order.items.length > 0 ? (
           order.items.map((item, idx) => (
-            <div key={idx} className="xpert-order-detail-row">
-              <span>{item.name}</span>
-              <span>× {item.quantity}</span>
+            <div key={idx} className="xpert-order-detail-item">
+              <div className="xpert-order-detail-row">
+                <span>{item.name}</span>
+                <span>× {item.quantity}</span>
+              </div>
+              {item.variation_attributes &&
+                item.variation_attributes.length > 0 && (
+                  <div className="xpert-order-detail-variation">
+                    {item.variation_attributes.map((v) => v.value).join(" · ")}
+                  </div>
+                )}
             </div>
           ))
         ) : (

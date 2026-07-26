@@ -32,38 +32,44 @@ export function CartDisplay({ cart }: CartDisplayProps) {
             )}
             <div className="xpert-cart-item-info">
               <p className="xpert-cart-item-name">{item.name}</p>
-              <p className="xpert-cart-item-meta">
-                ${item.price} x {item.quantity}
-              </p>
+              {item.price > 0 && (
+                <p className="xpert-cart-item-meta">
+                  ${item.price} x {item.quantity}
+                </p>
+              )}
             </div>
-            <p className="xpert-cart-item-total">
-              ${(item.price * item.quantity).toFixed(2)}
-            </p>
+            {item.price > 0 && (
+              <p className="xpert-cart-item-total">
+                ${(item.price * item.quantity).toFixed(2)}
+              </p>
+            )}
           </div>
         ))}
       </div>
-      <div className="xpert-cart-totals">
-        <div className="xpert-cart-total-row">
-          <span>Subtotal:</span>
-          <span>${cart.totals.subtotal.toFixed(2)}</span>
-        </div>
-        {cart.totals.shipping > 0 && (
+      {cart.totals.total > 0 && (
+        <div className="xpert-cart-totals">
           <div className="xpert-cart-total-row">
-            <span>Shipping:</span>
-            <span>${cart.totals.shipping.toFixed(2)}</span>
+            <span>Subtotal:</span>
+            <span>${cart.totals.subtotal.toFixed(2)}</span>
           </div>
-        )}
-        {cart.totals.tax > 0 && (
-          <div className="xpert-cart-total-row">
-            <span>Tax:</span>
-            <span>${cart.totals.tax.toFixed(2)}</span>
+          {cart.totals.shipping > 0 && (
+            <div className="xpert-cart-total-row">
+              <span>Shipping:</span>
+              <span>${cart.totals.shipping.toFixed(2)}</span>
+            </div>
+          )}
+          {cart.totals.tax > 0 && (
+            <div className="xpert-cart-total-row">
+              <span>Tax:</span>
+              <span>${cart.totals.tax.toFixed(2)}</span>
+            </div>
+          )}
+          <div className="xpert-cart-total-row xpert-cart-total-final">
+            <span>Total:</span>
+            <span>${cart.totals.total.toFixed(2)}</span>
           </div>
-        )}
-        <div className="xpert-cart-total-row xpert-cart-total-final">
-          <span>Total:</span>
-          <span>${cart.totals.total.toFixed(2)}</span>
         </div>
-      </div>
+      )}
     </div>
   );
 }

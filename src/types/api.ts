@@ -26,6 +26,7 @@ export interface OrderItem {
   total?: number;
   sku?: string;
   image?: string;
+  variation_attributes?: { attribute: string; value: string }[];
 }
 
 export interface Order {
