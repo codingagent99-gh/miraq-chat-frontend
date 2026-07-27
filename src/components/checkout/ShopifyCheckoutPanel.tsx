@@ -1,21 +1,19 @@
 /**
  * components/checkout/ShopifyCheckoutPanel.tsx
  *
- * Four-step in-widget checkout panel for the Shopify platform.
+ * Shopify checkout panel — REVIEW AND REDIRECT.
  *
- * Step 1 — "Shipping":  contact info + delivery address. When a
- *                        customerAccessToken is supplied, saved Shopify
- *                        addresses are offered as selectable cards; the
- *                        default is pre-filled automatically.
- * Step 2 — "Delivery":  delivery options fetched from the Storefront API;
- *                        selection locked via cartSelectedDeliveryOptionsUpdate.
- * Step 3 — "Payment":   billing address — either same as shipping or a
- *                        separate address whose fields are appended to the
- *                        Shopify checkout URL as pre-fill params.
- * Step 4 — "Review":    full order summary, then cartBuyerIdentityUpdate →
- *                        open checkoutUrl in a new tab.
+ * Step 1 — "Shipping": contact info + delivery address, validated here. When
+ *                      the customer is logged in, saved Shopify addresses are
+ *                      offered as selectable cards (fetched via the backend
+ *                      /customer-addresses route) and the default is applied.
+ * Step 2 — "Review":   cart summary + the address we collected, then hand off
+ *                      to Shopify's hosted checkout.
  *
- * Payment is handled on Shopify's hosted checkout.
+ * Delivery rates, taxes, billing address and payment are all owned by
+ * Shopify's checkout. The cart total shown here is therefore a SUBTOTAL, and
+ * the review step says so — see the "Next: delivery & payment" note.
+ *
  * Shares CheckoutPanel.css with the WooCommerce panel unchanged.
  */
 
@@ -34,10 +32,8 @@ import type { PlatformCart } from "../../platform/types";
 import { useCheckout } from "../../platform/shopify/useCheckout";
 import type {
   ContactAddress,
-  DeliveryGroup,
   DeliveryOption,
   SavedAddress,
-  BillingOption,
 } from "../../platform/shopify/useCheckout";
 import "./CheckoutPanel.css";
 
@@ -74,10 +70,19 @@ interface ShopifyCheckoutPanelProps {
 
 // ─── Step config ──────────────────────────────────────────────────────────────
 
+// Review-and-redirect: the widget collects and validates the shipping details,
+// then hands off to Shopify's hosted checkout, which owns delivery rates,
+// taxes, billing and payment.
+//
+// The former "Delivery" step could not work — rates require a Storefront cart
+// and the widget deliberately shares the theme's Ajax session cart instead.
+// The former "Payment" step collected a billing address that Shopify asks for
+// again at payment time; billing is a payment-time concern, so it is no longer
+// requested here. (To restore it, re-add the entry below, point the shipping
+// step's onContinue at "collecting_billing", and restore the BillingStep
+// component — the hook still holds billingOption/billingAddress state.)
 const STEPS = [
   { label: "Shipping", key: "collecting_shipping" },
-  { label: "Delivery", key: "selecting_shipping" },
-  { label: "Payment", key: "collecting_billing" },
   { label: "Review", key: "review" },
 ] as const;
 
@@ -86,11 +91,13 @@ type VisibleStepKey = (typeof STEPS)[number]["key"];
 function stepToIndex(key: string): number {
   const map: Record<string, number> = {
     collecting_shipping: 0,
-    selecting_shipping: 1,
-    collecting_billing: 2,
-    review: 3,
-    redirecting: 3,
-    error: 3,
+    // Retired steps map back to Shipping so a stale persisted step value can
+    // never index past the end of STEPS.
+    selecting_shipping: 0,
+    collecting_billing: 0,
+    review: 1,
+    redirecting: 1,
+    error: 1,
   };
   return map[key] ?? 0;
 }
@@ -745,509 +752,14 @@ function ShippingAddressStep({
   );
 }
 
-// ─── ShippingStep ─────────────────────────────────────────────────────────────
-
-interface ShippingStepProps {
-  deliveryGroups: DeliveryGroup[];
-  isLoading: boolean;
-  error: string | null;
-  currencySymbol: string;
-  onFetch: () => Promise<void>;
-  onSelect: (groupId: string, handle: string) => Promise<void>;
-  onContinue: () => void;
-  onBack: () => void;
-}
-
-function ShippingStep({
-  deliveryGroups,
-  isLoading,
-  error,
-  currencySymbol,
-  onFetch,
-  onSelect,
-  onContinue,
-  onBack,
-}: ShippingStepProps) {
-  // Fetch on mount — buyer identity was already set in the hook before we query.
-  useEffect(() => {
-    onFetch();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Auto-select the only option when a group has exactly one choice.
-  useEffect(() => {
-    if (isLoading) return;
-    for (const group of deliveryGroups) {
-      if (group.options.length === 1 && group.selectedHandle === null) {
-        onSelect(group.id, group.options[0].handle);
-      }
-    }
-  }, [deliveryGroups, isLoading, onSelect]);
-
-  const hasGroups = deliveryGroups.length > 0;
-  const allGroupsSelected = deliveryGroups.every(
-    (g) => g.options.length === 0 || g.selectedHandle !== null,
-  );
-  const canContinue = !isLoading && (!hasGroups || allGroupsSelected);
-
-  // Loading skeleton — only shown while fetching and no groups have loaded yet.
-  if (isLoading && !hasGroups) {
-    return (
-      <div style={{ padding: "40px 20px", textAlign: "center" }}>
-        <p style={{ fontSize: "13px", color: "#888" }}>
-          Loading shipping options…
-        </p>
-      </div>
-    );
-  }
-
-  return (
-    <div style={{ padding: "16px" }}>
-      <h3 style={heading}>Choose shipping</h3>
-
-      {/* Fallback when no options are available */}
-      {!hasGroups && (
-        <p
-          style={{
-            fontSize: "13px",
-            color: "#888",
-            lineHeight: 1.6,
-            marginBottom: "20px",
-          }}
-        >
-          {error
-            ? "Couldn't load shipping options — you'll be able to choose on Shopify's checkout page."
-            : "No shipping options available. You can select one at checkout."}
-        </p>
-      )}
-
-      {/* Rate cards */}
-      {deliveryGroups.map((group) => (
-        <div key={group.id} style={{ marginBottom: "8px" }}>
-          {group.options.map((opt) => {
-            const isSelected = group.selectedHandle === opt.handle;
-            return (
-              <button
-                key={opt.handle}
-                type="button"
-                onClick={() => onSelect(group.id, opt.handle)}
-                style={{
-                  width: "100%",
-                  padding: "12px 14px",
-                  border: `1.5px solid ${isSelected ? "#1c1c1a" : "#e8e6e0"}`,
-                  borderRadius: "11px",
-                  marginBottom: "8px",
-                  cursor: "pointer",
-                  background: isSelected ? "#f5f4f1" : "#fff",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  gap: "10px",
-                  fontFamily: "inherit",
-                  textAlign: "left",
-                  transition: "border-color 0.15s, background 0.15s",
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "10px",
-                  }}
-                >
-                  {/* Radio indicator */}
-                  <div
-                    style={{
-                      width: "16px",
-                      height: "16px",
-                      borderRadius: "50%",
-                      border: `2px solid ${isSelected ? "#1c1c1a" : "#ccc"}`,
-                      background: isSelected ? "#1c1c1a" : "transparent",
-                      flexShrink: 0,
-                      transition: "border-color 0.15s, background 0.15s",
-                    }}
-                  />
-                  <div>
-                    <p
-                      style={{
-                        fontSize: "13px",
-                        fontWeight: 600,
-                        color: "#1c1c1a",
-                        margin: 0,
-                      }}
-                    >
-                      {opt.title}
-                    </p>
-                    {opt.description && (
-                      <p
-                        style={{
-                          fontSize: "11px",
-                          color: "#888",
-                          margin: "2px 0 0",
-                        }}
-                      >
-                        {opt.description}
-                      </p>
-                    )}
-                  </div>
-                </div>
-                <span
-                  style={{
-                    fontSize: "13px",
-                    fontWeight: 600,
-                    color: "#1c1c1a",
-                    flexShrink: 0,
-                  }}
-                >
-                  {formatShippingPrice(opt.amount, currencySymbol)}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      ))}
-
-      <div style={{ display: "flex", gap: "10px", marginTop: "4px" }}>
-        <button type="button" onClick={onBack} style={backBtnStyle}>
-          ← Back
-        </button>
-        <button
-          type="button"
-          onClick={onContinue}
-          disabled={!canContinue}
-          style={{ ...continueBtnStyle(!canContinue), flex: 1 }}
-        >
-          Continue to Payment →
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// ─── BillingStep ──────────────────────────────────────────────────────────────
-
-interface BillingStepProps {
-  shippingAddress: ContactAddress;
-  billingOption: BillingOption;
-  billingAddress: ContactAddress;
-  onBillingOptionChange: (opt: BillingOption) => void;
-  onBillingAddressChange: React.Dispatch<React.SetStateAction<ContactAddress>>;
-  isLoading: boolean;
-  onBack: () => void;
-  onContinue: () => void;
-}
-
-function BillingStep({
-  shippingAddress,
-  billingOption,
-  billingAddress,
-  onBillingOptionChange,
-  onBillingAddressChange,
-  isLoading,
-  onBack,
-  onContinue,
-}: BillingStepProps) {
-  const [touched, setTouched] = useState<
-    Partial<Record<keyof ContactAddress, true>>
-  >({});
-  const [submitted, setSubmitted] = useState(false);
-
-  // Name fields are required for a separate billing address — Shopify's checkout
-  // billing form won't know the name if we don't send it via URL pre-fill params.
-  const billingErrors: Partial<ValidationErrors> =
-    billingOption === "different"
-      ? {
-          ...(!billingAddress.firstName.trim() && {
-            firstName: "First name is required",
-          }),
-          ...(!billingAddress.lastName.trim() && {
-            lastName: "Last name is required",
-          }),
-          ...validateAddress(billingAddress),
-        }
-      : {};
-
-  function fieldB(key: keyof ContactAddress) {
-    return (e: React.ChangeEvent<HTMLInputElement>) =>
-      onBillingAddressChange((prev) => ({ ...prev, [key]: e.target.value }));
-  }
-
-  function touch(key: keyof ContactAddress) {
-    return () => setTouched((prev) => ({ ...prev, [key]: true }));
-  }
-
-  function shouldShowError(key: keyof ValidationErrors): boolean {
-    return submitted || !!touched[key];
-  }
-
-  const inputStyle = (key: keyof ValidationErrors): CSSProperties =>
-    shouldShowError(key) && billingErrors[key] ? fieldError : fieldStyle;
-
-  function handleContinue() {
-    setSubmitted(true);
-    if (Object.keys(billingErrors).length > 0) return;
-    onContinue();
-  }
-
-  const shippingSummary = buildSavedAddressLabel(shippingAddress);
-
-  const optionCards: {
-    value: BillingOption;
-    label: string;
-    description: string;
-  }[] = [
-    {
-      value: "same_as_shipping",
-      label: "Same as shipping address",
-      description: shippingSummary || "Your shipping address",
-    },
-    {
-      value: "different",
-      label: "Use a different billing address",
-      description: "Enter a separate billing address",
-    },
-  ];
-
-  return (
-    <div style={{ padding: "16px" }}>
-      <h3 style={heading}>Billing address</h3>
-
-      {/* Option cards */}
-      {optionCards.map((opt) => {
-        const isSelected = billingOption === opt.value;
-        return (
-          <label
-            key={opt.value}
-            style={{
-              display: "flex",
-              alignItems: "flex-start",
-              gap: "10px",
-              padding: "10px 12px",
-              border: `1.5px solid ${isSelected ? "#1c1c1a" : "#e8e6e0"}`,
-              borderRadius: "11px",
-              background: isSelected ? "#f5f4f1" : "#fff",
-              cursor: "pointer",
-              marginBottom: "8px",
-              transition: "border-color 0.15s, background 0.15s",
-            }}
-          >
-            <input
-              type="radio"
-              name="billing_option"
-              checked={isSelected}
-              onChange={() => onBillingOptionChange(opt.value)}
-              style={{
-                marginTop: "3px",
-                accentColor: "#1c1c1a",
-                flexShrink: 0,
-              }}
-            />
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <span
-                style={{
-                  fontSize: "13px",
-                  fontWeight: 600,
-                  color: "#1c1c1a",
-                  display: "block",
-                }}
-              >
-                {opt.label}
-              </span>
-              <span
-                style={{
-                  fontSize: "11px",
-                  color: "#888",
-                  display: "block",
-                  marginTop: "2px",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {opt.description}
-              </span>
-            </div>
-          </label>
-        );
-      })}
-
-      {/* Inline billing address form */}
-      {billingOption === "different" && (
-        <div style={{ marginTop: "14px" }}>
-          {/* Name — required so Shopify's checkout billing form is fully pre-filled */}
-          <div style={{ ...halfGrid, marginBottom: "12px" }}>
-            <div>
-              <label style={labelStyle}>First name *</label>
-              <input
-                type="text"
-                value={billingAddress.firstName}
-                onChange={fieldB("firstName")}
-                onBlur={touch("firstName")}
-                placeholder="First name"
-                style={inputStyle("firstName")}
-                autoComplete="billing given-name"
-              />
-              {shouldShowError("firstName") && billingErrors.firstName && (
-                <p style={inlineErrorStyle}>{billingErrors.firstName}</p>
-              )}
-            </div>
-            <div>
-              <label style={labelStyle}>Last name *</label>
-              <input
-                type="text"
-                value={billingAddress.lastName}
-                onChange={fieldB("lastName")}
-                onBlur={touch("lastName")}
-                placeholder="Last name"
-                style={inputStyle("lastName")}
-                autoComplete="billing family-name"
-              />
-              {shouldShowError("lastName") && billingErrors.lastName && (
-                <p style={inlineErrorStyle}>{billingErrors.lastName}</p>
-              )}
-            </div>
-          </div>
-
-          <div style={fieldGroup}>
-            <label style={labelStyle}>Phone</label>
-            <input
-              type="tel"
-              value={billingAddress.phone}
-              onChange={fieldB("phone")}
-              placeholder="+91 99999 99999"
-              style={fieldStyle}
-              autoComplete="billing tel"
-            />
-          </div>
-
-          <div style={fieldGroup}>
-            <label style={labelStyle}>Company</label>
-            <input
-              type="text"
-              value={billingAddress.company}
-              onChange={fieldB("company")}
-              placeholder="Company (optional)"
-              style={fieldStyle}
-              autoComplete="billing organization"
-            />
-          </div>
-
-          <div style={fieldGroup}>
-            <label style={labelStyle}>Address line 1 *</label>
-            <input
-              type="text"
-              value={billingAddress.address1}
-              onChange={fieldB("address1")}
-              onBlur={touch("address1")}
-              placeholder="Street address, house number"
-              style={inputStyle("address1")}
-              autoComplete="billing address-line1"
-            />
-            {shouldShowError("address1") && billingErrors.address1 && (
-              <p style={inlineErrorStyle}>{billingErrors.address1}</p>
-            )}
-          </div>
-
-          <div style={fieldGroup}>
-            <label style={labelStyle}>Address line 2</label>
-            <input
-              type="text"
-              value={billingAddress.address2}
-              onChange={fieldB("address2")}
-              placeholder="Apartment, floor, suite (optional)"
-              style={fieldStyle}
-              autoComplete="billing address-line2"
-            />
-          </div>
-
-          <div style={{ ...halfGrid, marginBottom: "12px" }}>
-            <div>
-              <label style={labelStyle}>City *</label>
-              <input
-                type="text"
-                value={billingAddress.city}
-                onChange={fieldB("city")}
-                onBlur={touch("city")}
-                placeholder="City"
-                style={inputStyle("city")}
-                autoComplete="billing address-level2"
-              />
-              {shouldShowError("city") && billingErrors.city && (
-                <p style={inlineErrorStyle}>{billingErrors.city}</p>
-              )}
-            </div>
-            <div>
-              <label style={labelStyle}>State / Province *</label>
-              <input
-                type="text"
-                value={billingAddress.province}
-                onChange={fieldB("province")}
-                onBlur={touch("province")}
-                placeholder="e.g. Maharashtra"
-                style={inputStyle("province")}
-                autoComplete="billing address-level1"
-              />
-              {shouldShowError("province") && billingErrors.province && (
-                <p style={inlineErrorStyle}>{billingErrors.province}</p>
-              )}
-            </div>
-          </div>
-
-          <div style={{ ...halfGrid, marginBottom: "12px" }}>
-            <div>
-              <label style={labelStyle}>ZIP / Postal code *</label>
-              <input
-                type="text"
-                value={billingAddress.zip}
-                onChange={fieldB("zip")}
-                onBlur={touch("zip")}
-                placeholder="400001"
-                style={inputStyle("zip")}
-                autoComplete="billing postal-code"
-              />
-              {shouldShowError("zip") && billingErrors.zip && (
-                <p style={inlineErrorStyle}>{billingErrors.zip}</p>
-              )}
-            </div>
-            <div>
-              <label style={labelStyle}>Country code *</label>
-              <input
-                type="text"
-                value={billingAddress.country}
-                onChange={fieldB("country")}
-                onBlur={touch("country")}
-                placeholder="IN"
-                maxLength={2}
-                style={{
-                  ...inputStyle("country"),
-                  textTransform: "uppercase",
-                }}
-                autoComplete="billing country"
-              />
-              {shouldShowError("country") && billingErrors.country && (
-                <p style={inlineErrorStyle}>{billingErrors.country}</p>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      <div style={{ display: "flex", gap: "10px", marginTop: "4px" }}>
-        <button type="button" onClick={onBack} style={backBtnStyle}>
-          ← Back
-        </button>
-        <button
-          type="button"
-          onClick={handleContinue}
-          disabled={isLoading}
-          style={{ ...continueBtnStyle(isLoading), flex: 1 }}
-        >
-          Continue to Review →
-        </button>
-      </div>
-    </div>
-  );
-}
+// ─── Retired steps ────────────────────────────────────────────────────────────
+// The delivery-rate step (ShippingStep) and the billing-address step
+// (BillingStep) were removed with the review-and-redirect flow:
+//   • Delivery rates require a Storefront cart; the widget shares the theme's
+//     Ajax session cart, so the step could only ever render empty.
+//   • Billing is collected by Shopify at payment time; asking for it here made
+//     the shopper enter it twice.
+// Both live in git history if a future Storefront-backed flow needs them.
 
 // ─── ReviewStep ───────────────────────────────────────────────────────────────
 
@@ -1258,11 +770,8 @@ interface ReviewStepProps {
   error: string | null;
   selectedDeliveryOption: DeliveryOption | null;
   currencySymbol: string;
-  billingOption: BillingOption;
-  billingAddress: ContactAddress;
   onEdit: () => void;
   onEditShipping: () => void;
-  onEditBilling: () => void;
   onConfirm: () => void;
 }
 
@@ -1273,11 +782,8 @@ function ReviewStep({
   error,
   selectedDeliveryOption,
   currencySymbol,
-  billingOption,
-  billingAddress,
   onEdit,
   onEditShipping,
-  onEditBilling,
   onConfirm,
 }: ReviewStepProps) {
   const summary = formatAddressSummary(address);
@@ -1373,38 +879,25 @@ function ReviewStep({
         </>
       )}
 
-      {/* ── Billing address pill ── */}
-      <p style={subHeading as CSSProperties}>Billing address</p>
+      {/* ── What happens next ── */}
+      {/* Billing address, delivery rates and taxes are collected and
+          calculated on Shopify's checkout — we must not imply otherwise, and
+          the cart total above is a subtotal. */}
+      <p style={subHeading as CSSProperties}>Next: delivery &amp; payment</p>
       <div style={pillBox}>
         <div style={{ flex: 1, minWidth: 0 }}>
-          {billingOption === "same_as_shipping" ? (
-            <p style={{ fontSize: "13px", color: "#1c1c1a", margin: 0 }}>
-              Same as shipping address
-            </p>
-          ) : (
-            <p
-              style={{
-                fontSize: "13px",
-                color: "#1c1c1a",
-                margin: 0,
-                whiteSpace: "pre-line",
-                lineHeight: 1.6,
-              }}
-            >
-              {formatAddressSummary(billingAddress)}
-            </p>
-          )}
-        </div>
-        {billingOption === "different" && (
-          <button
-            type="button"
-            title="Edit billing address"
-            onClick={onEditBilling}
-            style={editBtnStyle}
+          <p
+            style={{
+              fontSize: "13px",
+              color: "#1c1c1a",
+              margin: 0,
+              lineHeight: 1.6,
+            }}
           >
-            <FiEdit2 size={13} />
-          </button>
-        )}
+            Delivery options, taxes and billing details are confirmed on the
+            next page. Your total may change once shipping is calculated.
+          </p>
+        </div>
       </div>
 
       {/* ── Error banner ── */}
@@ -1573,43 +1066,13 @@ export function ShopifyCheckoutPanel({
             savedAddresses={checkout.savedAddresses}
             savedAddressesLoading={checkout.savedAddressesLoading}
             isLoading={checkout.isLoading}
-            onContinue={() => checkout.setStep("selecting_shipping")}
+            onContinue={() => checkout.setStep("review")}
           />
         );
 
-      case "selecting_shipping":
-        return (
-          <ShippingStep
-            deliveryGroups={checkout.deliveryGroups}
-            isLoading={checkout.isLoading}
-            error={checkout.error}
-            currencySymbol={symbol}
-            onFetch={checkout.fetchDeliveryOptions}
-            onSelect={checkout.selectDeliveryOption}
-            onContinue={() => {
-              checkout.clearError();
-              checkout.setStep("collecting_billing");
-            }}
-            onBack={() => checkout.setStep("collecting_shipping")}
-          />
-        );
-
-      case "collecting_billing":
-        return (
-          <BillingStep
-            shippingAddress={checkout.address}
-            billingOption={checkout.billingOption}
-            billingAddress={checkout.billingAddress}
-            onBillingOptionChange={checkout.setBillingOption}
-            onBillingAddressChange={checkout.setBillingAddress}
-            isLoading={checkout.isLoading}
-            onBack={() => checkout.setStep("selecting_shipping")}
-            onContinue={() => {
-              checkout.clearError();
-              checkout.setStep("review");
-            }}
-          />
-        );
+      // "selecting_shipping" (delivery rates) and "collecting_billing" are
+      // retired — Shopify's checkout owns both. stepToIndex maps them back to
+      // Shipping, and nothing sets them, so they cannot be reached.
 
       case "review":
       case "error":
@@ -1621,11 +1084,10 @@ export function ShopifyCheckoutPanel({
             error={checkout.step === "error" ? checkout.error : null}
             selectedDeliveryOption={checkout.selectedDeliveryOption}
             currencySymbol={symbol}
-            billingOption={checkout.billingOption}
-            billingAddress={checkout.billingAddress}
             onEdit={() => checkout.setStep("collecting_shipping")}
-            onEditShipping={() => checkout.setStep("selecting_shipping")}
-            onEditBilling={() => checkout.setStep("collecting_billing")}
+            // Delivery and billing are chosen on Shopify's checkout, so both
+            // "edit" affordances point back to the one step we own.
+            onEditShipping={() => checkout.setStep("collecting_shipping")}
             onConfirm={() => checkout.prefillAndRedirect(checkoutUrl)}
           />
         );

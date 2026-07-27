@@ -1,20 +1,27 @@
 /**
  * platform/shopify/useCheckout.ts
  *
- * Manages the Shopify in-widget checkout flow:
- *   1. Collects contact + delivery address (pre-filled from customer props /
- *      saved Shopify addresses when a customerAccessToken is supplied).
- *   2. Calls cartBuyerIdentityUpdate so Shopify can compute shipping rates.
- *   3. Fetches delivery groups and lets the customer pick a shipping method.
- *   4. Locks the chosen rate via cartSelectedDeliveryOptionsUpdate.
- *   5. Optionally collects a separate billing address.
- *   6. Opens cart.checkoutUrl in a new tab — payment on Shopify.
+ * Shopify in-widget checkout: REVIEW AND REDIRECT.
  *
- * storefrontFetch is imported from ./storefrontFetch (shared with useCart).
+ *   1. Collect + validate contact and delivery address (pre-filled from the
+ *      customer props, or from saved Shopify addresses fetched through the
+ *      backend /customer-addresses route for logged-in customers).
+ *   2. Review the cart.
+ *   3. Redirect to Shopify's hosted checkout, which owns delivery-rate
+ *      selection, taxes and payment.
+ *
+ * Why not compute rates here?
+ * The widget shares the THEME's session cart via the Ajax Cart API
+ * (see platform/shopify/useCart.ts) precisely so the widget cart and the
+ * theme cart can never diverge. Storefront cart mutations
+ * (cartBuyerIdentityUpdate / cartDeliveryGroups) operate on a *different*,
+ * isolated cart, so they cannot be used here — the previous implementation
+ * called them against a cart id that no longer exists and silently produced
+ * an empty delivery step. Shopify's checkout computes rates authoritatively,
+ * so we hand off instead of half-reimplementing it.
  */
 
 import { useState, useCallback, useMemo, useRef, useEffect } from "react";
-import { storefrontFetch, getStoredCartId } from "./storefrontFetch";
 
 // ─── Public types ─────────────────────────────────────────────────────────────
 
@@ -146,101 +153,9 @@ export interface UseCheckoutReturn {
   reset: () => void;
 }
 
-// ─── GraphQL ──────────────────────────────────────────────────────────────────
-
-const BUYER_IDENTITY_UPDATE = /* GraphQL */ `
-  mutation cartBuyerIdentityUpdate(
-    $cartId: ID!
-    $buyerIdentity: CartBuyerIdentityInput!
-  ) {
-    cartBuyerIdentityUpdate(cartId: $cartId, buyerIdentity: $buyerIdentity) {
-      cart {
-        id
-        checkoutUrl
-      }
-      userErrors {
-        field
-        message
-      }
-    }
-  }
-`;
-
-const CART_DELIVERY_GROUPS = /* GraphQL */ `
-  query cartDeliveryGroups($cartId: ID!) {
-    cart(id: $cartId) {
-      deliveryGroups(first: 5) {
-        edges {
-          node {
-            id
-            deliveryOptions {
-              handle
-              title
-              estimatedCost {
-                totalAmount {
-                  amount
-                  currencyCode
-                }
-              }
-              description
-            }
-            selectedDeliveryOption {
-              handle
-            }
-          }
-        }
-      }
-    }
-  }
-`;
-
-const SELECTED_DELIVERY_OPTIONS_UPDATE = /* GraphQL */ `
-  mutation cartSelectedDeliveryOptionsUpdate(
-    $cartId: ID!
-    $selectedDeliveryOptions: [CartSelectedDeliveryOptionInput!]!
-  ) {
-    cartSelectedDeliveryOptionsUpdate(
-      cartId: $cartId
-      selectedDeliveryOptions: $selectedDeliveryOptions
-    ) {
-      cart {
-        id
-        checkoutUrl
-      }
-      userErrors {
-        field
-        message
-      }
-    }
-  }
-`;
-
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 /** Builds CartBuyerIdentityInput from a ContactAddress. Omits empty optional fields. */
-function buildBuyerIdentity(address: ContactAddress) {
-  return {
-    ...(address.email && { email: address.email }),
-    ...(address.phone && { phone: address.phone }),
-    deliveryAddressPreferences: [
-      {
-        deliveryAddress: {
-          firstName: address.firstName,
-          lastName: address.lastName,
-          ...(address.company && { company: address.company }),
-          address1: address.address1,
-          ...(address.address2 && { address2: address.address2 }),
-          city: address.city,
-          province: address.province,
-          zip: address.zip,
-          country: address.country,
-          ...(address.phone && { phone: address.phone }),
-        },
-      },
-    ],
-  };
-}
-
 /** Builds a single-line display label for a saved address. Pure, no side effects. */
 function buildSavedAddressLabel(a: ContactAddress): string {
   return [
@@ -335,9 +250,17 @@ function buildCheckoutPrefillParams(
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
+/**
+ * @param _shopDomain      Accepted for API compatibility — unused since the
+ *                         Storefront cart path was removed. Same convention as
+ *                         useCart, so no call-site changes are needed.
+ * @param _storefrontToken Likewise unused. Nothing in the Shopify widget calls
+ *                         the Storefront API any more, so the install no longer
+ *                         needs a Storefront access token.
+ */
 export function useCheckout(
-  shopDomain: string,
-  storefrontToken: string,
+  _shopDomain: string,
+  _storefrontToken: string,
   initialValues?: CheckoutInitialValues,
 ): UseCheckoutReturn {
   const [step, setStep] = useState<CheckoutStep>("collecting_shipping");
@@ -428,181 +351,38 @@ export function useCheckout(
   }, []); // runs once on mount
 
   // ── fetchDeliveryOptions ──────────────────────────────────────────────────
+  // ── Delivery (not available in the review-and-redirect flow) ─────────────
+  // Shipping rates require a Storefront cart (cartDeliveryGroups /
+  // cartSelectedDeliveryOptionsUpdate). The widget deliberately shares the
+  // THEME's session cart via the Ajax Cart API instead, so no Storefront cart
+  // exists to query — the previous implementation silently returned nothing
+  // because getStoredCartId() is always null after the useCart migration.
+  //
+  // Rates are therefore chosen on Shopify's checkout, which computes them
+  // authoritatively. These stubs remain so the panel keeps a stable interface
+  // (and so restoring a rate preview later is a contained change).
   const fetchDeliveryOptions = useCallback(async (): Promise<void> => {
-    const cartId = getStoredCartId();
-    if (!cartId) {
-      setDeliveryGroups([]);
-      return;
-    }
+    setDeliveryGroups([]);
+  }, []);
 
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      // Pre-fill address first so Shopify can compute rates for this address.
-      // Non-fatal — we still attempt the delivery groups query if this fails.
-      type IdentityResult = {
-        cartBuyerIdentityUpdate: {
-          cart: { id: string };
-          userErrors: { field: string; message: string }[];
-        };
-      };
-      await storefrontFetch<IdentityResult>(
-        BUYER_IDENTITY_UPDATE,
-        { cartId, buyerIdentity: buildBuyerIdentity(address) },
-        shopDomain,
-        storefrontToken,
-      ).catch((e) =>
-        console.warn("[MiraQ] buyerIdentityUpdate before delivery fetch:", e),
-      );
-
-      // Now fetch delivery groups.
-      type DeliveryResult = {
-        cart: {
-          deliveryGroups: {
-            edges: {
-              node: {
-                id: string;
-                deliveryOptions: {
-                  handle: string;
-                  title: string;
-                  estimatedCost: {
-                    totalAmount: { amount: string; currencyCode: string };
-                  };
-                  description?: string;
-                }[];
-                selectedDeliveryOption: { handle: string } | null;
-              };
-            }[];
-          };
-        } | null;
-      };
-
-      const result = await storefrontFetch<DeliveryResult>(
-        CART_DELIVERY_GROUPS,
-        { cartId },
-        shopDomain,
-        storefrontToken,
-      );
-
-      const edges = result.data?.cart?.deliveryGroups.edges ?? [];
-      setDeliveryGroups(
-        edges.map(({ node }) => ({
-          id: node.id,
-          options: node.deliveryOptions.map((opt) => ({
-            handle: opt.handle,
-            title: opt.title,
-            amount: opt.estimatedCost.totalAmount.amount,
-            currencyCode: opt.estimatedCost.totalAmount.currencyCode,
-            description: opt.description,
-          })),
-          selectedHandle: node.selectedDeliveryOption?.handle ?? null,
-        })),
-      );
-    } catch (e) {
-      console.warn("[MiraQ] fetchDeliveryOptions:", e);
-      setError(
-        "Could not load shipping options. You can still proceed to checkout.",
-      );
-      setDeliveryGroups([]);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [address, shopDomain, storefrontToken]);
-
-  // ── selectDeliveryOption ──────────────────────────────────────────────────
   const selectDeliveryOption = useCallback(
-    async (groupId: string, handle: string): Promise<void> => {
-      // Optimistic update — read latest groups from ref to avoid stale closure.
-      const updated = deliveryGroupsRef.current.map((g) =>
-        g.id === groupId ? { ...g, selectedHandle: handle } : g,
-      );
-      setDeliveryGroups(updated);
-
-      const cartId = getStoredCartId();
-      if (!cartId) return;
-
-      const selectedDeliveryOptions = updated
-        .filter((g) => g.selectedHandle !== null)
-        .map((g) => ({
-          deliveryGroupId: g.id,
-          deliveryOptionHandle: g.selectedHandle!,
-        }));
-
-      try {
-        type UpdateResult = {
-          cartSelectedDeliveryOptionsUpdate: {
-            cart: { id: string; checkoutUrl: string };
-            userErrors: { field: string; message: string }[];
-          };
-        };
-        const result = await storefrontFetch<UpdateResult>(
-          SELECTED_DELIVERY_OPTIONS_UPDATE,
-          { cartId, selectedDeliveryOptions },
-          shopDomain,
-          storefrontToken,
-        );
-        const userErrors =
-          result.data?.cartSelectedDeliveryOptionsUpdate.userErrors ?? [];
-        if (userErrors.length) {
-          console.warn(
-            "[MiraQ] cartSelectedDeliveryOptionsUpdate userErrors:",
-            userErrors,
-          );
-        }
-      } catch (e) {
-        // Non-fatal — local state already updated optimistically.
-        console.warn("[MiraQ] cartSelectedDeliveryOptionsUpdate failed:", e);
-      }
+    async (_groupId: string, _handle: string): Promise<void> => {
+      /* no-op — rates are selected on Shopify's checkout */
     },
-    [shopDomain, storefrontToken],
+    [],
   );
 
-  // ── prefillAndRedirect ────────────────────────────────────────────────────
+  // ── Redirect to Shopify's hosted checkout ────────────────────────────────
   const prefillAndRedirect = useCallback(
     async (checkoutUrl: string): Promise<void> => {
-      setIsLoading(true);
       setError(null);
 
-      let resolvedUrl = checkoutUrl;
-
-      try {
-        const cartId = getStoredCartId();
-        if (cartId) {
-          type IdentityResult = {
-            cartBuyerIdentityUpdate: {
-              cart: { checkoutUrl: string };
-              userErrors: { field: string; message: string }[];
-            };
-          };
-          const result = await storefrontFetch<IdentityResult>(
-            BUYER_IDENTITY_UPDATE,
-            { cartId, buyerIdentity: buildBuyerIdentity(address) },
-            shopDomain,
-            storefrontToken,
-          );
-          const userErrors =
-            result.data?.cartBuyerIdentityUpdate.userErrors ?? [];
-          if (userErrors.length) {
-            console.warn(
-              "[MiraQ] cartBuyerIdentityUpdate userErrors:",
-              userErrors,
-            );
-          }
-          // Prefer the URL returned by the mutation — it may contain pre-fill tokens.
-          const updatedUrl =
-            result.data?.cartBuyerIdentityUpdate.cart.checkoutUrl;
-          if (updatedUrl) resolvedUrl = updatedUrl;
-        }
-      } catch (e) {
-        // Non-fatal — still redirect with the original URL.
-        console.warn("[MiraQ] cartBuyerIdentityUpdate failed:", e);
-      } finally {
-        setIsLoading(false);
-      }
-
-      // Always append shipping params; billing params only added when "different".
-      // Use "&" if cartBuyerIdentityUpdate returned a URL already containing "?".
+      // Best-effort pre-fill via query params. Under Checkout Extensibility
+      // these checkout[...] params may be ignored (open item C4); they are
+      // harmless either way, and logged-in customers get Shopify's own
+      // prefill regardless. The collected address is still validated here
+      // and shown on the review step, so nothing depends on this working.
+      let resolvedUrl = checkoutUrl || "/checkout";
       const prefillQs = buildCheckoutPrefillParams(
         address,
         billingOption,
@@ -615,12 +395,14 @@ export function useCheckout(
       }
 
       setStep("redirecting");
-      window.open(resolvedUrl, "_blank", "noopener,noreferrer");
+      // Same-tab navigation: the checkout lives on the same storefront the
+      // widget is embedded in, matching how the widget already navigates to
+      // /cart, and avoiding pop-up blockers that can swallow window.open().
+      window.location.assign(resolvedUrl);
     },
-    [address, billingAddress, billingOption, shopDomain, storefrontToken],
+    [address, billingAddress, billingOption],
   );
 
-  // ── reset ─────────────────────────────────────────────────────────────────
   const reset = useCallback(() => {
     setStep("collecting_shipping");
     setAddress({
