@@ -141,20 +141,6 @@ function formatAddressSummary(a: ContactAddress): string {
     .join("\n");
 }
 
-/**
- * Builds a compact single-line label from a ContactAddress.
- * Used for saved-address card labels and the billing "same as shipping" summary.
- */
-function buildSavedAddressLabel(a: ContactAddress): string {
-  return [
-    [a.firstName, a.lastName].filter(Boolean).join(" "),
-    a.address1,
-    [a.city, a.province, a.zip].filter(Boolean).join(", "),
-  ]
-    .filter(Boolean)
-    .join(", ");
-}
-
 // ─── Shared styles ────────────────────────────────────────────────────────────
 
 const heading: CSSProperties = {
@@ -229,20 +215,6 @@ const continueBtnStyle = (disabled: boolean): CSSProperties => ({
   justifyContent: "center",
   gap: "6px",
 });
-
-const backBtnStyle: CSSProperties = {
-  padding: "12px 16px",
-  background: "transparent",
-  color: "#555",
-  border: "1.5px solid #e8e6e0",
-  borderRadius: "11px",
-  fontFamily: "inherit",
-  fontSize: "13px",
-  fontWeight: 600,
-  letterSpacing: "0.04em",
-  cursor: "pointer",
-  flexShrink: 0,
-};
 
 const pillBox: CSSProperties = {
   padding: "12px 14px",

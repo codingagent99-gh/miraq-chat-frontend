@@ -2,6 +2,7 @@ import ReactDOM from "react-dom/client";
 import "./index.css";
 import { ChatWidget } from "./ChatWidget";
 import type { WidgetOptions } from "./types/api";
+import { checkPlatformConfig } from "./platform/current";
 
 declare global {
   interface Window {
@@ -22,6 +23,21 @@ function getAssetBaseUrl(script: HTMLScriptElement | null): string {
 
 function mountWidget(options?: WidgetOptions, assetBaseUrl?: string) {
   console.log("SilfraChatWidget mountWidget", options);
+
+  // Refuse to mount when the init options contradict the build's platform.
+  // A mismatched widget cannot work — the container and checkout panel would
+  // come from one platform while the cart hook talks to the other — and it
+  // fails deep inside a cart call rather than at startup. Fail here instead,
+  // where the message points straight at the misconfiguration.
+  const platformError = checkPlatformConfig({
+    shopDomain: options?.shopDomain,
+  });
+  if (platformError) {
+    console.error(
+      `[MiraQ] Widget not started — platform mismatch.\n${platformError}`,
+    );
+    return;
+  }
   let container = document.getElementById("silfra-chat-widget-root");
   if (!container) {
     container = document.createElement("div");
