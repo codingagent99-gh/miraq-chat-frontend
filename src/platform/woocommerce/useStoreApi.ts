@@ -13,11 +13,16 @@ interface UseStoreApiOptions {
   nonce?: string;
   nonceExpires?: number;
   cartToken?: string;
+  /** WP site origin from the injected config. Runtime value wins so a single
+   *  compiled bundle works on any install; VITE_WP_BASE_URL remains as a dev
+   *  fallback for `vite dev` against a remote WP, where no config is injected. */
+  wpBaseUrl?: string;
 }
 
 export function useStoreApi({
   nonce,
   cartToken,
+  wpBaseUrl,
 }: UseStoreApiOptions): UseStoreApiReturn {
   const nonceRef = useRef<string>(nonce ?? "");
   const nonceExpiresRef = useRef<number>(0);
@@ -32,7 +37,8 @@ export function useStoreApi({
     cartTokenRef.current = "";
   }, []);
 
-  const siteOrigin = import.meta.env.VITE_WP_BASE_URL || window.location.origin;
+  const siteOrigin =
+    wpBaseUrl || import.meta.env.VITE_WP_BASE_URL || window.location.origin;
 
   // Returns a valid nonce, refreshing if within 1 minute of expiry.
   const getFreshNonce = useCallback(async (): Promise<string> => {

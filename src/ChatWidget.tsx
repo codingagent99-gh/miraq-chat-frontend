@@ -35,6 +35,7 @@ export function ChatWidget({
   customerName,
   customerRole,
   assetBaseUrl,
+  wpBaseUrl,
   nonce,
   cartToken,
   nonceExpires,
@@ -48,9 +49,12 @@ export function ChatWidget({
   const MiraQIcon = `${assetBaseUrl}MiraQ-icon.png`;
   const redirectingRef = useRef(false); // ← a navigation already committed for this page load
   // Runtime shopDomain (from Liquid data-shop-domain) is the source of truth.
+  // WooCommerce: runtime wpBaseUrl from the injected config is the source of
+  // truth, so one compiled bundle serves any install. VITE_WP_BASE_URL is kept
+  // only as a dev fallback (vite dev against a remote WP injects no config).
   const siteOrigin = shopDomain
     ? `https://${shopDomain}`
-    : import.meta.env.VITE_WP_BASE_URL || window.location.origin;
+    : wpBaseUrl || import.meta.env.VITE_WP_BASE_URL || window.location.origin;
 
   const isLoggedIn = !!(customerId || customerEmail);
   const [isExpanded, setIsExpanded] = useState(() => {
@@ -122,6 +126,16 @@ export function ChatWidget({
       sessionStorage.setItem("silfra_panel_open", String(panelOpen));
     } catch {}
   }, [panelOpen]);
+  // Expose an open trigger for launcher buttons injected outside the React
+  // tree (e.g. a header/search-bar button placed via a theme snippet).
+  // Kept as a ref-stable global so those buttons don't need to know
+  // anything about React state — just call window.miraqOpenWidget().
+  useEffect(() => {
+    (window as any).miraqOpenWidget = () => setPanelOpen(true);
+    return () => {
+      delete (window as any).miraqOpenWidget;
+    };
+  }, []);
   // Persist screen state so refreshes restore the user's last screen
   useEffect(() => {
     try {
@@ -224,6 +238,7 @@ export function ChatWidget({
     nonce,
     nonceExpires,
     cartToken,
+    wpBaseUrl,
   });
   // ── Cart state ────────────────────────────────────────────────────────────
   const {
@@ -274,6 +289,7 @@ export function ChatWidget({
   } = useChat({
     apiUrl,
     apiKey,
+    wpBaseUrl,
     customerId:
       typeof customerId === "string" ? parseInt(customerId, 10) : customerId,
     customerEmail,

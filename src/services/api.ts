@@ -208,6 +208,105 @@ export interface WpOrderTypeOption {
   label: string; // e.g. "Existing Deal"
 }
 
+// ── wp_rest nonce bootstrap ────────────────────────────────────────────────
+//
+// Why the nonce is required at all: /saved-addresses and /company-addresses
+// use permission_callback => 'is_user_logged_in'. WordPress will not resolve
+// a session cookie to a user inside a REST request without a valid wp_rest
+// nonce, so a missing nonce reads as "logged out" and 401s — credentials:
+// "include" on its own is not enough.
+//
+// The ONLY source of this nonce is window.__miraqWpRestNonce, printed at page
+// load by class-widget.php for logged-in users. It deliberately cannot be
+// fetched at runtime, and an earlier draft of this module that tried to do so
+// via /refresh-nonce could never have worked:
+//
+//   Core's rest_cookie_check_errors() calls wp_set_current_user(0) whenever a
+//   cookie-authenticated REST request arrives with no X-WP-Nonce header —
+//   which is exactly how a bootstrap call would have to arrive. Every nonce
+//   minted inside that request is therefore bound to the anonymous user and
+//   fails wp_verify_nonce() the moment a real user replays it.
+//
+// Consequences that follow from that, and are load-bearing below:
+//   - there is no cache to populate and no concurrent callers to de-dupe;
+//     the value is a page-load constant
+//   - a 401/403 cannot be recovered from by refetching, because there is
+//     nowhere fresher to fetch from. The nonce outlives 12h, so the realistic
+//     trigger is a tab left open overnight, and the fix is a page reload
+//   - /refresh-nonce remains useful only for the wc_store_api nonce on GUEST
+//     carts, where user 0 is the correct binding
+// ───────────────────────────────────────────────────────────────────────────
+
+function readCachedWpRestNonce(): string {
+  return ((window as any).__miraqWpRestNonce as string) || "";
+}
+
+/**
+ * Resolves the wp_rest nonce printed at page load.
+ *
+ * Takes no arguments by design — see the block comment above. There is no
+ * site-origin to fetch from and no force-refresh to perform; the value either
+ * exists on window or the user is logged out.
+ *
+ * @returns The nonce, or "" when absent. Callers treat "" as "not available"
+ *          and degrade to an empty result rather than surfacing an error.
+ */
+export async function ensureWpRestNonce(): Promise<string> {
+  const nonce = readCachedWpRestNonce();
+  if (!nonce) {
+    console.warn(
+      "[MiraQ] No wp_rest nonce on window — user is logged out, or " +
+        "class-widget.php is not printing __miraqWpRestNonce.",
+    );
+  }
+  return nonce;
+}
+
+/**
+ * fetch() wrapper that attaches the wp_rest nonce.
+ *
+ * Returns null when no nonce is available at all, so callers can distinguish
+ * "couldn't try" from "tried and got a bad status".
+ *
+ * No retry on 401/403: the nonce is a page-load constant, so a second attempt
+ * would send the identical value and fail identically. A rejection here means
+ * the nonce has expired (tab open past ~12h) or the session ended, and only a
+ * page reload can mint a new one. That case is logged rather than silently
+ * collapsing into an empty list.
+ */
+async function wpRestFetch(
+  wpBase: string,
+  path: string,
+  init: RequestInit = {},
+): Promise<Response | null> {
+  const nonce = await ensureWpRestNonce();
+  if (!nonce) return null;
+
+  const send = (n: string) =>
+    fetch(`${wpBase}${path}`, {
+      ...init,
+      credentials: "include",
+      headers: {
+        ...(init.headers ?? {}),
+        "X-WP-Nonce": n,
+      },
+    });
+
+  const res = await send(nonce);
+
+  if (res.status === 401 || res.status === 403) {
+    console.warn(
+      `[MiraQ] ${path} rejected the wp_rest nonce (${res.status}). It is ` +
+        "printed once at page load and cannot be refreshed from the client — " +
+        "reload the page. If this happens on a fresh load, check that the " +
+        "user is logged in and class-widget.php is printing " +
+        "__miraqWpRestNonce.",
+    );
+  }
+
+  return res;
+}
+
 // ── WP REST API fetch helpers ──────────────────────────────────────────────
 
 export async function fetchWpCountries(wpBase: string): Promise<WpCountry[]> {
@@ -217,14 +316,18 @@ export async function fetchWpCountries(wpBase: string): Promise<WpCountry[]> {
   if (!res.ok) throw new Error(`Countries fetch failed: ${res.status}`);
   return res.json();
 }
+
+/**
+ * /reps is registered with permission_callback => '__return_true' (see
+ * class-api.php:62) so that customers get the rep picker at checkout, not
+ * just logged-in staff. It therefore takes no nonce — the previous version
+ * gated this on getWpRestNonce() and returned [] for everyone, which looked
+ * like a permissions problem but was purely client-side.
+ */
 export async function fetchWpReps(wpBase: string): Promise<WpRep[]> {
-  const nonce = getWpRestNonce();
-  if (!nonce) return [];
   const res = await fetch(`${wpBase}/wp-json/custom-api/v1/reps`, {
     credentials: "include",
-    headers: { "X-WP-Nonce": nonce },
   });
-
   if (!res.ok) throw new Error(`Reps fetch failed: ${res.status}`);
   return res.json();
 }
@@ -258,29 +361,117 @@ export interface ThwmaSavedAddress {
   heading: string;
 }
 
-function getWpRestNonce(): string {
-  const nonce = (window as any).__miraqWpRestNonce;
-  if (nonce) return nonce as string;
-  console.warn(
-    "[MiraQ] wp_rest nonce not found on window. " +
-      "Ensure the user is logged in and class-widget.php is deploying the fix. " +
-      "Saved address calls will be skipped.",
-  );
-  return "";
-}
-
 export async function fetchWpSavedAddresses(
   wpBase: string,
 ): Promise<ThwmaSavedAddress[]> {
-  const nonce = getWpRestNonce();
-  if (!nonce) return [];
-  const res = await fetch(`${wpBase}/wp-json/custom-api/v1/saved-addresses`, {
-    credentials: "include",
-    headers: { "X-WP-Nonce": nonce },
-  });
-  if (!res.ok) return [];
+  const res = await wpRestFetch(
+    wpBase,
+    "/wp-json/custom-api/v1/saved-addresses",
+  );
+  if (!res || !res.ok) return [];
   const data = await res.json();
   return Array.isArray(data) ? (data as ThwmaSavedAddress[]) : [];
+}
+
+/**
+ * Shape returned by GET /company-addresses for each matching address.
+ *
+ * One row is ONE ADDRESS, not one customer — a single account with six saved
+ * destinations produces six rows. `id` is "<user_id>:<address_key>" and is the
+ * only field safe to use as a React key or <option> value; `user_id` repeats
+ * across rows and will collide.
+ *
+ * Rows come from the THWMA address book (`thwma_custom_address`), which is the
+ * same source the site's own shipping_address_selector reads. It is a separate
+ * store from the customer's stock WooCommerce account address, and the two
+ * routinely disagree on both company label and street formatting.
+ *
+ * Each row carries flat `shipping_*` keys and an equivalent nested `shipping`
+ * object; prefer the nested form. There is no `billing` block — this lookup is
+ * keyed on the shipping company, so only shipping details are returned.
+ */
+export interface WpCompanyAddress {
+  /**
+   * Unique PER ADDRESS: "<user_id>:<address_key>" on the current plugin.
+   * Typed as string | number because older plugin builds returned a bare
+   * numeric user ID here — always coerce with String() before comparing it
+   * against a DOM value, which is always a string.
+   */
+  id: string | number;
+  user_id: number;
+  address_key: string;
+  email: string;
+  company: string;
+
+  shipping_first_name: string;
+  shipping_last_name: string;
+  shipping_company: string;
+  shipping_address_1: string;
+  shipping_address_2: string;
+  shipping_city: string;
+  shipping_state: string;
+  shipping_postcode: string;
+  shipping_country: string;
+
+  shipping: {
+    first_name: string;
+    last_name: string;
+    company: string;
+    address_1: string;
+    address_2: string;
+    city: string;
+    state: string;
+    postcode: string;
+    country: string;
+    phone: string;
+  };
+}
+
+/** Envelope wrapper the endpoint returns. */
+interface WpCompanyAddressResponse {
+  success: boolean;
+  count: number;
+  /** True when the scan stopped early — there may be further matches. */
+  truncated?: boolean;
+  data: WpCompanyAddress[];
+}
+
+/**
+ * Looks up saved shipping addresses filed under a company name.
+ *
+ * Matching is PARTIAL and case-insensitive, matching the site's own selector:
+ * "beck" returns "BECK", "Beck Group" and "The Beck Group Architecture".
+ *
+ * Requires the user to be logged in; returns [] otherwise so callers can just
+ * render nothing. Not self-scoped — any logged-in customer can look up any
+ * company name (see get_my_company_addresses in class-api.php).
+ */
+export async function fetchCompanyAddresses(
+  wpBase: string,
+  company: string,
+): Promise<WpCompanyAddress[]> {
+  if (!company.trim()) return [];
+  const res = await wpRestFetch(
+    wpBase,
+    `/wp-json/custom-api/v1/company-addresses?company=${encodeURIComponent(company)}`,
+  );
+  if (!res || !res.ok) return [];
+  const data = await res.json();
+
+  // Current contract: { success, count, truncated, data: [...] }.
+  if (
+    data &&
+    typeof data === "object" &&
+    Array.isArray((data as WpCompanyAddressResponse).data)
+  ) {
+    return (data as WpCompanyAddressResponse).data;
+  }
+
+  // Legacy contract: a bare array. Kept so a widget build served to a site
+  // still running the older plugin doesn't silently show an empty picker.
+  if (Array.isArray(data)) return data as WpCompanyAddress[];
+
+  return [];
 }
 
 export async function saveWpAddress(
@@ -297,17 +488,15 @@ export async function saveWpAddress(
     country: string;
   },
 ): Promise<{ success: boolean; id: string }> {
-  const nonce = getWpRestNonce();
-  if (!nonce) return { success: false, id: "" };
-  const res = await fetch(`${wpBase}/wp-json/custom-api/v1/saved-addresses`, {
-    method: "POST",
-    credentials: "include",
-    headers: {
-      "Content-Type": "application/json",
-      "X-WP-Nonce": nonce,
+  const res = await wpRestFetch(
+    wpBase,
+    "/wp-json/custom-api/v1/saved-addresses",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(address),
     },
-    body: JSON.stringify(address),
-  });
-  if (!res.ok) return { success: false, id: "" };
+  );
+  if (!res || !res.ok) return { success: false, id: "" };
   return res.json() as Promise<{ success: boolean; id: string }>;
 }

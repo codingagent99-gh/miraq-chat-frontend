@@ -359,6 +359,9 @@ export interface WidgetOptions {
   customerName?: string;
   customerRole?: string;
   assetBaseUrl?: string;
+  /** Absolute origin of the WordPress site, injected by class-widget.php.
+   *  Resolved at runtime so one bundle works on any install. */
+  wpBaseUrl?: string;
   nonce?: string;
   nonceExpires?: number; // JS timestamp in ms
   cartToken?: string;

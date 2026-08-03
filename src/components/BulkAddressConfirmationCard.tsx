@@ -3,9 +3,17 @@ import {
   useCheckoutFields,
   type CheckoutField,
 } from "../hooks/useCheckoutFields";
+import { InlineFieldError } from "./checkout/fields/InlineFieldError";
 import type { AddressDict } from "../types/actions";
 
 type AddrValues = Record<string, string | undefined>;
+
+/** Field key → display label, per group, as returned by the backend gate. */
+type ValidationErrors = {
+  billing: Record<string, string>;
+  shipping: Record<string, string>;
+  meta: Record<string, string>;
+};
 
 interface Props {
   customer_name: string;
@@ -21,6 +29,13 @@ interface Props {
   billing?: AddrValues;
   shipping?: AddrValues;
   progress: { current: number; total: number };
+  /**
+   * Present only when the backend rejected this line. The backend's required
+   * set is authoritative and is deliberately NOT synced with the one this card
+   * derives from /checkout-fields, so these keys are honoured even where the
+   * local `required` flag disagrees.
+   */
+  validation_errors?: ValidationErrors;
   siteOrigin: string;
   onConfirm: () => void;
   onSkip: () => void;
@@ -33,6 +48,10 @@ function seed(src?: AddressDict | AddrValues): AddrValues {
   return { ...(src || {}) } as AddrValues;
 }
 
+function isBlank(v: string | undefined): boolean {
+  return !(v || "").trim();
+}
+
 export function BulkAddressConfirmationCard({
   customer_name,
   items_text,
@@ -40,14 +59,38 @@ export function BulkAddressConfirmationCard({
   billing,
   shipping,
   progress,
+  validation_errors,
   siteOrigin,
   onConfirm,
   onSkip,
   onSave,
   onCancel,
 }: Props) {
-  const [editing, setEditing] = useState(false);
-  const [billingForm, setBillingForm] = useState<AddrValues>(seed(billing));
+  // Backend-flagged keys. The "meta" group (order type, project name, rep)
+  // lives on the billing block, so it merges into the billing key set.
+  const backendBillingKeys = new Set([
+    ...Object.keys(validation_errors?.billing ?? {}),
+    ...Object.keys(validation_errors?.meta ?? {}),
+  ]);
+  const backendShippingKeys = new Set(
+    Object.keys(validation_errors?.shipping ?? {}),
+  );
+  const hasBackendErrors =
+    backendBillingKeys.size > 0 || backendShippingKeys.size > 0;
+
+  // A backend rejection arrives as a NEW chat message, so this component
+  // remounts with fresh props — these initialisers are enough, no effect sync
+  // is needed. Open straight onto the panel with errors already showing so the
+  // rep lands on the problem rather than on a card they have to re-open.
+  const [editing, setEditing] = useState(hasBackendErrors);
+  const [showErrors, setShowErrors] = useState(hasBackendErrors);
+
+  const [billingForm, setBillingForm] = useState<AddrValues>({
+    ...seed(billing),
+    // Match the shipping default below: country is required, and a blank one
+    // also leaves the state dropdown unpopulated.
+    country: billing?.country || "US",
+  });
   const [shippingForm, setShippingForm] = useState<AddrValues>({
     ...seed(shipping),
     // Default to US so the state dropdown renders immediately.
@@ -68,23 +111,76 @@ export function BulkAddressConfirmationCard({
   const setS = (k: string, v: string) =>
     setShippingForm((p) => ({ ...p, [k]: v }));
 
-  // Required billing fields come directly from the API-parsed list.
-  const requiredBilling = billingFields
-    .filter((f) => f.required)
-    .map((f) => f.key);
-  const billingValid = requiredBilling.every((k) =>
-    (billingForm[k] || "").trim(),
+  // ── Validation ────────────────────────────────────────────────────────────
+  // A field counts as required if EITHER the local /checkout-fields flag says
+  // so, or the backend flagged it on this line.
+  function isRequired(f: CheckoutField, backendKeys: Set<string>): boolean {
+    return f.required || backendKeys.has(f.key);
+  }
+
+  function missingIn(
+    fields: CheckoutField[],
+    values: AddrValues,
+    backendKeys: Set<string>,
+  ): CheckoutField[] {
+    return fields.filter(
+      (f) => isRequired(f, backendKeys) && isBlank(values[f.key]),
+    );
+  }
+
+  const missingBilling = missingIn(
+    billingFields,
+    billingForm,
+    backendBillingKeys,
   );
+  const missingShipping = missingIn(
+    shippingFields,
+    shippingForm,
+    backendShippingKeys,
+  );
+  const missingCount = missingBilling.length + missingShipping.length;
+  const isValid = missingCount === 0;
+
+  // Keys the backend rejected that this card doesn't render at all. Without
+  // surfacing these the rep would face a Confirm button that keeps getting
+  // rejected with no visible cause.
+  const renderedKeys = new Set([
+    ...billingFields.map((f) => f.key),
+    ...shippingFields.map((f) => f.key),
+  ]);
+  const unrenderableErrors = [
+    ...Object.entries(validation_errors?.billing ?? {}),
+    ...Object.entries(validation_errors?.meta ?? {}),
+    ...Object.entries(validation_errors?.shipping ?? {}),
+  ]
+    .filter(([key]) => !renderedKeys.has(key))
+    .map(([, label]) => label);
 
   function statesFor(countryCode: string) {
     return countries.find((c) => c.code === countryCode)?.states ?? [];
   }
 
   function handleSave() {
+    // Never a silently-dead button: surface which fields are blocking instead.
+    if (!isValid) {
+      setShowErrors(true);
+      return;
+    }
     onSave(
       `__BULK_ADDR__${JSON.stringify({ billing: billingForm, shipping: shippingForm })}`,
     );
     setEditing(false);
+  }
+
+  function handleConfirm() {
+    // The backend gate rejects this too, but blocking here means the rep gets
+    // told which fields are missing instead of bouncing off a server error.
+    if (!isValid) {
+      setEditing(true);
+      setShowErrors(true);
+      return;
+    }
+    onConfirm();
   }
 
   // renderField now receives a full CheckoutField so it has access to .type
@@ -189,6 +285,42 @@ export function BulkAddressConfirmationCard({
     );
   }
 
+  function renderSection(
+    fields: CheckoutField[],
+    values: AddrValues,
+    set: (k: string, v: string) => void,
+    backendKeys: Set<string>,
+    keyPrefix: string,
+  ) {
+    return fields.map((f) => {
+      const required = isRequired(f, backendKeys);
+      const invalid = showErrors && required && isBlank(values[f.key]);
+      return (
+        <label key={`${keyPrefix}-${f.key}`} className="bo-address__field">
+          <span className="bo-address__field-label">
+            {f.label}
+            {required ? " *" : ""}
+          </span>
+          {renderField(f, values, set)}
+          <InlineFieldError message={invalid ? "Required" : undefined} />
+        </label>
+      );
+    });
+  }
+
+  const missingSummary = (
+    <p className="bo-address__missing" style={{ color: "#ef4444" }}>
+      ⚠️ {missingCount} required field{missingCount === 1 ? "" : "s"} missing
+      {unrenderableErrors.length > 0 && (
+        <>
+          {" "}
+          ({unrenderableErrors.join(", ")} cannot be edited here — skip this
+          order or fix it on the site)
+        </>
+      )}
+    </p>
+  );
+
   return (
     <div className="bo-address">
       <div className="bo-address__header">
@@ -208,21 +340,27 @@ export function BulkAddressConfirmationCard({
               {addr_str || <em>No address on file</em>}
             </p>
           </div>
+          {!isValid && missingSummary}
           <div className="bo-confirm__btns">
             <button
-              className="bo-btn bo-btn--primary"
-              onClick={onConfirm}
+              className={`bo-btn ${isValid ? "bo-btn--primary" : "bo-btn--secondary"}`}
+              onClick={handleConfirm}
+              disabled={!isValid}
               type="button"
             >
               ✓ Confirm
             </button>
+            {/* When the address is incomplete, Change is the only action that
+                can resolve it — promote it to primary. */}
             <button
-              className="bo-btn bo-btn--secondary"
+              className={`bo-btn ${isValid ? "bo-btn--secondary" : "bo-btn--primary"}`}
               onClick={() => setEditing(true)}
               type="button"
             >
               ✏️ Change
             </button>
+            {/* Skip aborts this line entirely, so it needs no address and must
+                stay available as the rep's escape hatch. Never disable it. */}
             <button
               className="bo-btn bo-btn--ghost"
               onClick={onSkip}
@@ -250,15 +388,13 @@ export function BulkAddressConfirmationCard({
           {/* ── Billing ── */}
           <div className="bo-address__panel-section">
             <p className="bo-address__label">🧾 Billing address</p>
-            {billingFields.map((f) => (
-              <label key={`b-${f.key}`} className="bo-address__field">
-                <span className="bo-address__field-label">
-                  {f.label}
-                  {f.required ? " *" : ""}
-                </span>
-                {renderField(f, billingForm, setB)}
-              </label>
-            ))}
+            {renderSection(
+              billingFields,
+              billingForm,
+              setB,
+              backendBillingKeys,
+              "b",
+            )}
           </div>
 
           {/* ── Shipping ── */}
@@ -278,22 +414,25 @@ export function BulkAddressConfirmationCard({
                 Same as billing
               </button>
             </div>
-            {shippingFields.map((f) => (
-              <label key={`s-${f.key}`} className="bo-address__field">
-                <span className="bo-address__field-label">
-                  {f.label}
-                  {f.required ? " *" : ""}
-                </span>
-                {renderField(f, shippingForm, setS)}
-              </label>
-            ))}
+            {renderSection(
+              shippingFields,
+              shippingForm,
+              setS,
+              backendShippingKeys,
+              "s",
+            )}
           </div>
 
+          {showErrors && !isValid && missingSummary}
+
           <div className="bo-confirm__btns">
+            {/* Deliberately NOT disabled. A greyed-out Save with no indication
+                of which of ~14 fields is blank is how reps ended up backing out
+                and pressing Confirm instead. Pressing it while invalid reveals
+                the per-field errors. */}
             <button
               className="bo-btn bo-btn--primary"
               onClick={handleSave}
-              disabled={!billingValid}
               type="button"
             >
               💾 Save

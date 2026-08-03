@@ -78,6 +78,7 @@ function mountWidget(options?: WidgetOptions, assetBaseUrl?: string) {
       customerName={customerName}
       customerRole={customerRole}
       assetBaseUrl={assetBaseUrl}
+      wpBaseUrl={options?.wpBaseUrl}
       nonce={options?.nonce}
       nonceExpires={options?.nonceExpires}
       cartToken={options?.cartToken}
@@ -113,6 +114,9 @@ window.SilfraChatWidget = {
   const customerRole =
     config.customerRole || script?.dataset.customerRole || "guest";
   const nonce = config.nonce || script?.dataset.nonce || "";
+  // Absolute WP origin, injected by class-widget.php (get_site_url()). Empty on
+  // dev builds, where ChatWidget falls back to VITE_WP_BASE_URL / current origin.
+  const wpBaseUrl = config.wpBaseUrl || script?.dataset.wpBaseUrl || "";
 
   const nonceExpires = config.nonceExpires
     ? parseInt(config.nonceExpires, 10)
@@ -168,6 +172,7 @@ window.SilfraChatWidget = {
       customerEmail,
       customerName,
       customerRole,
+      wpBaseUrl,
       nonce,
       nonceExpires,
       cartToken,

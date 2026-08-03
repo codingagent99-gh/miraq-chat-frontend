@@ -17,6 +17,35 @@ import type {
   WpRep,
   WpOrderTypeOption,
 } from "../../../hooks/useCheckoutFields";
+import { useCompanyAddresses, formatShipping } from "./CompanyAddressSelector";
+
+/**
+ * Field key(s) used by the theme's company address-lookup plugin for its
+ * "Address Selector" control.
+ *
+ * This field is NOT part of SHIPPING_FIELDS — it arrives through
+ * dynamicShippingFields (AddressStep.tsx), which maps whatever WooCommerce's
+ * /checkout-fields returns. Without special-casing it falls through to the
+ * generic <input type="text"> branch below, which is why it rendered as an
+ * always-visible text box.
+ *
+ * Confirm the exact key for your install from the existing console log in
+ * AddressStep.tsx (`[AddressStep] shippingFields`) and adjust this list if it
+ * differs. Keys are matched after the billing_/shipping_ prefix is stripped by
+ * useCheckoutFields, so list the stripped form.
+ */
+export const ADDRESS_SELECTOR_FIELD_KEYS = [
+  "address_selector",
+  "company_address_selector",
+  "saved_address_selector",
+];
+
+export function isAddressSelectorField(field: string): boolean {
+  return (
+    ADDRESS_SELECTOR_FIELD_KEYS.includes(field) ||
+    /address.*select|select.*address/i.test(field)
+  );
+}
 
 /** All custom (non-AddressDict) fields supported by this form. */
 export type CustomField =
@@ -74,6 +103,13 @@ export interface AddressFormProps {
    * When provided (billing only), renders the "Your Rep" dropdown.
    */
   repOptions?: WpRep[];
+  /**
+   * WordPress site origin — powers the company address lookup that feeds the
+   * Address Selector field. Only pass this from the shipping step; leaving it
+   * undefined (e.g. on the billing form) means no lookup runs, so the Address
+   * Selector stays hidden.
+   */
+  siteOrigin?: string;
 }
 
 export const EMPTY: AddressDict = {
@@ -163,6 +199,7 @@ export function AddressForm({
   countries: wpCountries = [],
   repOptions = [],
   orderTypeOptions = [],
+  siteOrigin,
 }: AddressFormProps) {
   // Use live WP countries when available, fall back to built-in list
   const countryList = wpCountries;
@@ -263,11 +300,34 @@ export function AddressForm({
     return Object.keys(newErrors).length === 0;
   }
 
+  // Does this store's checkout actually have an Address Selector field?
+  // /company-addresses is bespoke to that field, so without it there is
+  // nowhere to render results and no reason to call the endpoint at all.
+  const hasAddressSelector = visibleFields.some((f) =>
+    isAddressSelectorField(f as string),
+  );
+
+  // Saved company addresses for whatever is currently typed in Company Name.
+  // Fetched here (rather than inside the picker) so the render below can hide
+  // the entire Address Selector field — label included — when there are none.
+  const { matches: companyMatches, loading: companyLoading } =
+    useCompanyAddresses(
+      siteOrigin ?? "",
+      (values.company as string) ?? "",
+      hasAddressSelector,
+    );
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!validate()) return;
     // Cast back — project_rep is included at runtime even if not in AddressDict type
-    onSubmit(values as AddressDict);
+    // The Address Selector is a UI affordance, not an address field — don't
+    // ship its value to WooCommerce.
+    const payload = { ...(values as any) };
+    for (const k of Object.keys(payload)) {
+      if (isAddressSelectorField(k)) delete payload[k];
+    }
+    onSubmit(payload as AddressDict);
   }
 
   const serverFieldError =
@@ -354,9 +414,26 @@ export function AddressForm({
       )}
 
       <div
-        style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}
+        style={{
+          display: "grid",
+          // auto-fit + a min() floor so half-width fields collapse to a
+          // single column once the panel is too narrow to hold two,
+          // instead of being crushed. min() prevents the track from
+          // exceeding the container on very narrow phones.
+          gridTemplateColumns:
+            "repeat(auto-fit, minmax(min(150px, 100%), 1fr))",
+          gap: "10px",
+        }}
       >
         {visibleFields.map((field) => {
+          // ── Address Selector ──
+          // Hidden entirely until the company lookup returns something. No
+          // company typed, lookup still running, or no saved addresses on
+          // file => render nothing at all (not even the label).
+          if (isAddressSelectorField(field as string)) {
+            if (companyMatches.length === 0) return null;
+          }
+
           const isFullWidth = !HALF_WIDTH_FIELDS.includes(
             field as keyof AddressDict,
           );
@@ -387,6 +464,71 @@ export function AddressForm({
               >
                 {label}
               </label>
+
+              {/* ── Address Selector: saved addresses for the typed company ── */}
+              {isAddressSelectorField(field as string) && (
+                <select
+                  id={`addr-${field}`}
+                  value=""
+                  onChange={(e) => {
+                    // Compare as strings on BOTH sides. `id` is a string
+                    // ("<user_id>:<address_key>") on the current plugin but a
+                    // NUMBER on older builds, and a DOM <option> value is
+                    // always a string — a strict === against a numeric id is
+                    // silently false forever, which reads as "the picker does
+                    // nothing when you select an address".
+                    const picked = companyMatches.find(
+                      (m) => String(m.id) === e.target.value,
+                    );
+                    if (!picked) {
+                      console.warn(
+                        "[AddressForm] no company address matched option value",
+                        e.target.value,
+                        companyMatches.map((m) => m.id),
+                      );
+                      return;
+                    }
+                    const addr = {
+                      first_name: picked.shipping.first_name,
+                      last_name: picked.shipping.last_name,
+                      company: picked.shipping.company || values.company,
+                      address_1: picked.shipping.address_1,
+                      address_2: picked.shipping.address_2,
+                      city: picked.shipping.city,
+                      state: picked.shipping.state,
+                      postcode: picked.shipping.postcode,
+                      country: picked.shipping.country,
+                    };
+                    setValues((prev) => ({ ...prev, ...addr }));
+                    setTouched((prev) => ({
+                      ...prev,
+                      ...Object.fromEntries(
+                        Object.keys(addr).map((k) => [k, true]),
+                      ),
+                    }));
+                  }}
+                  style={selectStyle(!!error)}
+                >
+                  <option value="">Select a saved address…</option>
+                  {companyMatches.map((m) => (
+                    <option key={String(m.id)} value={String(m.id)}>
+                      {[
+                        [m.shipping.first_name, m.shipping.last_name]
+                          .filter(Boolean)
+                          .join(" ") || m.email,
+                        // Company matching is partial, so one search can span
+                        // several company spellings — show which one this row
+                        // came from or the list is ambiguous.
+                        m.company,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                      {" — "}
+                      {formatShipping(m.shipping)}
+                    </option>
+                  ))}
+                </select>
+              )}
 
               {/* ── Country dropdown ── */}
               {field === "country" && (
@@ -528,7 +670,8 @@ export function AddressForm({
                 field !== "project_rep" &&
                 field !== "billing_field_type" &&
                 field !== "billing_project" &&
-                field !== "order_notes" && (
+                field !== "order_notes" &&
+                !isAddressSelectorField(field as string) && (
                   <input
                     id={`addr-${field}`}
                     type={
@@ -549,6 +692,16 @@ export function AddressForm({
                     }}
                   />
                 )}
+
+              {/* Company Name: a "checking…" hint only. The picker itself
+                  renders at the Address Selector slot further down. */}
+              {field === "company" && companyLoading && (
+                <p
+                  style={{ fontSize: "11px", color: "#999", margin: "4px 0 0" }}
+                >
+                  Checking for saved company addresses…
+                </p>
+              )}
 
               <InlineFieldError message={error} />
             </div>

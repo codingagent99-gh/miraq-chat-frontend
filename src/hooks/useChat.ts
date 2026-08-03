@@ -44,6 +44,8 @@ export interface UseChatOptions {
   nonce?: string;
   nonceExpires?: number;
   cartToken?: string;
+  /** WP site origin from the injected config (see WidgetOptions.wpBaseUrl). */
+  wpBaseUrl?: string;
   onViewCart?: () => void;
   onAddToCart?: (
     productId: number,
@@ -108,8 +110,12 @@ export function useChat(options: UseChatOptions = {}) {
   const nonceRef = useRef<string>(options.nonce ?? "");
   const nonceExpiresRef = useRef<number>(options.nonceExpires ?? 0);
   const cartTokenRef = useRef<string>(options.cartToken ?? "");
-  // Site URL = current origin since widget runs ON the WP site
-  const siteOrigin = import.meta.env.VITE_WP_BASE_URL || window.location.origin;
+  // Site URL: runtime config first (one bundle, any install), then the dev-only
+  // Vite var, then the current origin — the widget normally runs ON the WP site.
+  const siteOrigin =
+    options.wpBaseUrl ||
+    import.meta.env.VITE_WP_BASE_URL ||
+    window.location.origin;
 
   const getFreshNonce = useCallback(async (): Promise<string> => {
     // 1-minute buffer before actual expiry

@@ -629,6 +629,7 @@ interface ShippingSubStepProps {
     typeof useCheckoutFields
   >["shippingFieldOverrides"];
   dynamicFields?: AddressFormProps["visibleFields"];
+  siteOrigin: string;
 }
 
 function ShippingSubStep({
@@ -640,6 +641,7 @@ function ShippingSubStep({
   countries,
   fieldOverrides,
   dynamicFields,
+  siteOrigin,
 }: ShippingSubStepProps) {
   const savedShipping = cart?.shipping_address;
   const hasSavedShipping = isSavedAddress(savedShipping);
@@ -683,6 +685,7 @@ function ShippingSubStep({
           onSubmit={handleFormSubmit}
           countries={countries}
           fieldOverrides={fieldOverrides}
+          siteOrigin={siteOrigin}
         />
       )}
 
@@ -960,6 +963,7 @@ export function AddressStep({
             onConfirmed={handleShippingConfirmed}
             countries={countries}
             fieldOverrides={shippingFieldOverrides}
+            siteOrigin={siteOrigin}
           />
         </div>
       )}

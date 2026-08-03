@@ -141,6 +141,19 @@ export type ChatAction =
         /** Full shipping block for the editable panel prefill */
         shipping?: AddressDict;
         progress: { current: number; total: number };
+        /**
+         * Present only when the backend rejected this line's address.
+         * Maps field key → display label, per group. "meta" holds the CS
+         * custom fields (order type, project name, rep), which live on the
+         * billing block. The card renders these regardless of its own
+         * required flags — the backend's required set is authoritative and
+         * the two are deliberately not synced.
+         */
+        validation_errors?: {
+          billing: Record<string, string>;
+          shipping: Record<string, string>;
+          meta: Record<string, string>;
+        };
       };
     }
   // ── Product order history — shown alongside product search results (rep only) ──
