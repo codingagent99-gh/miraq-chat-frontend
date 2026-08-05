@@ -21,6 +21,10 @@ import { AiOptInScreen } from "./components/AiOptInScreen";
 // Side-effect import: registers built-in payment adapters before PaymentStep renders
 import "./components/checkout/payment";
 
+// Must agree with MOBILE_BREAKPOINT in components/WidgetContainer.tsx
+// and the max-width used by the mobile block in index.css.
+const MOBILE_BREAKPOINT = 768;
+
 export interface ChatWidgetInterface extends WidgetOptions {
   onViewCart?: () => void;
   storefrontToken?: string;
@@ -57,6 +61,21 @@ export function ChatWidget({
     : wpBaseUrl || import.meta.env.VITE_WP_BASE_URL || window.location.origin;
 
   const isLoggedIn = !!(customerId || customerEmail);
+
+  // Reactive so rotating a phone or resizing a desktop window re-evaluates.
+  // The four `window.innerWidth <= 768` reads further down are one-shot
+  // initialisers where a stale value is harmless; this one gates rendering,
+  // so it has to track.
+  const [isMobile, setIsMobile] = useState(
+    () => window.innerWidth <= MOBILE_BREAKPOINT,
+  );
+  useEffect(() => {
+    const mq = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT}px)`);
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
+
   const [isExpanded, setIsExpanded] = useState(() => {
     if (window.innerWidth <= 768) return false;
     try {
@@ -67,6 +86,13 @@ export function ChatWidget({
       return true;
     }
   });
+
+  // Expand/collapse is desktop-only: on mobile the panel is already full
+  // screen, so the control would toggle nothing. Passing `undefined` rather
+  // than hiding it in CSS means the button is never rendered at all — every
+  // consumer (ChatHeader, HomeScreen, CartPanel, CheckoutPanel) already gates
+  // on `onToggleExpand &&`, so this one value removes it from all four.
+  const onToggleExpand = isMobile ? undefined : () => setIsExpanded((p) => !p);
 
   // ── AI mode localStorage key (user-scoped) ───────────────────────────────
   const aiStorageKey = `silfra_ai_enabled_${customerId ?? customerEmail ?? "guest"}`;
@@ -102,6 +128,20 @@ export function ChatWidget({
   });
 
   const [panelOpen, setPanelOpen] = useState(() => {
+    // A redirect the widget ITSELF initiated (cart / checkout) always resumes
+    // with the panel open, on every viewport.
+    //
+    // Without this, mobile falls straight through to the guard below and the
+    // shopper lands on /cart with the widget minimised — having never asked for
+    // it to close. Worse, silfra_cart_open has no viewport guard, so it is read
+    // AND consumed on the way in: the cart panel it was meant to restore is
+    // discarded too, and reopening the widget by hand doesn't bring it back.
+    try {
+      if (sessionStorage.getItem("silfra_resume_open") === "true") return true;
+    } catch {}
+    // Plain refreshes still don't auto-open on mobile. The panel covers most of
+    // a phone screen, so restoring it on every page load would be hostile —
+    // that is what this guard is for, and it stays.
     if (window.innerWidth <= 768) return false;
     try {
       return sessionStorage.getItem("silfra_panel_open") === "true";
@@ -126,6 +166,19 @@ export function ChatWidget({
       sessionStorage.setItem("silfra_panel_open", String(panelOpen));
     } catch {}
   }, [panelOpen]);
+  // Consume the one-shot resume flag after mount, so it fires exactly once.
+  //
+  // Done in an effect rather than inside the useState initializer above because
+  // React StrictMode invokes initializers twice in development: clearing it
+  // there would leave the second invocation seeing an already-consumed flag.
+  // (silfra_cart_open / silfra_checkout_open below do read-and-remove inline
+  // and carry that same hazard — worth revisiting if StrictMode is ever
+  // switched on.)
+  useEffect(() => {
+    try {
+      sessionStorage.removeItem("silfra_resume_open");
+    } catch {}
+  }, []);
   // Expose an open trigger for launcher buttons injected outside the React
   // tree (e.g. a header/search-bar button placed via a theme snippet).
   // Kept as a ref-stable global so those buttons don't need to know
@@ -183,6 +236,10 @@ export function ChatWidget({
         sessionStorage.setItem("silfra_panel_open", "true");
         sessionStorage.setItem(screenStorageKey, screen);
         sessionStorage.setItem("silfra_cart_open", "true");
+        // Marks this navigation as widget-initiated, so the panel reopens on
+        // mobile too. silfra_panel_open alone is not enough: the mobile branch
+        // of the panelOpen initializer never reads it.
+        sessionStorage.setItem("silfra_resume_open", "true");
       } catch {}
       redirectingRef.current = true;
       window.location.href = `${siteOrigin}/cart`;
@@ -193,6 +250,8 @@ export function ChatWidget({
         sessionStorage.setItem("silfra_panel_open", "true");
         sessionStorage.setItem(screenStorageKey, screen);
         sessionStorage.setItem("silfra_checkout_open", "true");
+        // See the cart branch above — same reason.
+        sessionStorage.setItem("silfra_resume_open", "true");
       } catch {}
       redirectingRef.current = true;
       if (!normPath.endsWith("/cart")) {
@@ -628,7 +687,7 @@ export function ChatWidget({
               aiMode={aiEnabled}
               onToggleAI={() => handleAiToggle(!aiEnabled)}
               isExpanded={isExpanded}
-              onToggleExpand={() => setIsExpanded((p) => !p)}
+              onToggleExpand={onToggleExpand}
             />
           )}
         </Container>
@@ -682,7 +741,7 @@ export function ChatWidget({
             logoUrl={widgetLogo || MiraQIcon}
             headerText="MiraQ Commerce Assistant"
             isExpanded={isExpanded}
-            onToggleExpand={() => setIsExpanded((p) => !p)}
+            onToggleExpand={onToggleExpand}
           />
 
           <div
@@ -910,7 +969,7 @@ export function ChatWidget({
                 setIsCheckoutOpen(true);
               }}
               isExpanded={isExpanded}
-              onToggleExpand={() => setIsExpanded((p) => !p)}
+              onToggleExpand={onToggleExpand}
             />
           )}
 
@@ -926,7 +985,7 @@ export function ChatWidget({
               apiUrl={apiUrl}
               onClose={() => setIsCheckoutOpen(false)}
               isExpanded={isExpanded}
-              onToggleExpand={() => setIsExpanded((p) => !p)}
+              onToggleExpand={onToggleExpand}
             />
           )}
 
@@ -961,7 +1020,7 @@ export function ChatWidget({
                 }, 600);
               }}
               isExpanded={isExpanded}
-              onToggleExpand={() => setIsExpanded((p) => !p)}
+              onToggleExpand={onToggleExpand}
             />
           )}
 

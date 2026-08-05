@@ -220,11 +220,61 @@
   margin-top: 4px !important;
 }
 
-/* ── Mobile: fullscreen on viewports ≤768px ── */
+/* ── Mobile (≤768px) ─────────────────────────────────────────────────────
+   Previously this block promoted the checkout to `position: fixed; inset: 0`,
+   breaking it out of .xpert-panel to cover the whole viewport. That made
+   checkout the only surface that escaped the floating card — the chat, cart
+   and product detail panels all stay inside it — so the shopper lost the
+   panel frame and the close affordance moved. It now stays within the panel
+   like every sibling; the base `position: absolute; inset: 0` already does
+   the right thing, so no positioning override is needed here at all. */
 @media (max-width: 768px) {
+  /* Square corners on mobile. The 12px radius exists to match .xpert-panel so
+     the corners clip cleanly inside it — but .xpert-panel is border-radius: 0
+     when full screen, so the inner radius shows as a rounded lip against the
+     screen edge. These two must stay in sync with the panel, not with a fixed
+     value. */
   .miraq-checkout-panel {
     border-radius: 0;
-    position: fixed;
-    inset: 0;
+  }
+
+  .miraq-checkout-header {
+    padding: 13px 14px !important;
+  }
+
+  /* Four step labels do not fit across a ~336px panel. Horizontal scroll keeps
+     every step reachable without shrinking the labels into illegibility. */
+  .miraq-checkout-steps {
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .miraq-checkout-steps::-webkit-scrollbar {
+    display: none;
+  }
+
+  .miraq-checkout-step {
+    flex-shrink: 0;
+  }
+
+  .miraq-checkout-body {
+    padding-left: 12px;
+    padding-right: 12px;
+    padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .miraq-checkout-summary-item {
+    max-width: 55%;
+  }
+
+  .miraq-checkout-summary-row {
+    gap: 8px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .miraq-checkout-panel {
+    animation: none;
   }
 }

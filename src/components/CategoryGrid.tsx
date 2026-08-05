@@ -15,7 +15,9 @@ export function CategoryGrid({
     <div
       style={{
         display: "grid",
-        gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))",
+        // min() floor keeps the track from exceeding the container: at
+        // panel widths under 140px the bare minmax would overflow.
+        gridTemplateColumns: "repeat(auto-fill, minmax(min(140px, 100%), 1fr))",
         gap: "8px",
         marginTop: "12px",
         marginBottom: "8px",

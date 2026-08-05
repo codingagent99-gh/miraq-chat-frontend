@@ -10,7 +10,9 @@
   flex-direction: column;
   z-index: 10;
   font-family: "DM Sans", sans-serif;
-  border-radius: 12px; /* match .xpert-panel radius so corners clip cleanly */
+  border-radius: 12px; /* match .xpert-panel radius so corners clip cleanly;
+                          overridden to 0 on mobile, where the panel is
+                          full screen and square */
   overflow: hidden; /* prevent any child bleeding outside rounded corners */
   animation: miraq-cart-slide-in 0.28s cubic-bezier(0.22, 1, 0.36, 1);
 }
@@ -369,4 +371,76 @@
   background: #f5f4f1;
   border-color: #ccc;
   color: #1c1c1a;
+}
+
+/* ── Mobile (≤768px) ──────────────────────────────────────────────────────
+   The cart is absolutely positioned inside .xpert-panel, so it inherits the
+   panel's mobile sizing automatically. What needs fixing is the row layout:
+   image + info + qty stepper + total + remove is five things across a ~336px
+   panel. */
+@media (max-width: 768px) {
+  /* Square corners on mobile — see the note on .miraq-checkout-panel. The
+     panel this sits inside drops its radius when full screen, so keeping 12px
+     here leaves a visible rounded lip at the top of the screen. */
+  .miraq-cart-panel {
+    border-radius: 0;
+  }
+
+  .miraq-cart-item {
+    gap: 10px;
+    padding: 11px 12px !important;
+  }
+
+  .miraq-cart-item-img {
+    width: 52px;
+    height: 52px;
+    flex-shrink: 0;
+  }
+
+  .miraq-cart-item-info {
+    min-width: 0; /* let the flex child actually shrink */
+  }
+
+  .miraq-cart-item-name,
+  .miraq-cart-item-variation {
+    overflow-wrap: anywhere;
+  }
+
+  /* Qty stepper buttons are the smallest tap targets in the cart. */
+  .miraq-cart-item-qty button {
+    min-width: 32px;
+    min-height: 32px;
+  }
+
+  .miraq-cart-item-remove {
+    min-width: 32px;
+    min-height: 32px;
+  }
+
+  .miraq-cart-header {
+    padding: 13px 14px !important;
+  }
+
+  .miraq-cart-footer {
+    padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+
+  .miraq-cart-checkout-btn,
+  .miraq-cart-continue-btn {
+    min-height: 44px;
+  }
+
+  .miraq-cart-total-row,
+  .miraq-cart-grand-total {
+    flex-wrap: wrap;
+    gap: 2px 8px;
+  }
+}
+
+/* Match the panel's square corners when the widget is mounted full-height on
+   Shopify, where .xpert-panel drops its radius. */
+@media (prefers-reduced-motion: reduce) {
+  .miraq-cart-panel {
+    animation: none;
+  }
 }

@@ -174,14 +174,9 @@
   width: 500px;
 }
 
-@media (max-width: 768px) {
-  #silfra-chat-widget-container .xpert-panel {
-    width: calc(100vw - 32px);
-    height: calc(100vh - 100px);
-    bottom: 16px;
-    right: 16px;
-  }
-}
+/* Mobile sizing for the panel lives in the consolidated mobile section at the
+   end of this file, so it can also override .xpert-panel.wide (which has
+   higher specificity than a bare .xpert-panel rule). */
 
 /* --- Home Screen --- */
 #silfra-chat-widget-container .xpert-home-screen {
@@ -433,7 +428,7 @@
 
 #silfra-chat-widget-container .xpert-message-row {
   display: flex;
-  gap: 0.75rem;
+  gap: 0.25rem;
   align-items: flex-start;
 }
 
@@ -442,8 +437,8 @@
 }
 
 #silfra-chat-widget-container .xpert-bot-avatar {
-  width: 36px;
-  height: 36px;
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
   color: white;
   display: flex;
@@ -451,6 +446,7 @@
   justify-content: center;
   flex-shrink: 0;
   font-size: 19px;
+  margin-top: 0.75rem;
 }
 
 #silfra-chat-widget-container .xpert-user-avatar {
@@ -466,13 +462,19 @@
   font-size: 19px;
 }
 
+#silfra-chat-widget-container .xpert-user-message-wrapper {
+  display: flex;
+  min-width: 0;
+  max-width: 100%;
+}
+
 #silfra-chat-widget-container .xpert-message-content {
   flex: 1;
   max-width: 80%;
 }
 
 #silfra-chat-widget-container .xpert-message-bubble {
-  padding: 0.75rem 1rem;
+  padding: 0.75rem 0.5rem;
   border-radius: 12px;
   line-height: 1.5;
   min-width: 0;
@@ -2069,6 +2071,11 @@
   right: auto !important;
 }
 
+/* base rule, near .xpert-similar-btn:disabled */
+#silfra-chat-widget-container .xpert-similar-btn-icon {
+  display: none;
+}
+
 /* --- Desktop Side Panel --- */
 @media (min-width: 769px) {
   #silfra-chat-widget-container .xpert-panel--side {
@@ -2132,8 +2139,67 @@
   transform: rotate(180deg);
 }
 
+#silfra-chat-widget-container .xpert-card-actions {
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+#silfra-chat-widget-container .xpert-card-actions .xpert-add-to-cart-btn {
+  flex: 0 0 36px;
+}
+
+#silfra-chat-widget-container .xpert-card-actions .xpert-similar-btn {
+  flex: 1 1 84px;
+  min-width: 0;
+}
+
+/* Add to cart is the conversion action, so it reads as primary. Previously it
+   was a 32px icon-only square sitting next to a bordered text button, which
+   inverted the hierarchy — the eye went to "show similar" first. The square
+   was also below the 44px touch minimum, inside a card that is itself
+   clickable, so a missed tap opened the product detail instead of adding. */
+#silfra-chat-widget-container .xpert-add-to-cart-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Square. aspect-ratio rather than a hard height so the button still grows
+     if the row's stretch alignment gives it more, without ever going oblong.
+     The old width:100% made it a wide bar; before that, height:100% made it a
+     tall one that stretched to match the wrapped text button beside it. */
+  width: 36px;
+  height: 36px;
+  aspect-ratio: 1 / 1;
+  flex-shrink: 0;
+  padding: 0;
+  background: linear-gradient(
+    135deg,
+    var(--color-primary-light) 0%,
+    var(--color-primary) 100%
+  );
+  border: 1px solid transparent;
+  color: #ffffff;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  box-shadow: 0 1px 4px rgba(0, 78, 100, 0.18);
+}
+
+#silfra-chat-widget-container .xpert-add-to-cart-btn:hover {
+  background: var(--color-primary-dark);
+  color: #ffffff;
+}
+
+/* Secondary discovery action: ghost styling, one short label. "Show Similar
+   Products" is 21 characters and cannot fit the ~86px available in a 2-up
+   grid on a 375px phone at any font size that stays legible. */
 #silfra-chat-widget-container .xpert-similar-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 100%;
+  min-height: 30px;
   padding: 5px 8px;
   background: transparent;
   border: 1px solid var(--color-primary-light);
@@ -2144,7 +2210,10 @@
   cursor: pointer;
   transition: all 0.15s ease;
   text-align: center;
-  line-height: 1.4;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 #silfra-chat-widget-container .xpert-similar-btn:hover:not(:disabled) {
@@ -2155,27 +2224,6 @@
 #silfra-chat-widget-container .xpert-similar-btn:disabled {
   opacity: 0.55;
   cursor: not-allowed;
-}
-
-#silfra-chat-widget-container .xpert-add-to-cart-btn {
-  width: 32px;
-  height: 100%;
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  background: transparent;
-  border: 1px solid var(--color-primary-light);
-  color: var(--color-primary);
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-#silfra-chat-widget-container .xpert-add-to-cart-btn:hover {
-  background: var(--color-primary-light);
-  color: #ffffff;
 }
 
 #silfra-chat-widget-container .xpert-similar-prompt {
@@ -2816,4 +2864,372 @@ select.bo-address__input {
   margin: 2px 0 0 0;
   text-transform: capitalize;
   letter-spacing: 0.02em;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MOBILE PASS — viewports ≤768px
+   ═══════════════════════════════════════════════════════════════════════════
+   Placed at the end of the file deliberately: several rules here need to beat
+   selectors with higher specificity declared earlier (notably
+   .xpert-panel.wide, which is two classes to .xpert-panel's one). Source order
+   settles those ties without resorting to !important.
+
+   The panel stays an inset floating card on mobile — it is NOT promoted to a
+   full-screen sheet. Everything below fixes what breaks inside that card at
+   narrow widths.
+   ═════════════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 768px) {
+  /* ── Panel shell ─────────────────────────────────────────────────────────
+     100dvh instead of 100vh: on mobile Safari and Chrome, 100vh is the height
+     with browser chrome COLLAPSED, so a 100vh-derived panel extends under the
+     URL bar and the composer sits off-screen until the user scrolls. dvh
+     tracks the visible viewport. The vh line is kept first as the fallback for
+     browsers without dvh (pre-2022); they get the old behaviour rather than a
+     broken rule. */
+  /* Full screen on mobile: no inset, no radius, no shadow. Both selectors are
+     named because .xpert-panel.wide is two classes to .xpert-panel's one and
+     would otherwise win on specificity and force a 500px panel onto a phone. */
+  #silfra-chat-widget-container .xpert-panel,
+  #silfra-chat-widget-container .xpert-panel.wide {
+    position: fixed;
+    inset: 0;
+    width: 100vw;
+    height: 100vh;
+    height: 100dvh;
+    max-height: none;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  /* Now that the panel touches the top of the screen, the header sits under
+     the status bar / notch unless it carries the inset itself. */
+  #silfra-chat-widget-container .xpert-chat-header,
+  #silfra-chat-widget-container .xpert-home-header,
+  .miraq-cart-header,
+  .miraq-checkout-header {
+    padding-top: calc(0.875rem + env(safe-area-inset-top, 0px)) !important;
+  }
+
+  /* Shopify mounts the panel inside a fixed container and forces 100vh with
+     !important, which has the same URL-bar problem. Matched here with
+     !important only because the rule it overrides uses it. */
+  #silfra-panel-root #silfra-chat-widget-container .xpert-panel {
+    height: 100dvh !important;
+  }
+
+  /* ── Floating button ───────────────────────────────────────────────────── */
+  #silfra-chat-widget-container .xpert-floating-btn {
+    bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+    right: 16px;
+    /* 56px keeps it above the 44px minimum touch target with room to spare. */
+    width: 56px;
+    height: 56px;
+  }
+
+  /* ── iOS auto-zoom prevention ───────────────────────────────────────────
+     Safari zooms the page when a focused input's computed font-size is under
+     16px, and does not zoom back out afterwards — the shopper is left on a
+     magnified, horizontally-scrolled page. Every text-entry control inside the
+     widget is pinned to 16px on mobile. Visual weight is preserved by the
+     tighter padding below rather than by shrinking the type. */
+  #silfra-chat-widget-container input,
+  #silfra-chat-widget-container textarea,
+  #silfra-chat-widget-container select,
+  .bo-address__input,
+  .bo-variant__qty-input {
+    font-size: 16px;
+  }
+
+  /* ── Composer ──────────────────────────────────────────────────────────── */
+  #silfra-chat-widget-container .xpert-chat-input-area {
+    padding: 0.625rem 0.75rem;
+    gap: 0.5rem;
+  }
+
+  #silfra-chat-widget-container .xpert-chat-input {
+    padding: 0.5rem 0.625rem;
+    max-height: 84px;
+  }
+
+  #silfra-chat-widget-container .xpert-send-btn,
+  #silfra-chat-widget-container .xpert-mic-btn {
+    min-width: 44px;
+    min-height: 44px;
+    padding: 0.5rem 0.75rem;
+    flex-shrink: 0;
+  }
+
+  /* ── Long-string overflow ───────────────────────────────────────────────
+     SKUs, URLs and order numbers have no break opportunities and will push the
+     bubble wider than the panel, which scrolls the whole message list
+     sideways. anywhere lets the browser break mid-token as a last resort. */
+  #silfra-chat-widget-container .xpert-message-bubble,
+  #silfra-chat-widget-container .xpert-bubble-content,
+  #silfra-chat-widget-container .xpert-message-content {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  #silfra-chat-widget-container .xpert-chat-messages {
+    padding: 0.5rem;
+    overflow-x: hidden;
+  }
+
+  /* ── Product grid ───────────────────────────────────────────────────────
+     Two columns is still right at 360px (≈150px per card), but the tracks need
+     an explicit 0 minimum: 1fr's default min-content floor lets a long product
+     name widen the track and overflow the panel. */
+  /* Always two per row. minmax(0,...) rather than a bare 1fr: 1fr's implicit
+     min-content floor lets a long product name widen its track and push the
+     grid past the panel. Dropping to one column costs twice the scrolling for
+     no readability gain once the panel is full width. */
+  #silfra-chat-widget-container .xpert-product-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem;
+  }
+
+  #silfra-chat-widget-container .xpert-product-info {
+    padding: 0.625rem;
+  }
+
+  #silfra-chat-widget-container .xpert-product-name {
+    overflow-wrap: anywhere;
+  }
+
+  /* ── Chips, suggestions and pagers: wrap instead of overflowing ────────── */
+  #silfra-chat-widget-container .xpert-suggestions,
+  #silfra-chat-widget-container .xpert-suggestions--flow,
+  #silfra-chat-widget-container .xpert-filter-suggestions-row,
+  #silfra-chat-widget-container .xpert-variant-chips,
+  #silfra-chat-widget-container .xpert-detail-categories,
+  #silfra-chat-widget-container .xpert-pagination-controls,
+  #silfra-chat-widget-container .xpert-bottom-actions {
+    flex-wrap: wrap;
+  }
+
+  #silfra-chat-widget-container .xpert-suggestion-chip,
+  #silfra-chat-widget-container .xpert-filter-chip,
+  #silfra-chat-widget-container .xpert-variant-chip,
+  #silfra-chat-widget-container .xpert-category-btn {
+    min-height: 36px;
+  }
+
+  #silfra-chat-widget-container .xpert-pager-label {
+    min-width: 0;
+  }
+
+  /* ── Icon buttons: meet the 44px touch minimum ─────────────────────────── */
+  #silfra-chat-widget-container .xpert-icon-btn,
+  #silfra-chat-widget-container .xpert-detail-close-btn,
+  #silfra-chat-widget-container .xpert-gallery-btn {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  /* ── Product card actions ───────────────────────────────────────────────
+     Add to cart gets the full 44px: it sits inside a card that is itself
+     clickable, so a missed tap doesn't do nothing, it opens the product
+     detail. The secondary button stays at 36px — deliberately under the
+     guideline, because giving both actions equal weight in a 2-up grid costs
+     roughly 90px of card height and pushes the next row of products off
+     screen. A mis-tap there is recoverable. */
+  #silfra-chat-widget-container .xpert-add-to-cart-btn {
+    min-height: 36px;
+  }
+
+  #silfra-chat-widget-container .xpert-similar-btn {
+    min-height: 36px;
+  }
+
+  /* ── Order cards ────────────────────────────────────────────────────────
+     Order number + status side by side runs out of room once the status is
+     more than a word ("Processing", "Partially refunded"). */
+  #silfra-chat-widget-container .xpert-order-card-header,
+  #silfra-chat-widget-container .xpert-order-card-footer,
+  #silfra-chat-widget-container .xpert-order-header,
+  #silfra-chat-widget-container .xpert-order-detail-row {
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  #silfra-chat-widget-container .xpert-order-card-item,
+  #silfra-chat-widget-container .xpert-order-detail-item {
+    overflow-wrap: anywhere;
+  }
+
+  /* ── Product detail panel ───────────────────────────────────────────────
+     4:3 eats most of a phone-height panel; 3:2 leaves room for the title and
+     price without scrolling. */
+  #silfra-chat-widget-container .xpert-detail-gallery {
+    aspect-ratio: 3 / 2;
+    margin-top: 12px;
+  }
+
+  #silfra-chat-widget-container .xpert-detail-content {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  #silfra-chat-widget-container .xpert-detail-attr-row,
+  #silfra-chat-widget-container .xpert-detail-meta-row {
+    flex-wrap: wrap;
+    gap: 2px 8px;
+  }
+
+  #silfra-chat-widget-container .xpert-detail-actions {
+    padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* ── Locked / empty states ──────────────────────────────────────────────
+     A fixed 280px max-width leaves a lopsided ragged block once the panel is
+     narrower than that plus its padding. */
+  #silfra-chat-widget-container .xpert-locked-desc {
+    max-width: 100%;
+  }
+
+  /* ═══ Bulk order (CS rep) surfaces ═══════════════════════════════════════
+     These are the widest layouts in the widget and the ones that break first.
+     Note they are NOT scoped to #silfra-chat-widget-container in the base
+     stylesheet, so they aren't scoped here either. */
+
+  /* The 2fr 2fr 1fr 2fr confirmation table cannot hold four columns at 336px.
+     Restructured into one stacked record per row, with the header hidden since
+     it no longer labels anything, and each cell labelled inline instead. */
+  .bo-confirm__thead {
+    display: none;
+  }
+
+  .bo-confirm__row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
+    padding: 10px;
+  }
+
+  .bo-confirm__row > * {
+    overflow-wrap: anywhere;
+  }
+
+  .bo-confirm__table {
+    margin-bottom: 8px;
+  }
+
+  /* Stacked action buttons: three side-by-side buttons at 336px leave each too
+     narrow to label, and wrapping mid-row reads as a broken layout. */
+  .bo-confirm__btns {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .bo-confirm__btns .bo-btn {
+    width: 100%;
+    min-height: 44px;
+    white-space: normal;
+  }
+
+  /* The address panel's "Same as billing" pill sits beside a section heading
+     and must stay on one line, so it opts out of the stacking above. */
+  .bo-address__panel-section-head {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .bo-address__copy.bo-btn {
+    width: auto;
+    min-height: 32px;
+  }
+
+  .bo-address__input {
+    padding: 9px 10px;
+  }
+
+  select.bo-address__input {
+    padding-right: 30px;
+  }
+
+  .bo-address__panel {
+    max-height: none;
+  }
+
+  .bo-variant__qty-input {
+    width: 100%;
+    max-width: 160px;
+  }
+
+  .bo-variant__header,
+  .bo-address__header {
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  .bo-chip {
+    min-height: 36px;
+  }
+}
+
+/* ── Very narrow phones (≤360px) ─────────────────────────────────────────
+   iPhone SE and small Androids. Product cards below ~150px stop showing a
+   usable image plus name plus price, so the grid drops to a single column. */
+/* ── Very narrow phones (≤360px) ─────────────────────────────────────────
+   The grid deliberately stays at two columns here. The panel override that
+   used to live in this block is gone too — the panel is full screen on every
+   mobile width now, so there is no inset left to shrink. */
+@media (max-width: 360px) {
+  #silfra-chat-widget-container .xpert-chat-header {
+    padding: 0.5rem 0.625rem;
+  }
+
+  /* Buy back a few more pixels for the action row at this width. */
+  #silfra-chat-widget-container .xpert-product-info {
+    padding: 0.5rem;
+  }
+
+  #silfra-chat-widget-container .xpert-similar-btn {
+    padding-left: 4px;
+    padding-right: 4px;
+  }
+
+  #silfra-chat-widget-container .xpert-card-actions .xpert-similar-btn {
+    flex: 0 0 36px;
+    min-width: 36px;
+    padding: 0;
+  }
+
+  #silfra-chat-widget-container .xpert-similar-btn-label {
+    display: none;
+  }
+
+  #silfra-chat-widget-container .xpert-similar-btn-icon {
+    display: inline-flex;
+  }
+}
+
+/* ── Landscape phones ────────────────────────────────────────────────────
+   Short viewports: the profile card and feature list consume the whole panel
+   and the composer is pushed out of reach. */
+@media (max-width: 900px) and (max-height: 480px) and (orientation: landscape) {
+  /* Panel sizing is handled by the full-screen rule above; only the content
+     needs compacting here, because a 480px-tall viewport leaves almost nothing
+     for the message list once the profile card and feature list are drawn. */
+  #silfra-chat-widget-container .xpert-profile-card {
+    padding: 0.75rem;
+    margin: 0.5rem;
+  }
+
+  #silfra-chat-widget-container .xpert-features-list {
+    display: none;
+  }
+}
+
+/* ── Reduced motion ──────────────────────────────────────────────────────
+   The slide-in transforms are the widget's most motion-heavy moment and the
+   panel is often opened mid-scroll. */
+@media (prefers-reduced-motion: reduce) {
+  #silfra-chat-widget-container *,
+  #silfra-chat-widget-container *::before,
+  #silfra-chat-widget-container *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

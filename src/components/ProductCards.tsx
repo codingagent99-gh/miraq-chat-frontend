@@ -8,6 +8,7 @@ interface ProductCardsProps {
   onAddToCart?: (product: Product) => void;
   loadingSimilarId?: number | null;
 }
+import { PiApproximateEqualsBold } from "react-icons/pi";
 
 export function ProductCards({
   products,
@@ -165,14 +166,7 @@ export function ProductCards({
               )}
 
               {(product.in_stock === false || product.on_sale) && (
-                <div
-                  style={{
-                    display: "flex",
-                    gap: "6px",
-                    marginTop: "4px",
-                    flexWrap: "wrap",
-                  }}
-                >
+                <div>
                   {product.in_stock === false ? (
                     <span className="xpert-sale-badge">OUT OF STOCK</span>
                   ) : (
@@ -181,14 +175,13 @@ export function ProductCards({
                 </div>
               )}
 
-              <div
-                style={{
-                  display: "flex",
-                  gap: "6px",
-                  alignItems: "center",
-                  marginTop: "4px",
-                }}
-              >
+              {/* Actions are class-driven, not inline-styled: the row/stack
+                  decision is made by a container query against the CARD width
+                  (see .xpert-card-actions in index.css). Inline styles would
+                  win over that query and pin the layout to a row at every
+                  size, which is what forced "Show Similar Products" onto three
+                  lines in a 2-up grid on a phone. */}
+              <div className="xpert-card-actions">
                 {onAddToCart && (
                   <button
                     className="xpert-add-to-cart-btn"
@@ -197,9 +190,10 @@ export function ProductCards({
                       onAddToCart(product);
                     }}
                     title="Add to Cart"
+                    aria-label="Add to cart"
                     type="button"
                   >
-                    <FiShoppingCart size={16} />
+                    <FiShoppingCart size={16} aria-hidden="true" />
                   </button>
                 )}
                 {onShowSimilar && (
@@ -210,11 +204,20 @@ export function ProductCards({
                       onShowSimilar(product);
                     }}
                     disabled={loadingSimilarId === product.id}
+                    aria-label="Similar items"
+                    title="Similar items"
                     type="button"
                   >
-                    {loadingSimilarId === product.id
-                      ? "Loading…"
-                      : "Show Similar Products"}
+                    <span className="xpert-similar-btn-label">
+                      {loadingSimilarId === product.id
+                        ? "Loading…"
+                        : "Similar items"}
+                    </span>
+                    <PiApproximateEqualsBold
+                      className="xpert-similar-btn-icon"
+                      size={16}
+                      aria-hidden="true"
+                    />
                   </button>
                 )}
               </div>
