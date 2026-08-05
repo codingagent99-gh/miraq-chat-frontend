@@ -98,6 +98,10 @@ export function useChat(options: UseChatOptions = {}) {
   const prevUserIdRef = useRef<string | number | undefined>(userId);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
+  // DOM nodes for each rendered message, keyed by message id — lets us find
+  // and scroll to a specific message rather than always the container bottom.
+  const messageRefs = useRef<Map<string, HTMLElement>>(new Map());
+  const prevMessagesLengthRef = useRef(0);
   const flowRef = useRef<FlowContext>({ flow_state: "idle" });
 
   const messagesRef = useRef<ChatMessage[]>([]);
@@ -293,19 +297,79 @@ export function useChat(options: UseChatOptions = {}) {
     // Falling back to scrollIntoView would scroll the host page.
   }, []);
 
-  // Scroll to bottom when a NEW message arrives (but NOT when loading older history)
+  /**
+   * Registers (or clears, on unmount) the DOM node for a rendered message,
+   * keyed by message id. ChatWidget wires this up as a ref callback on each
+   * message row so scrollMessageToTop can find a specific message later.
+   */
+  const registerMessageRef = useCallback(
+    (id: string, el: HTMLElement | null) => {
+      if (el) {
+        messageRefs.current.set(id, el);
+      } else {
+        messageRefs.current.delete(id);
+      }
+    },
+    [],
+  );
+
+  /**
+   * Scrolls so a message's TOP aligns with the top of the messages
+   * container, rather than following the container's bottom.
+   *
+   * Answers arrive as one full block, not streamed token-by-token, so
+   * scrolling to the container bottom on arrival jumped straight past the
+   * start of a long answer and left the user having to scroll back up to
+   * read it from the top. Anchoring to the new message's own top fixes
+   * that; the user scrolls down themselves from there.
+   */
+  const scrollMessageToTop = useCallback(
+    (id: string, behavior: ScrollBehavior = "smooth") => {
+      const container = bottomRef.current?.closest(
+        ".xpert-chat-messages",
+      ) as HTMLElement | null;
+      const target = messageRefs.current.get(id);
+      if (!container || !target) return;
+      const containerRect = container.getBoundingClientRect();
+      const targetRect = target.getBoundingClientRect();
+      const top = container.scrollTop + (targetRect.top - containerRect.top);
+      container.scrollTo({ top, behavior });
+    },
+    [],
+  );
+
+  // Scroll when the message list changes (but NOT when loading older
+  // history). A brand-new bot reply gets its TOP aligned to the container
+  // so the user reads it from the start; everything else — the user's own
+  // outgoing message, the loading dots appearing/disappearing — keeps
+  // following the bottom as before.
   useEffect(() => {
     if (justLoadedHistoryRef.current) {
       justLoadedHistoryRef.current = false;
+      prevMessagesLengthRef.current = messages.length;
       return;
     }
     const container = bottomRef.current?.closest(
       ".xpert-chat-messages",
     ) as HTMLElement | null;
-    if (container && container.offsetParent !== null) {
-      scrollToBottom("smooth");
+    if (!container || container.offsetParent === null) {
+      prevMessagesLengthRef.current = messages.length;
+      return;
     }
-  }, [messages.length, loading, loadingHistory, scrollToBottom]);
+
+    const grew = messages.length > prevMessagesLengthRef.current;
+    const lastMessage = messages[messages.length - 1];
+    prevMessagesLengthRef.current = messages.length;
+
+    if (grew && lastMessage?.role === "bot") {
+      // Wait a frame so the new message has actually painted before we
+      // measure its position.
+      requestAnimationFrame(() => scrollMessageToTop(lastMessage.id, "smooth"));
+      return;
+    }
+
+    scrollToBottom("smooth");
+  }, [messages, loading, loadingHistory, scrollToBottom, scrollMessageToTop]);
 
   const updateEmail = useCallback((email: string) => {
     setUserEmail(email);
@@ -941,6 +1005,7 @@ export function useChat(options: UseChatOptions = {}) {
     bottomRef,
     inputRef,
     scrollToBottom,
+    registerMessageRef,
     pagination,
     loadMore,
     orderPagination,
