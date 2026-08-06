@@ -336,6 +336,7 @@ export function ChatWidget({
     bottomRef,
     inputRef,
     scrollToBottom,
+    registerMessageRef,
     pagination,
     loadMore,
     orderPagination,
@@ -757,29 +758,33 @@ export function ChatWidget({
             }}
           >
             {messages.map((message) => (
-              <MessageRow
+              <div
                 key={message.id}
-                message={message}
-                isBeingEdited={message.id === editingId}
-                onSuggestion={handleSuggestionClick}
-                onFilterSuggestion={sendFilterSuggestion}
-                onEdit={handleEditClick}
-                onOrderClick={(_orderId, orderNumber) =>
-                  sendMessage(`show me order #${orderNumber}`)
-                }
-                onProductClick={handleProductClick}
-                onShowSimilar={handleShowSimilar}
-                loadingSimilarId={loadingSimilarId}
-                onVariantSelect={handleVariantSelect}
-                onVariantAllSelected={setCanPlaceOrder}
-                canPlaceOrder={canPlaceOrder}
-                siteOrigin={siteOrigin}
-                onPlaceOrder={() => {
-                  handleSend();
-                  setCanPlaceOrder(false);
-                }}
-                miraQIcon={widgetLogo || MiraQIcon}
-              />
+                ref={(el) => registerMessageRef(message.id, el)}
+              >
+                <MessageRow
+                  message={message}
+                  isBeingEdited={message.id === editingId}
+                  onSuggestion={handleSuggestionClick}
+                  onFilterSuggestion={sendFilterSuggestion}
+                  onEdit={handleEditClick}
+                  onOrderClick={(_orderId, orderNumber) =>
+                    sendMessage(`show me order #${orderNumber}`)
+                  }
+                  onProductClick={handleProductClick}
+                  onShowSimilar={handleShowSimilar}
+                  loadingSimilarId={loadingSimilarId}
+                  onVariantSelect={handleVariantSelect}
+                  onVariantAllSelected={setCanPlaceOrder}
+                  canPlaceOrder={canPlaceOrder}
+                  siteOrigin={siteOrigin}
+                  onPlaceOrder={() => {
+                    handleSend();
+                    setCanPlaceOrder(false);
+                  }}
+                  miraQIcon={widgetLogo || MiraQIcon}
+                />
+              </div>
             ))}
 
             {showServerLoadMore && (

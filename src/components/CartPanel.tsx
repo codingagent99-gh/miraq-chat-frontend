@@ -216,7 +216,9 @@ export function CartPanel({
 
                 {/* Right */}
                 <div className="miraq-cart-item-right">
-                  <span className="miraq-cart-item-total">{lineTotal}</span>
+                  {parseInt(item.totals.line_total, 10) > 0 && (
+                    <span className="miraq-cart-item-total">{lineTotal}</span>
+                  )}
                   <button
                     className="miraq-cart-item-remove"
                     onClick={() => onRemove(item.key)}

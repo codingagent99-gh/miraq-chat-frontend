@@ -113,7 +113,7 @@ export function AiOptInScreen({
             height: "28px",
             borderRadius: "14px",
             border: "none",
-            background: aiEnabled ? "#6366f1" : "#d1d5db",
+            background: aiEnabled ? "#0089a8" : "#d1d5db",
             cursor: "pointer",
             position: "relative",
             transition: "background 0.25s ease",
