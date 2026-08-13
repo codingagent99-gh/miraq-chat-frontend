@@ -45,18 +45,27 @@ export interface CheckoutField {
 // the downstream __BULK_ADDR__ consumer that looks for these exact keys.
 const BILLING_KEEP_PREFIX = new Set(["billing_field_type", "billing_project"]);
 
-// THWCFE sometimes registers "shipping_company_name" instead of the standard
-// "shipping_company". Normalise it so the form state always uses "company".
-const SHIPPING_KEY_REMAP: Record<string, string> = {
+// THWCFE sometimes registers "<group>_company_name" instead of the standard
+// "<group>_company". Normalise BOTH groups so form state always uses "company".
+// Billing was missing here: "billing_company_name" stripped to "company_name",
+// which matches nothing in AddressDict — so the Company Name box rendered with
+// the right label but never prefilled from cart.billing_address.company, and
+// placeOrder read billing.company as "" and saved no company on the order.
+const COMPANY_KEY_REMAP: Record<string, string> = {
+  billing_company_name: "company",
   shipping_company_name: "company",
 };
 
 function formKey(wcKey: string, group: "billing" | "shipping"): string {
   if (group === "billing" && BILLING_KEEP_PREFIX.has(wcKey)) return wcKey;
-  const remap = SHIPPING_KEY_REMAP[wcKey];
+  const remap = COMPANY_KEY_REMAP[wcKey];
   if (remap) return remap;
   const prefix = `${group}_`;
-  return wcKey.startsWith(prefix) ? wcKey.slice(prefix.length) : wcKey;
+  const stripped = wcKey.startsWith(prefix)
+    ? wcKey.slice(prefix.length)
+    : wcKey;
+  // Catch any other "<group>_company_name" spelling the theme may register.
+  return stripped === "company_name" ? "company" : stripped;
 }
 
 // ── kind derivation ───────────────────────────────────────────────────────────

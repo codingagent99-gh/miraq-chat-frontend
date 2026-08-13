@@ -34,6 +34,8 @@ export interface Order {
   order_number: string;
   status: string;
   currency?: string;
+  /** ISO code (INR, USD) — sortable and filterable, unlike the symbol. */
+  currency_code?: string;
   total: number;
   subtotal?: number;
   shipping_total?: number;
@@ -124,7 +126,10 @@ export type FlowState =
   | "awaiting_bulk_order_input"
   | "awaiting_bulk_order_confirmation"
   | "awaiting_bulk_address_confirmation"
-  | "awaiting_bulk_variant_selection";
+  | "awaiting_bulk_variant_selection"
+  // ── Order reporting states ───────────────────────────────────────────────
+  | "awaiting_rep_choice"
+  | "awaiting_date_range";
 
 /** Context carried across turns for multi-step flows */
 export interface FlowContext {
@@ -170,6 +175,15 @@ export interface ChatMessage {
   pagination?: PaginationData;
   /** Pagination data for order results */
   orderPagination?: PaginationData;
+  /**
+   * Whether CSV export controls render on this message's order cards.
+   *
+   * Set by the BACKEND, not inferred here — the widget has no user role in
+   * context, and the export contains customer names, emails and addresses.
+   * Deciding this client-side would mean trusting the browser with an
+   * authorisation call it has no basis to make.
+   */
+  allowOrderDownload?: boolean;
   /** Structured variant options for the picker UI — only present on awaiting_variant_selection responses */
   variantOptions?: Record<string, string[]>;
   /** Actions dispatched by this message (only set for live responses, never history) */
@@ -213,6 +227,8 @@ export interface ChatRequest {
 
 /** Shape of the metadata object returned inside ChatResponse */
 export interface ChatResponseMetadata {
+  /** Backend-decided: may this response's order cards offer CSV export? */
+  allow_order_download?: boolean;
   products_count?: number;
   provider?: string;
   tokens_used?: number;
@@ -281,10 +297,20 @@ export interface HistoryEntry {
   intent?: string;
   timestamp: string;
   products?: Product[];
+  orders?: Order[];
+  purchase_info?: PurchaseInfo;
   categories?: Category[];
   suggestions?: string[];
+  filter_suggestions?: FilterSuggestion[];
   actions?: ChatAction[];
-  metadata?: Record<string, unknown>;
+  metadata?: ChatResponseMetadata & Record<string, unknown>;
+  cart?: CartData;
+  payment_url?: string;
+  pagination?: PaginationData;
+  order_pagination?: PaginationData;
+  variant_options?: Record<string, string[]>;
+  /** Some backend rows may put this top-level rather than under metadata */
+  allow_order_download?: boolean;
 }
 
 export interface HistoryResponse {

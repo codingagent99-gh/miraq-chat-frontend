@@ -16,6 +16,77 @@ import { enqueuMessages } from "../utils/chatHistory";
 const SESSION_KEY_PREFIX = "shop_chat_session_id";
 const EMAIL_KEY = "shop_chat_email";
 
+/**
+ * Friendly bubble text for a message carrying a structured card payload.
+ *
+ * Cards submit "__SENTINEL__<json>" so the backend flow handlers receive exact
+ * data. That raw string is what gets sent and stored, but it is not what the
+ * user meant to say, so it never appears in the transcript. `_display_message`
+ * in routes/chat.py performs the same rewrite when history is replayed — the
+ * two must stay in step or a reload will change how a turn reads.
+ *
+ * Anything unrecognised is returned untouched.
+ */
+function describeSentinel(text: string): string {
+  if (text.startsWith("__DATE_RANGE__")) {
+    try {
+      const payload = JSON.parse(text.slice("__DATE_RANGE__".length) || "{}");
+      if (payload?.all_time) return "📅 All time";
+      if (payload?.after && payload?.before) {
+        return `📅 ${payload.after} to ${payload.before}`;
+      }
+    } catch {
+      /* fall through to the generic label */
+    }
+    return "📅 Selected a date range";
+  }
+  if (text.startsWith("__BULK_ADDR__")) {
+    return "✏️ Updated billing & shipping address";
+  }
+  return text;
+}
+
+/**
+ * Rebuilds a ChatMessage from a `/chat/history` row.
+ *
+ * This must stay in sync with the live-response builder in
+ * `processChatResponse` below. Previously this only copied a handful of
+ * fields (products/categories/suggestions/actions/metadata), silently
+ * dropping `orders` and `allowOrderDownload` — so any order list (and its
+ * CSV download button) that a user saw during a live turn would vanish the
+ * moment the widget remounted and rehydrated from history (e.g. navigating
+ * to another page on the site). `cart`/`paymentUrl`/pagination/etc. were
+ * dropped too, for the same reason.
+ */
+function mapHistoryEntryToMessage(m: any): ChatMessage {
+  return {
+    id: uuidv4(),
+    role: m.role,
+    text: m.message,
+    intent: m.intent,
+    timestamp: new Date(m.timestamp),
+    products: m.products,
+    orders: m.orders,
+    purchase_info: m.purchase_info,
+    categories: m.categories,
+    suggestions: m.suggestions,
+    filterSuggestions: m.filter_suggestions,
+    actions: m.actions,
+    metadata: m.metadata,
+    cart: m.cart,
+    paymentUrl: m.payment_url,
+    pagination: m.pagination,
+    orderPagination: m.order_pagination,
+    variantOptions: m.variant_options,
+    // Backend stores this the same place it does on a live response
+    // (`metadata.allow_order_download`) — but history rows may also send it
+    // top-level, so check both rather than assume.
+    allowOrderDownload:
+      m.metadata?.allow_order_download === true ||
+      m.allow_order_download === true,
+  };
+}
+
 function sessionKey(userId?: string | number): string {
   return userId ? `${SESSION_KEY_PREFIX}_${userId}` : SESSION_KEY_PREFIX;
 }
@@ -205,18 +276,7 @@ export function useChat(options: UseChatOptions = {}) {
         if (res.messages && res.messages.length > 0) {
           // Rebuild React message objects from DB rows
           const formattedHistory: ChatMessage[] = res.messages.map(
-            (m: any) => ({
-              id: uuidv4(),
-              role: m.role,
-              text: m.message,
-              intent: m.intent,
-              timestamp: new Date(m.timestamp),
-              products: m.products,
-              categories: m.categories,
-              suggestions: m.suggestions,
-              actions: m.actions,
-              metadata: m.metadata,
-            }),
+            mapHistoryEntryToMessage,
           );
           setMessages(formattedHistory);
           setHasMoreHistory(res.has_more);
@@ -246,18 +306,9 @@ export function useChat(options: UseChatOptions = {}) {
         historyPage,
       );
       if (res.messages && res.messages.length > 0) {
-        const olderMessages: ChatMessage[] = res.messages.map((m: any) => ({
-          id: uuidv4(),
-          role: m.role,
-          text: m.message,
-          intent: m.intent,
-          timestamp: new Date(m.timestamp),
-          products: m.products,
-          categories: m.categories,
-          suggestions: m.suggestions,
-          actions: m.actions,
-          metadata: m.metadata,
-        }));
+        const olderMessages: ChatMessage[] = res.messages.map(
+          mapHistoryEntryToMessage,
+        );
 
         justLoadedHistoryRef.current = true;
         // Prepend older messages to the top of the array
@@ -412,6 +463,7 @@ export function useChat(options: UseChatOptions = {}) {
         "SHOW_BULK_VARIANT_PROMPT",
         "SHOW_BULK_ADDRESS_CONFIRMATION",
         "SHOW_PRODUCT_RECENT_ORDERS",
+        "SHOW_DATE_RANGE_PICKER",
       ]);
       const PERSISTENT_TYPES = new Set([
         "SHOW_BULK_ORDER_BUTTON",
@@ -468,6 +520,7 @@ export function useChat(options: UseChatOptions = {}) {
         text: res.bot_message,
         products: res.products?.length ? res.products : undefined,
         orders: res.orders?.length ? res.orders : undefined,
+        allowOrderDownload: res.metadata?.allow_order_download === true,
         categories: res.categories?.length ? res.categories : undefined,
         purchase_info: res.purchase_info,
         intent: res.intent,
@@ -513,13 +566,12 @@ export function useChat(options: UseChatOptions = {}) {
       if (!text.trim()) return;
       setError(null);
 
-      // The bulk-address edit panel sends a structured payload encoded as
-      // "__BULK_ADDR__<json>". Send the full encoded string to the API, but
-      // show a friendly bubble instead of raw JSON in the conversation.
-      const _isBulkAddr = text.trim().startsWith("__BULK_ADDR__");
-      const _displayText = _isBulkAddr
-        ? "✏️ Updated billing & shipping address"
-        : text.trim();
+      // Cards can send a structured payload encoded as "__SENTINEL__<json>".
+      // The full encoded string goes to the API — the flow handlers need the
+      // exact data — but the conversation shows a friendly bubble rather than
+      // raw JSON. The same rewrite exists server-side for /history, so a
+      // reload renders these the same way this turn did.
+      const _displayText = describeSentinel(text.trim());
 
       const userMsg: ChatMessage = {
         id: uuidv4(),

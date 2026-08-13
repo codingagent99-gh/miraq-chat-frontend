@@ -17,7 +17,12 @@ import type {
   WpRep,
   WpOrderTypeOption,
 } from "../../../hooks/useCheckoutFields";
-import { useCompanyAddresses, formatShipping } from "./CompanyAddressSelector";
+import { useCompanyAddresses } from "./CompanyAddressSelector";
+import {
+  SavedAddressSelect,
+  shouldShowSavedAddressSelect,
+  isAddressSelectorField,
+} from "./SavedAddressSelect";
 
 /**
  * Field key(s) used by the theme's company address-lookup plugin for its
@@ -34,18 +39,13 @@ import { useCompanyAddresses, formatShipping } from "./CompanyAddressSelector";
  * differs. Keys are matched after the billing_/shipping_ prefix is stripped by
  * useCheckoutFields, so list the stripped form.
  */
-export const ADDRESS_SELECTOR_FIELD_KEYS = [
-  "address_selector",
-  "company_address_selector",
-  "saved_address_selector",
-];
-
-export function isAddressSelectorField(field: string): boolean {
-  return (
-    ADDRESS_SELECTOR_FIELD_KEYS.includes(field) ||
-    /address.*select|select.*address/i.test(field)
-  );
-}
+// Moved to SavedAddressSelect.tsx so surfaces that need only the predicate
+// (e.g. BulkAddressConfirmationCard) don't have to pull in this whole form.
+// Re-exported here so existing importers keep working.
+export {
+  ADDRESS_SELECTOR_FIELD_KEYS,
+  isAddressSelectorField,
+} from "./SavedAddressSelect";
 
 /** All custom (non-AddressDict) fields supported by this form. */
 export type CustomField =
@@ -208,8 +208,12 @@ export function AddressForm({
   // plus any fields explicitly marked required via fieldOverrides.
   const requiredFields = visibleFields.filter(
     (f) =>
-      ALWAYS_REQUIRED.includes(f as keyof AddressDict) ||
-      (fieldOverrides as any)?.[f]?.required === true,
+      // The Address Selector writes into the other fields and stays blank
+      // itself, so it can never satisfy a required check — treating it as
+      // required would block submit forever.
+      !isAddressSelectorField(f as string) &&
+      (ALWAYS_REQUIRED.includes(f as keyof AddressDict) ||
+        (fieldOverrides as any)?.[f]?.required === true),
   );
 
   const [values, setValues] = useState<FormValues>(() => {
@@ -431,7 +435,7 @@ export function AddressForm({
           // company typed, lookup still running, or no saved addresses on
           // file => render nothing at all (not even the label).
           if (isAddressSelectorField(field as string)) {
-            if (companyMatches.length === 0) return null;
+            if (!shouldShowSavedAddressSelect(companyMatches)) return null;
           }
 
           const isFullWidth = !HALF_WIDTH_FIELDS.includes(
@@ -467,38 +471,12 @@ export function AddressForm({
 
               {/* ── Address Selector: saved addresses for the typed company ── */}
               {isAddressSelectorField(field as string) && (
-                <select
+                <SavedAddressSelect
                   id={`addr-${field}`}
-                  value=""
-                  onChange={(e) => {
-                    // Compare as strings on BOTH sides. `id` is a string
-                    // ("<user_id>:<address_key>") on the current plugin but a
-                    // NUMBER on older builds, and a DOM <option> value is
-                    // always a string — a strict === against a numeric id is
-                    // silently false forever, which reads as "the picker does
-                    // nothing when you select an address".
-                    const picked = companyMatches.find(
-                      (m) => String(m.id) === e.target.value,
-                    );
-                    if (!picked) {
-                      console.warn(
-                        "[AddressForm] no company address matched option value",
-                        e.target.value,
-                        companyMatches.map((m) => m.id),
-                      );
-                      return;
-                    }
-                    const addr = {
-                      first_name: picked.shipping.first_name,
-                      last_name: picked.shipping.last_name,
-                      company: picked.shipping.company || values.company,
-                      address_1: picked.shipping.address_1,
-                      address_2: picked.shipping.address_2,
-                      city: picked.shipping.city,
-                      state: picked.shipping.state,
-                      postcode: picked.shipping.postcode,
-                      country: picked.shipping.country,
-                    };
+                  matches={companyMatches}
+                  fallbackCompany={(values.company as string) ?? ""}
+                  style={selectStyle(!!error)}
+                  onPick={(addr) => {
                     setValues((prev) => ({ ...prev, ...addr }));
                     setTouched((prev) => ({
                       ...prev,
@@ -507,27 +485,7 @@ export function AddressForm({
                       ),
                     }));
                   }}
-                  style={selectStyle(!!error)}
-                >
-                  <option value="">Select a saved address…</option>
-                  {companyMatches.map((m) => (
-                    <option key={String(m.id)} value={String(m.id)}>
-                      {[
-                        [m.shipping.first_name, m.shipping.last_name]
-                          .filter(Boolean)
-                          .join(" ") || m.email,
-                        // Company matching is partial, so one search can span
-                        // several company spellings — show which one this row
-                        // came from or the list is ambiguous.
-                        m.company,
-                      ]
-                        .filter(Boolean)
-                        .join(" · ")}
-                      {" — "}
-                      {formatShipping(m.shipping)}
-                    </option>
-                  ))}
-                </select>
+                />
               )}
 
               {/* ── Country dropdown ── */}

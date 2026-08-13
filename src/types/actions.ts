@@ -120,6 +120,8 @@ export type ChatAction =
         quantity: number;
         progress: { current: number; total: number };
         attributes: { name: string; options: string[] }[];
+        /** Axis values already resolved from the user's message; seeds the picker. */
+        preselected?: Record<string, string>;
         variations: { id: number; attributes: Record<string, string> }[];
       };
     }
@@ -161,6 +163,15 @@ export type ChatAction =
       type: "SHOW_PRODUCT_RECENT_ORDERS";
       payload: {
         orders: ProductOrderHistoryItem[];
+      };
+    }
+  | {
+      type: "SHOW_DATE_RANGE_PICKER";
+      payload: {
+        /** Echoed back on submit so a stale/replayed card can be refused. */
+        token: string;
+        rep_name?: string | null;
+        quick_options?: string[];
       };
     };
 

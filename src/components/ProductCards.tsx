@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { Product } from "../types/api";
 import { FiShoppingCart } from "react-icons/fi";
 
@@ -5,7 +6,7 @@ interface ProductCardsProps {
   products: Product[];
   onProductClick?: (product: Product) => void;
   onShowSimilar?: (product: Product) => void;
-  onAddToCart?: (product: Product) => void;
+  onAddToCart?: (product: Product, quantity: number) => void;
   loadingSimilarId?: number | null;
 }
 import { PiApproximateEqualsBold } from "react-icons/pi";
@@ -17,6 +18,17 @@ export function ProductCards({
   onAddToCart,
   loadingSimilarId,
 }: ProductCardsProps) {
+  // Which product's card currently shows the manual quantity prompt.
+  const [qtyPromptId, setQtyPromptId] = useState<number | null>(null);
+  const [qtyValue, setQtyValue] = useState("");
+
+  const confirmAddToCart = (product: Product) => {
+    const qty = parseInt(qtyValue, 10);
+    if (!qty || qty < 1) return;
+    onAddToCart?.(product, qty);
+    setQtyPromptId(null);
+    setQtyValue("");
+  };
   // 🚀 The exhaustive, safe extractor
   const getImgSrc = (product: any): string => {
     const candidates = [
@@ -181,46 +193,93 @@ export function ProductCards({
                   win over that query and pin the layout to a row at every
                   size, which is what forced "Show Similar Products" onto three
                   lines in a 2-up grid on a phone. */}
-              <div className="xpert-card-actions">
-                {onAddToCart && (
-                  <button
-                    className="xpert-add-to-cart-btn"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onAddToCart(product);
+              {qtyPromptId === product.id ? (
+                <div
+                  className="xpert-cart-qty-row"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <input
+                    className="xpert-cart-qty-input"
+                    type="number"
+                    min={1}
+                    placeholder="Enter quantity"
+                    value={qtyValue}
+                    autoFocus
+                    onChange={(e) => setQtyValue(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") confirmAddToCart(product);
+                      if (e.key === "Escape") {
+                        setQtyPromptId(null);
+                        setQtyValue("");
+                      }
                     }}
-                    title="Add to Cart"
-                    aria-label="Add to cart"
+                  />
+                  <button
+                    className="xpert-cart-qty-confirm"
+                    onClick={() => confirmAddToCart(product)}
+                    disabled={!qtyValue || parseInt(qtyValue, 10) < 1}
+                    title="Confirm quantity"
+                    aria-label="Confirm quantity"
                     type="button"
                   >
-                    <FiShoppingCart size={16} aria-hidden="true" />
+                    Add
                   </button>
-                )}
-                {onShowSimilar && (
                   <button
-                    className="xpert-similar-btn"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onShowSimilar(product);
+                    className="xpert-cart-qty-cancel"
+                    onClick={() => {
+                      setQtyPromptId(null);
+                      setQtyValue("");
                     }}
-                    disabled={loadingSimilarId === product.id}
-                    aria-label="Similar items"
-                    title="Similar items"
+                    title="Cancel"
+                    aria-label="Cancel"
                     type="button"
                   >
-                    <span className="xpert-similar-btn-label">
-                      {loadingSimilarId === product.id
-                        ? "Loading…"
-                        : "Similar items"}
-                    </span>
-                    <PiApproximateEqualsBold
-                      className="xpert-similar-btn-icon"
-                      size={16}
-                      aria-hidden="true"
-                    />
+                    ×
                   </button>
-                )}
-              </div>
+                </div>
+              ) : (
+                <div className="xpert-card-actions">
+                  {onAddToCart && (
+                    <button
+                      className="xpert-add-to-cart-btn"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setQtyPromptId(product.id);
+                        setQtyValue("");
+                      }}
+                      title="Add to Cart"
+                      aria-label="Add to cart"
+                      type="button"
+                    >
+                      <FiShoppingCart size={16} aria-hidden="true" />
+                    </button>
+                  )}
+                  {onShowSimilar && (
+                    <button
+                      className="xpert-similar-btn"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onShowSimilar(product);
+                      }}
+                      disabled={loadingSimilarId === product.id}
+                      aria-label="Similar items"
+                      title="Similar items"
+                      type="button"
+                    >
+                      <span className="xpert-similar-btn-label">
+                        {loadingSimilarId === product.id
+                          ? "Loading…"
+                          : "Similar items"}
+                      </span>
+                      <PiApproximateEqualsBold
+                        className="xpert-similar-btn-icon"
+                        size={16}
+                        aria-hidden="true"
+                      />
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         );

@@ -13,6 +13,7 @@ import { BulkAddressConfirmationCard } from "./BulkAddressConfirmationCard";
 import { BulkVariantPromptCard } from "./BulkVariantPromptCard";
 import { BulkOrderConfirmationCard } from "./BulkOrderConfirmationCard";
 import { ProductRecentOrdersCard } from "./ProductRecentOrdersCard";
+import { DateRangePickerCard } from "./DateRangePickerCard";
 
 interface MessageRowProps {
   message: ChatMessage;
@@ -39,6 +40,14 @@ interface MessageRowProps {
   /** Site origin (WP base) passed to the bulk address card's checkout-fields hook */
   siteOrigin: string;
   miraQIcon: string;
+  /**
+   * True only for the last message in the list. Interactive cards replayed
+   * from /history render read-only, so a picker from a finished conversation
+   * cannot be clicked. The backend refuses stale submissions by token anyway;
+   * this just stops the user being offered a control that will only tell them
+   * it expired.
+   */
+  isLatest?: boolean;
 }
 
 /** Formats a Date into a human-readable chat timestamp.
@@ -101,6 +110,7 @@ export function MessageRow({
   canPlaceOrder = false,
   siteOrigin,
   miraQIcon,
+  isLatest = true,
 }: MessageRowProps) {
   const formattedTime = formatTimestamp(new Date(message.timestamp));
   // Suppress similar products nudge during guided flows (awaiting_variant_selection etc.)
@@ -209,7 +219,9 @@ export function MessageRow({
                 products={message.products}
                 onProductClick={onProductClick}
                 onShowSimilar={similarHandler}
-                onAddToCart={(product) => onSuggestion(`order ${product.name}`)}
+                onAddToCart={(product, quantity) =>
+                  onSuggestion(`order ${quantity} ${product.name}`)
+                }
                 loadingSimilarId={loadingSimilarId}
               />
               {similarHandler && (
@@ -241,6 +253,7 @@ export function MessageRow({
               <OrderListCards
                 orders={message.orders}
                 onOrderClick={onOrderClick}
+                allowDownload={message.allowOrderDownload}
               />
             )}
 
@@ -315,6 +328,16 @@ export function MessageRow({
                       onSkip={() => onSuggestion("Skip this order")}
                       onSave={(msg) => onSuggestion(msg)}
                       onCancel={() => onSuggestion("__BULK_CANCEL__")}
+                    />
+                  );
+                }
+                if (action.type === "SHOW_DATE_RANGE_PICKER") {
+                  return (
+                    <DateRangePickerCard
+                      key={idx}
+                      {...action.payload}
+                      disabled={!isLatest}
+                      onSubmit={(msg) => onSuggestion(msg)}
                     />
                   );
                 }

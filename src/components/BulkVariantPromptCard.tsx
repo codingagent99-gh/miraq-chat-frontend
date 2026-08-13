@@ -14,11 +14,17 @@ interface Props {
   quantity: number;
   progress: { current: number; total: number };
   attributes: Attribute[];
+  /**
+   * Axis values the backend already resolved from the user's message
+   * (e.g. "London White" -> { Colors: "LONDON White" }). Values match entries
+   * in `attributes[].options` exactly, so they can be compared directly.
+   * Used to seed the initial selection so the user isn't asked to re-pick
+   * something they already stated.
+   */
+  preselected?: Record<string, string>;
   variations: { id: number; attributes: Record<string, string> }[];
   onConfirm: (message: string) => void;
 }
-
-const QUICK_QTYS = [1, 5, 10, 15, 25];
 
 export function BulkVariantPromptCard({
   company,
@@ -26,10 +32,25 @@ export function BulkVariantPromptCard({
   quantity,
   progress,
   attributes,
+  preselected,
   onConfirm,
   is_self_order,
 }: Props) {
-  const [selected, setSelected] = useState<Record<string, string>>({});
+  // Seed from what the backend already resolved. Only keep values that are
+  // actually offered for that axis — a stale or renamed option would
+  // otherwise show as chosen while matching no chip, leaving the user unable
+  // to see or change it.
+  const [selected, setSelected] = useState<Record<string, string>>(() => {
+    if (!preselected) return {};
+    const seed: Record<string, string> = {};
+    for (const attr of attributes) {
+      const value = preselected[attr.name];
+      if (value && attr.options.includes(value)) {
+        seed[attr.name] = value;
+      }
+    }
+    return seed;
+  });
   const [qty, setQty] = useState<number>(quantity > 0 ? quantity : 0);
   const [customQty, setCustomQty] = useState("");
 
@@ -83,35 +104,24 @@ export function BulkVariantPromptCard({
         </div>
       ))}
 
-      {/* Quantity picker — only when backend says qty is missing */}
+      {/* Quantity — manual entry only, no predefined buttons */}
       {quantity === 0 && (
         <div className="bo-variant__axis">
           <p className="bo-variant__axis-label">Quantity</p>
-          <div className="bo-variant__chips">
-            {QUICK_QTYS.map((q) => (
-              <button
-                key={q}
-                type="button"
-                className={`xpert-variant-chip${qty === q && !customQty ? " xpert-variant-chip--selected" : ""}`}
-                onClick={() => {
-                  setQty(q);
-                  setCustomQty("");
-                }}
-              >
-                {q}
-              </button>
-            ))}
-          </div>
+          <p style={{ fontSize: "0.8rem", color: "#666", marginTop: 0 }}>
+            Please enter the required quantity
+          </p>
           <input
             className="bo-variant__qty-input"
             type="number"
             min={1}
-            placeholder="Other quantity…"
+            placeholder="Enter quantity"
             value={customQty}
             onChange={(e) => {
               setCustomQty(e.target.value);
               setQty(parseInt(e.target.value, 10) || 0);
             }}
+            autoFocus
           />
         </div>
       )}

@@ -148,6 +148,7 @@ async function handleSingleAction(
     case "SHOW_BULK_VARIANT_PROMPT":
     case "SHOW_BULK_ADDRESS_CONFIRMATION":
     case "SHOW_PRODUCT_RECENT_ORDERS":
+    case "SHOW_DATE_RANGE_PICKER":
       // Rendered directly in MessageRow; nothing for the action dispatcher to do.
       break;
 

@@ -4,6 +4,12 @@ import {
   type CheckoutField,
 } from "../hooks/useCheckoutFields";
 import { InlineFieldError } from "./checkout/fields/InlineFieldError";
+import { useCompanyAddresses } from "./checkout/fields/CompanyAddressSelector";
+import {
+  SavedAddressSelect,
+  shouldShowSavedAddressSelect,
+  isAddressSelectorField,
+} from "./checkout/fields/SavedAddressSelect";
 import type { AddressDict } from "../types/actions";
 
 type AddrValues = Record<string, string | undefined>;
@@ -106,6 +112,25 @@ export function BulkAddressConfirmationCard({
     shippingFields, // ← API-driven; no more hardcoded SHIPPING_FIELDS
   } = useCheckoutFields(siteOrigin);
 
+  // ── Saved company addresses ──
+  // The picker belongs to the SHIPPING block (it chooses where goods go), so
+  // it is driven by the shipping company, not the billing one — billing here
+  // is the logged-in rep's own address and has nothing to do with the
+  // customer's address book.
+  //
+  // Gated on the store actually having an Address Selector field: the
+  // /company-addresses endpoint is bespoke to it, so on any other install
+  // there is nowhere to show results and the request would be pure waste on
+  // every keystroke.
+  const hasAddressSelector = shippingFields.some((f) =>
+    isAddressSelectorField(f.key),
+  );
+  const { matches: companyMatches } = useCompanyAddresses(
+    siteOrigin ?? "",
+    shippingForm.company ?? "",
+    hasAddressSelector,
+  );
+
   const setB = (k: string, v: string) =>
     setBillingForm((p) => ({ ...p, [k]: v }));
   const setS = (k: string, v: string) =>
@@ -124,7 +149,14 @@ export function BulkAddressConfirmationCard({
     backendKeys: Set<string>,
   ): CheckoutField[] {
     return fields.filter(
-      (f) => isRequired(f, backendKeys) && isBlank(values[f.key]),
+      (f) =>
+        // The Address Selector is an action, not a value — it stays blank by
+        // design after writing into the other fields. Counting it as missing
+        // would leave Confirm permanently disabled on any store that marks
+        // it required.
+        !isAddressSelectorField(f.key) &&
+        isRequired(f, backendKeys) &&
+        isBlank(values[f.key]),
     );
   }
 
@@ -166,8 +198,20 @@ export function BulkAddressConfirmationCard({
       setShowErrors(true);
       return;
     }
+    // The Address Selector is a UI affordance, not an address field — don't
+    // ship its value to WooCommerce. Same rule as AddressForm.handleSubmit.
+    const strip = (v: AddrValues): AddrValues => {
+      const out = { ...v };
+      for (const k of Object.keys(out)) {
+        if (isAddressSelectorField(k)) delete out[k];
+      }
+      return out;
+    };
     onSave(
-      `__BULK_ADDR__${JSON.stringify({ billing: billingForm, shipping: shippingForm })}`,
+      `__BULK_ADDR__${JSON.stringify({
+        billing: strip(billingForm),
+        shipping: strip(shippingForm),
+      })}`,
     );
     setEditing(false);
   }
@@ -190,6 +234,21 @@ export function BulkAddressConfirmationCard({
     values: AddrValues,
     set: (k: string, v: string) => void,
   ) {
+    // ── Address Selector ──
+    // Not a real address field: it writes into the OTHER fields. Rendered via
+    // the same shared component AddressForm uses so the string-id comparison
+    // and option formatting can't drift between the two surfaces.
+    if (isAddressSelectorField(f.key)) {
+      return (
+        <SavedAddressSelect
+          className="bo-address__input"
+          matches={companyMatches}
+          fallbackCompany={shippingForm.company ?? ""}
+          onPick={(addr) => setShippingForm((prev) => ({ ...prev, ...addr }))}
+        />
+      );
+    }
+
     const v = values[f.key] ?? "";
 
     if (f.kind === "rep") {
@@ -293,6 +352,16 @@ export function BulkAddressConfirmationCard({
     keyPrefix: string,
   ) {
     return fields.map((f) => {
+      // Hidden entirely until the lookup returns something — label included,
+      // matching AddressForm. No company typed, lookup still running, or no
+      // saved addresses on file all collapse to "render nothing".
+      if (
+        isAddressSelectorField(f.key) &&
+        !shouldShowSavedAddressSelect(companyMatches)
+      ) {
+        return null;
+      }
+
       const required = isRequired(f, backendKeys);
       const invalid = showErrors && required && isBlank(values[f.key]);
       return (

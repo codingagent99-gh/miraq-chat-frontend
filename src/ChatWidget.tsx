@@ -757,13 +757,14 @@ export function ChatWidget({
               }
             }}
           >
-            {messages.map((message) => (
+            {messages.map((message, _i) => (
               <div
                 key={message.id}
                 ref={(el) => registerMessageRef(message.id, el)}
               >
                 <MessageRow
                   message={message}
+                  isLatest={_i === messages.length - 1}
                   isBeingEdited={message.id === editingId}
                   onSuggestion={handleSuggestionClick}
                   onFilterSuggestion={sendFilterSuggestion}

@@ -181,7 +181,8 @@ export function ProductDetailPanel({
   }
 
   // ── Loaded state ──
-  const stockLabel = product.in_stock ? "In Stock" : "Out of Stock";
+  // "In Stock" is not surfaced — only Out of Stock is shown, since that is
+  // the condition that actually changes what a rep can do.
   const stockClass = product.in_stock
     ? "xpert-detail-stock--in"
     : "xpert-detail-stock--out";
@@ -285,9 +286,12 @@ export function ProductDetailPanel({
           </div>
           {/* Stock + SKU row */}
           <div className="xpert-detail-meta-row">
-            <span className={`xpert-detail-stock ${stockClass}`}>
-              {stockLabel}
-            </span>
+            {/* In-stock label removed: shown only when out of stock */}
+            {product.in_stock === false && (
+              <span className={`xpert-detail-stock ${stockClass}`}>
+                Out of Stock
+              </span>
+            )}
             {product.sku && (
               <span className="xpert-detail-sku">SKU: {product.sku}</span>
             )}
