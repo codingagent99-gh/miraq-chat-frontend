@@ -4,6 +4,15 @@ interface Props {
   lines?: BulkOrderLine[];
   resolved_count: number;
   unresolved_count: number;
+  /**
+   * Number of WooCommerce orders confirming will create. Several products for
+   * the same recipient merge into ONE order, so this is usually lower than the
+   * number of rows in the table. Optional: when the backend predates it, the
+   * card falls back to resolved_count and behaves as before.
+   */
+  order_count?: number;
+  /** Number of product lines ready — the row count. Defaults to resolved_count. */
+  line_count?: number;
   onConfirm: () => void;
   onCancel: () => void;
 }
@@ -15,6 +24,12 @@ function hasRealAddress(line: BulkOrderLine): boolean {
 }
 
 function statusCell(line: BulkOrderLine): { icon: string; label: string } {
+  // Skipped wins over everything: the rep explicitly chose not to place this
+  // line, and it will NOT be ordered. Showing it as "Ready" (which it was,
+  // until they skipped it) contradicts what actually happens.
+  if (line.address_skipped) {
+    return { icon: "⏭️", label: "Skipped" };
+  }
   if (!line.unresolved) {
     return hasRealAddress(line)
       ? { icon: "✅", label: "Ready" }
@@ -36,9 +51,14 @@ export function BulkOrderConfirmationCard({
   lines = [],
   resolved_count,
   unresolved_count,
+  order_count,
+  line_count,
   onConfirm,
   onCancel,
 }: Props) {
+  const readyLines = line_count ?? resolved_count;
+  const readyOrders = order_count ?? resolved_count;
+
   const needsAddressCount = lines.filter(
     (line) => !line.unresolved && !hasRealAddress(line),
   ).length;
@@ -60,12 +80,13 @@ export function BulkOrderConfirmationCard({
 
         {lines.map((line, i) => {
           const { icon, label } = statusCell(line);
-          const needsAddress = !line.unresolved && !hasRealAddress(line);
+          const needsAddress =
+            !line.unresolved && !line.address_skipped && !hasRealAddress(line);
           return (
             <div
               key={i}
               className={`bo-confirm__row${
-                line.unresolved
+                line.unresolved || line.address_skipped
                   ? " bo-confirm__row--skip"
                   : needsAddress
                     ? " bo-confirm__row--warn"
@@ -91,13 +112,16 @@ export function BulkOrderConfirmationCard({
 
       {needsAddressCount > 0 && (
         <p className="bo-confirm__warning">
-          ⚠️ {needsAddressCount} order(s) have no address on file — you'll need
+          ⚠️ {needsAddressCount} line(s) have no address on file — you'll need
           to add one before they can be placed.
         </p>
       )}
 
       <p className="bo-confirm__ready">
-        ✅ {resolved_count} order(s) ready to place.
+        ✅{" "}
+        {readyOrders !== readyLines
+          ? `${readyLines} product(s) in ${readyOrders} order(s) ready to place.`
+          : `${readyOrders} order(s) ready to place.`}
       </p>
 
       <div className="bo-confirm__btns">

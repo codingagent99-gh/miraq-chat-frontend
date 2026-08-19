@@ -1,0 +1,211 @@
+/* ── Login panel ─────────────────────────────────────────────────────────
+ *
+ * Every selector is ID-scoped (#silfra-chat-widget-container …), which gives
+ * it a specificity of 1-1-0 — enough to outrank the theme's global form
+ * styles without a single !important. That matters here: the theme sets
+ * width:100% on input[type=text] but not input[type=password], so an
+ * unstyled version of this form renders the two fields differently.
+ *
+ * These rules intentionally do not reuse the theme's login classes. See the
+ * block comment in LoginPanel.tsx for why.
+ * ─────────────────────────────────────────────────────────────────────── */
+
+#silfra-chat-widget-container .miraq-login {
+  position: relative;
+  height: 100%;
+  overflow-y: auto;
+  background: var(--color-surface);
+  padding: 0 0 32px;
+}
+
+#silfra-chat-widget-container .miraq-login-inner {
+  max-width: 340px;
+  margin: 0 auto;
+  padding: 24px 20px 0;
+}
+
+/* Capped in both axes: the mark is served from the store, so its natural
+   size is whatever was uploaded — the CS diamond is roughly square, a
+   horizontal lockup is not, and both have to sit in a 320px column. */
+#silfra-chat-widget-container .miraq-login-logo {
+  display: block;
+  max-width: 150px;
+  max-height: 96px;
+  width: auto;
+  height: auto;
+  margin: 0 auto 12px;
+  object-fit: contain;
+}
+
+#silfra-chat-widget-container .miraq-login-brand {
+  margin: 0 0 24px;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--color-primary);
+  text-align: center;
+}
+
+#silfra-chat-widget-container .miraq-login-card {
+  padding: 20px 18px;
+  background: #fff;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+}
+
+#silfra-chat-widget-container .miraq-login-title {
+  margin: 0 0 18px;
+  font-size: 18px;
+  font-weight: 600;
+  color: #333;
+}
+
+#silfra-chat-widget-container .miraq-login-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+#silfra-chat-widget-container .miraq-login-row label {
+  font-size: 13px;
+  font-weight: 500;
+  color: #333;
+}
+
+#silfra-chat-widget-container .miraq-login-req {
+  color: #e74c3c;
+}
+
+#silfra-chat-widget-container .miraq-login-input {
+  width: 100%;
+  padding: 12px 14px;
+  font-family: inherit;
+  font-size: 14px;
+  color: var(--color-text);
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+#silfra-chat-widget-container .miraq-login-input::placeholder {
+  color: #9aa5b1;
+}
+
+#silfra-chat-widget-container .miraq-login-input:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(0, 94, 184, 0.1);
+}
+
+#silfra-chat-widget-container .miraq-login-remember {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  font-size: 13px;
+  color: #333;
+  cursor: pointer;
+}
+
+#silfra-chat-widget-container .miraq-login-remember input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  flex: 0 0 auto;
+  cursor: pointer;
+  /* Undo the blanket appearance:none reset at the top of this file, which
+     otherwise leaves the box drawn but the tick invisible. */
+  -webkit-appearance: checkbox;
+  appearance: auto;
+  accent-color: var(--color-primary);
+}
+
+#silfra-chat-widget-container .miraq-login-error {
+  margin-bottom: 14px;
+  padding: 8px 10px;
+  font-size: 13px;
+  color: #b91c1c;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 4px;
+}
+
+#silfra-chat-widget-container .miraq-login-submit {
+  width: 100%;
+  padding: 12px 20px;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  color: #fff;
+  background: var(--color-primary);
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition:
+    background 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+#silfra-chat-widget-container .miraq-login-submit:hover:not(:disabled) {
+  background: var(--color-primary-dark);
+  box-shadow: 0 4px 12px rgba(0, 94, 184, 0.3);
+}
+
+#silfra-chat-widget-container .miraq-login-submit:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+#silfra-chat-widget-container .miraq-login-lost {
+  display: block;
+  margin-top: 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-primary);
+  text-align: center;
+  text-decoration: none;
+}
+
+#silfra-chat-widget-container .miraq-login-lost:hover {
+  text-decoration: underline;
+}
+
+/* Outlined rather than a second solid blue button. The theme renders both
+   actions identically, which works across a 1400px two-column dialog but
+   reads as two competing primaries when stacked in a 320px panel. */
+#silfra-chat-widget-container .miraq-login-register {
+  display: block;
+  margin-top: 16px;
+  padding: 11px 20px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-primary);
+  text-align: center;
+  text-decoration: none;
+  background: #fff;
+  border: 1.5px solid var(--color-primary);
+  border-radius: 4px;
+  transition: background 0.2s ease;
+}
+
+#silfra-chat-widget-container .miraq-login-register:hover {
+  background: rgba(0, 94, 184, 0.06);
+}
+
+#silfra-chat-widget-container .miraq-login-input:focus-visible,
+#silfra-chat-widget-container .miraq-login-submit:focus-visible,
+#silfra-chat-widget-container .miraq-login-register:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* iOS zooms the viewport when a focused input is under 16px. The theme does
+   the same bump at its own 600px breakpoint. */
+@media (max-width: 600px) {
+  #silfra-chat-widget-container .miraq-login-input {
+    font-size: 16px;
+  }
+}

@@ -20,6 +20,7 @@ import { useStoreApi } from "./hooks/useStoreApi";
 import { AiOptInScreen } from "./components/AiOptInScreen";
 // Side-effect import: registers built-in payment adapters before PaymentStep renders
 import "./components/checkout/payment";
+import { LoginPanel } from "./components/LoginPanel";
 
 // Must agree with MOBILE_BREAKPOINT in components/WidgetContainer.tsx
 // and the max-width used by the mobile block in index.css.
@@ -118,7 +119,10 @@ export function ChatWidget({
         if (localStorage.getItem(aiStorageKey) === "true") {
           const saved = sessionStorage.getItem(screenStorageKey);
           if (saved === "chat" || saved === "home") return saved;
-          return "home";
+          // No saved screen for this session — land straight in chat instead
+          // of the Home/"Start exploring" screen. Home stays reachable via
+          // the chat header's back button (see onBack further down).
+          return "chat";
         }
       } catch {
         // fall through to "ai-opt-in"
@@ -434,7 +438,10 @@ export function ChatWidget({
         // localStorage unavailable (private browsing, quota, etc.) — proceed anyway
       }
       if (value) {
-        setScreen("home");
+        // Skip the Home/"Start exploring" screen on first opt-in too — go
+        // straight to chat. Home is still reachable afterwards via the
+        // chat header's back button.
+        setScreen("chat");
       } else {
         setScreen("ai-opt-in");
       } // If value is false the user stays on the opt-in screen (AI-off resting state)
@@ -612,63 +619,12 @@ export function ChatWidget({
           isExpanded={isExpanded}
         >
           {!isLoggedIn ? (
-            // ── Login required ─────────────────────────────────────────────
-            <div
-              style={{
-                position: "relative",
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-                height: "100%",
-                padding: "2rem",
-                textAlign: "center",
-                backgroundColor: "#fff",
-              }}
-            >
-              <button
-                onClick={() => setPanelOpen(false)}
-                style={{
-                  position: "absolute",
-                  top: "16px",
-                  right: "16px",
-                  background: "transparent",
-                  border: "none",
-                  cursor: "pointer",
-                  color: "#666",
-                  padding: "4px",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-                aria-label="Close widget"
-                type="button"
-              >
-                <FiX size={20} />
-              </button>
-              <img
-                src={widgetLogo || MiraQIcon}
-                alt="MiraQ"
-                style={{
-                  width: "64px",
-                  height: "64px",
-                  marginBottom: "1.5rem",
-                  borderRadius: "50%",
-                }}
-              />
-              <h3 style={{ margin: "0 0 0.5rem 0" }}>Login Required</h3>
-              <p
-                style={{
-                  margin: "0",
-                  color: "#666",
-                  fontSize: "14px",
-                  lineHeight: "1.5",
-                }}
-              >
-                Please log in to your account to use our AI shopping assistant,
-                track your orders, and get personalized recommendations.
-              </p>
-            </div>
+            <LoginPanel
+              siteOrigin={siteOrigin}
+              fallbackLogoUrl={`${assetBaseUrl}store-logo.png`}
+              miraQIcon={widgetLogo || MiraQIcon}
+              onClose={() => setPanelOpen(false)}
+            />
           ) : screen === "ai-opt-in" ? (
             // ── AI mode opt-in (also the "AI off" resting state) ───────────
             <AiOptInScreen

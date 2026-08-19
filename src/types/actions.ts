@@ -107,6 +107,15 @@ export type ChatAction =
         lines: BulkOrderLine[];
         resolved_count: number;
         unresolved_count: number;
+        skipped_count?: number;
+        /**
+         * Lines merge into ONE order per recipient, so these differ: four
+         * products for one person is line_count 4, order_count 1. Optional so
+         * a frontend deploy ahead of the backend still renders — the card
+         * falls back to resolved_count, which is the old (line) count.
+         */
+        order_count?: number;
+        line_count?: number;
       };
     }
   | {

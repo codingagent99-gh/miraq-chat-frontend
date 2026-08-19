@@ -201,7 +201,6 @@ export function buildOrderCsv(order: Order): string {
     "sku",
     "variation_attributes",
     "quantity",
-    "unit_price",
     "line_total",
   ];
   const lines = [row(headers)];
@@ -209,7 +208,7 @@ export function buildOrderCsv(order: Order): string {
   const items = order.items || [];
 
   if (items.length === 0) {
-    lines.push(row([...core, "", "", "", "", "", "", ""]));
+    lines.push(row([...core, "", "", "", "", "", ""]));
     return lines.join("\r\n");
   }
 
@@ -222,7 +221,6 @@ export function buildOrderCsv(order: Order): string {
         (it as any).sku ?? "",
         variationText(it),
         it.quantity,
-        it.price,
         it.total,
       ]),
     );

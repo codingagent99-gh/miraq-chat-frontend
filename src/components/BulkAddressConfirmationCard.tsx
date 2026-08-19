@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   useCheckoutFields,
   type CheckoutField,
@@ -91,16 +91,27 @@ export function BulkAddressConfirmationCard({
   const [editing, setEditing] = useState(hasBackendErrors);
   const [showErrors, setShowErrors] = useState(hasBackendErrors);
 
+  // const [billingForm, setBillingForm] = useState<AddrValues>({
+  //   ...seed(billing),
+  //   // Match the shipping default below: country is required, and a blank one
+  //   // also leaves the state dropdown unpopulated.
+  //   country: billing?.country || "US",
+  // });
+  // const [shippingForm, setShippingForm] = useState<AddrValues>({
+  //   ...seed(shipping),
+  //   // Default to US so the state dropdown renders immediately.
+  //   // If the customer already has a non-US country it will be truthy and win.
+  //   country: shipping?.country || "US",
+  // });
+
   const [billingForm, setBillingForm] = useState<AddrValues>({
     ...seed(billing),
-    // Match the shipping default below: country is required, and a blank one
-    // also leaves the state dropdown unpopulated.
     country: billing?.country || "US",
+    // Hardcoded bulk-order default — rep can still edit.
+    billing_project: billing?.billing_project || "test project",
   });
   const [shippingForm, setShippingForm] = useState<AddrValues>({
     ...seed(shipping),
-    // Default to US so the state dropdown renders immediately.
-    // If the customer already has a non-US country it will be truthy and win.
     country: shipping?.country || "US",
   });
 
@@ -111,6 +122,34 @@ export function BulkAddressConfirmationCard({
     billingFields, // ← API-driven; no more hardcoded BILLING_FIELDS
     shippingFields, // ← API-driven; no more hardcoded SHIPPING_FIELDS
   } = useCheckoutFields(siteOrigin);
+
+  // Hardcoded bulk-order default for Order Type. It's a slug-backed <select>,
+  // not free text, so it can't be seeded synchronously — wait for the options
+  // to load, match "New Deal" by label, and write in the matching value. Only
+  // fires while the field is blank, so it never overwrites a value the rep
+  // already picked or one that came prefilled from the backend.
+  useEffect(() => {
+    if (billingForm.billing_field_type) return;
+    if (orderTypeOptions.length === 0) return;
+    const newDeal = orderTypeOptions.find(
+      (o) => o.label.trim().toLowerCase() === "new deal",
+    );
+    if (newDeal) {
+      setBillingForm((p) => ({ ...p, billing_field_type: newDeal.value }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orderTypeOptions]);
+
+  useEffect(() => {
+    if (billingForm.project_rep) return;
+    if (reps.length === 0) return;
+    const normalize = (s: string) => s.trim().toLowerCase().replace(/\.$/, "");
+    const ram = reps.find((r) => normalize(r.label) === "ram r");
+    if (ram) {
+      setBillingForm((p) => ({ ...p, project_rep: ram.value }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reps]);
 
   // ── Saved company addresses ──
   // The picker belongs to the SHIPPING block (it chooses where goods go), so
@@ -150,11 +189,12 @@ export function BulkAddressConfirmationCard({
   ): CheckoutField[] {
     return fields.filter(
       (f) =>
-        // The Address Selector is an action, not a value — it stays blank by
-        // design after writing into the other fields. Counting it as missing
-        // would leave Confirm permanently disabled on any store that marks
-        // it required.
         !isAddressSelectorField(f.key) &&
+        // Order Type / Rep can't be evaluated until their option lists have
+        // loaded — treat "still loading" as "not yet known," not "missing,"
+        // so Confirm doesn't flash blocked on first render.
+        !(f.kind === "orderType" && orderTypeOptions.length === 0) &&
+        !(f.kind === "rep" && reps.length === 0) &&
         isRequired(f, backendKeys) &&
         isBlank(values[f.key]),
     );
