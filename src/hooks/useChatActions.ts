@@ -55,15 +55,30 @@ async function handleSingleAction(
 ): Promise<void> {
   switch (action.type) {
     case "ADD_TO_CART": {
-      const { product_id, quantity, variation_id, variation, name } =
-        action.payload;
+      const {
+        product_id,
+        quantity,
+        variation_id,
+        variation,
+        name,
+        suppress_result,
+      } = action.payload;
       try {
         await deps.addItem(product_id, quantity, variation_id, variation);
-        await deps.onCartResult?.({
-          success: true,
-          name: name ?? "item",
-          quantity,
-        });
+        // suppress_result is set on bulk-order lines: the chat response
+        // already carries an itemised summary ("Added 4 item(s)...") for
+        // the whole batch, so a per-item success confirmation here would be
+        // a duplicate — see build_add_to_cart() on the backend for the full
+        // reasoning. A FAILURE is not covered by that summary (the backend
+        // only emits an action for lines it expects to succeed), so it
+        // still gets reported below regardless of the flag.
+        if (!suppress_result) {
+          await deps.onCartResult?.({
+            success: true,
+            name: name ?? "item",
+            quantity,
+          });
+        }
       } catch (err) {
         console.error("[ChatAction] ADD_TO_CART failed", err);
         await deps.onCartResult?.({
@@ -76,14 +91,17 @@ async function handleSingleAction(
     }
 
     case "SHOPIFY_ADD_TO_CART": {
-      const { variant_id, quantity, name } = action.payload;
+      const { variant_id, quantity, name, suppress_result } = action.payload;
       try {
         await deps.addItem(variant_id, quantity);
-        await deps.onCartResult?.({
-          success: true,
-          name: name ?? "item",
-          quantity,
-        });
+        // See ADD_TO_CART above — same reasoning, success only.
+        if (!suppress_result) {
+          await deps.onCartResult?.({
+            success: true,
+            name: name ?? "item",
+            quantity,
+          });
+        }
       } catch (err) {
         console.error("[ChatAction] SHOPIFY_ADD_TO_CART failed", err);
         await deps.onCartResult?.({

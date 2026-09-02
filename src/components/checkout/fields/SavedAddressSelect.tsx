@@ -58,6 +58,19 @@ export interface PickedAddress {
   state: string;
   postcode: string;
   country: string;
+  /**
+   * Shipping Email for the picked recipient, when the row has one.
+   *
+   * `email` is the short key useCheckoutFields assigns to `shipping_email`,
+   * and this picker only ever renders inside the shipping form (it is bound
+   * to the Address Selector field, which lives in the shipping group) — so
+   * this fills Shipping Email, not the billing one.
+   *
+   * OPTIONAL, and omitted rather than sent empty: picking an address must
+   * never blank an email the user has already typed. A row only carries one
+   * when the underlying order recorded `_shipping_email`.
+   */
+  email?: string;
 }
 
 /**
@@ -127,7 +140,7 @@ export function SavedAddressSelect({
           );
           return;
         }
-        onPick({
+        const patch: PickedAddress = {
           first_name: picked.shipping.first_name,
           last_name: picked.shipping.last_name,
           company: picked.shipping.company || fallbackCompany,
@@ -137,7 +150,14 @@ export function SavedAddressSelect({
           state: picked.shipping.state,
           postcode: picked.shipping.postcode,
           country: picked.shipping.country,
-        });
+        };
+        // Only when the row actually has one — see PickedAddress.email.
+        // Sending "" here would clear a Shipping Email the user had already
+        // filled in, which is worse than leaving them to type it.
+        if (picked.email) {
+          patch.email = picked.email;
+        }
+        onPick(patch);
       }}
     >
       <option value="">{placeholder}</option>

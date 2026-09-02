@@ -106,7 +106,13 @@ export function ShopifyWidgetContainer({
   assetBaseUrl,
   children,
 }: ShopifyWidgetContainerProps) {
-  const MiraQIcon = `${assetBaseUrl}MiraQ-icon.png`;
+  // Filename is case-sensitive on the host serving these assets. The file is
+  // MiraQ-Icon.png (capital I) — the same spelling ChatWidget uses for the
+  // PoweredByMiraQ footer. A lowercase "icon" here resolved fine on a
+  // case-insensitive dev box and 404'd everywhere else, and only on Shopify,
+  // since WidgetContainer (WooCommerce) uses DandellionWhite.png instead and
+  // never references this file.
+  const MiraQIcon = `${assetBaseUrl}MiraQ-Icon.png`;
   const widgetRootRef = useRef<HTMLDivElement>(null);
 
   const [isMobile, setIsMobile] = useState(

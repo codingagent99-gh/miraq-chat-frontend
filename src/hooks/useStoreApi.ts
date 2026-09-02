@@ -2,7 +2,9 @@
  * hooks/useStoreApi.ts
  *
  * Platform-switching re-export.
- * Mirrors the pattern in hooks/useCart.ts — see that file for details.
+ * Mirrors the pattern in hooks/useCart.ts — see that file for details on why
+ * PLATFORM comes from platform/current.ts rather than reading
+ * import.meta.env.VITE_PLATFORM again locally.
  *
  * ChatWidget.tsx calls this identically for both platforms:
  *   const { storeApiFetch } = useStoreApi({ nonce, nonceExpires, cartToken });
@@ -13,10 +15,7 @@
 
 import { useStoreApi as wcUseStoreApi } from "../platform/woocommerce/useStoreApi";
 import { useStoreApi as shopifyUseStoreApi } from "../platform/shopify/useStoreApi";
-
-const PLATFORM = (import.meta.env.VITE_PLATFORM ?? "woocommerce") as
-  | "woocommerce"
-  | "shopify";
+import { PLATFORM } from "../platform/current";
 
 export const useStoreApi =
   PLATFORM === "shopify" ? shopifyUseStoreApi : wcUseStoreApi;

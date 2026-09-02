@@ -102,6 +102,10 @@ function orderCoreValues(o: Order): unknown[] {
     s.state,
     s.postcode,
     s.country,
+    // Joined rather than one column per rep: the column count has to be
+    // fixed across every row, and an order can carry two reps (credited to
+    // one, placed by another). Empty for any list that didn't name reps.
+    (o.rep_names ?? []).join(" | "),
   ];
 }
 
@@ -138,6 +142,7 @@ const ORDER_CORE_HEADERS = [
   "shipping_state",
   "shipping_postcode",
   "shipping_country",
+  "sales_reps",
 ];
 
 function variationText(item: OrderItem): string {

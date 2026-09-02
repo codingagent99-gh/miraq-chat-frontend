@@ -1,4 +1,9 @@
-import { FiX, FiMaximize2, FiMinimize2 } from "react-icons/fi";
+import {
+  FiX,
+  FiMaximize2,
+  FiMinimize2,
+  // FiCpu
+} from "react-icons/fi";
 interface HomeScreenProps {
   onStartChat: () => void;
   onClose: () => void;
@@ -17,8 +22,8 @@ export function HomeScreen({
   miraQIcon,
   customerName,
   isLoggedIn = true,
-  aiMode = true,
-  onToggleAI,
+  // aiMode = true,
+  // onToggleAI,
   isExpanded,
   onToggleExpand,
 }: HomeScreenProps) {
@@ -27,55 +32,73 @@ export function HomeScreen({
   // ── Shared header card ──
   const profileCard = (
     <div className="xpert-profile-card">
-      <div className="xpert-profile-icon">
-        <img
-          style={{ height: "100%", width: "100%" }}
-          src={miraQIcon}
-          alt="MiraQ"
-        />
-      </div>
-      <div className="xpert-profile-info">
-        <p className="xpert-profile-label">Welcome to</p>
-        <h2 className="xpert-profile-name">MiraQ Commerce Assistant</h2>
-        <p className="xpert-profile-sub">AI-Powered Shopping Help</p>
-      </div>
-
-      {/* ── AI Mode Toggle ── */}
-      {onToggleAI && (
-        <div
-          className="xpert-ai-toggle"
-          title={aiMode ? "Turn off AI mode" : "Turn on AI mode"}
-        >
-          <span className="xpert-ai-toggle-label">AI</span>
-          <button
-            role="switch"
-            aria-checked={aiMode}
-            aria-label="Toggle AI mode"
-            className={`xpert-toggle-switch ${aiMode ? "xpert-toggle-on" : "xpert-toggle-off"}`}
-            onClick={onToggleAI}
-          >
-            <span className="xpert-toggle-thumb" />
-          </button>
+      <div className="xpert-profile-card-info">
+        <div className="xpert-profile-icon">
+          <img
+            style={{ height: "100%", width: "100%" }}
+            src={miraQIcon}
+            alt="MiraQ"
+          />
         </div>
-      )}
+        <div className="xpert-profile-info">
+          <h2 className="xpert-profile-name">Welcome to Dandelion</h2>
+          <p className="xpert-profile-sub">AI Powered Assistant</p>
+        </div>
 
-      {onToggleExpand && (
+        {/* <span className="xpert-profile-divider" aria-hidden="true" /> */}
+
+        {/* ── AI Mode Toggle ── */}
+        {/* {onToggleAI && (
+          <div
+            className="xpert-ai-toggle"
+            title={aiMode ? "Turn off AI mode" : "Turn on AI mode"}
+          >
+            <button
+              role="switch"
+              aria-checked={aiMode}
+              aria-label="Toggle AI mode"
+              className={`xpert-toggle-switch ${aiMode ? "xpert-toggle-on" : "xpert-toggle-off"}`}
+              onClick={onToggleAI}
+            >
+              <FiCpu
+                className="xpert-toggle-icon"
+                size={13}
+                aria-hidden="true"
+              />
+              <span className="xpert-toggle-thumb" />
+            </button>
+          </div>
+        )} */}
+
+        {onToggleExpand && (
+          <button
+            className="xpert-icon-btn"
+            onClick={onToggleExpand}
+            aria-label={isExpanded ? "Collapse panel" : "Expand panel"}
+            style={{
+              position: "absolute",
+              right: "20px",
+              top: "5px",
+            }}
+          >
+            {isExpanded ? <FiMinimize2 size={18} /> : <FiMaximize2 size={18} />}
+          </button>
+        )}
+
         <button
           className="xpert-icon-btn"
-          onClick={onToggleExpand}
-          aria-label={isExpanded ? "Collapse panel" : "Expand panel"}
+          onClick={onClose}
+          aria-label="Close widget"
+          style={{
+            position: "absolute",
+            right: "0px",
+            top: "5px",
+          }}
         >
-          {isExpanded ? <FiMinimize2 size={18} /> : <FiMaximize2 size={18} />}
+          <FiX size={20} />
         </button>
-      )}
-
-      <button
-        className="xpert-icon-btn"
-        onClick={onClose}
-        aria-label="Close widget"
-      >
-        <FiX size={20} />
-      </button>
+      </div>
+      <div className="xpert-profile-accent" aria-hidden="true" />
     </div>
   );
 
@@ -88,7 +111,7 @@ export function HomeScreen({
           <div className="xpert-locked-state">
             <div className="xpert-locked-icon">🔒</div>
             <h3 className="xpert-locked-title">
-              Login to access the assistant
+              Login to access the Dandelion
             </h3>
             <p className="xpert-locked-desc">
               Please log in to your account to browse products, manage your

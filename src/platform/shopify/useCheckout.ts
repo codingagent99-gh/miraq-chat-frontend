@@ -22,6 +22,7 @@
  */
 
 import { useState, useCallback, useMemo, useRef, useEffect } from "react";
+import { storefrontFetch } from "./storefrontFetch";
 
 // ─── Public types ─────────────────────────────────────────────────────────────
 
@@ -62,6 +63,14 @@ export const EMPTY_ADDRESS: ContactAddress = {
   zip: "",
   country: "IN",
 };
+
+/** A country the shop's localization settings actually support — fetched
+ *  live from the Storefront API rather than a hardcoded list, so it always
+ *  matches what this specific store enables (see fetchAvailableCountries). */
+export interface AvailableCountry {
+  isoCode: string;
+  name: string;
+}
 
 export interface SavedAddress {
   /** Shopify customer address GID, e.g. "gid://shopify/MailingAddress/…" */
@@ -135,6 +144,12 @@ export interface UseCheckoutReturn {
   // ── Saved addresses ───────────────────────────────────────────────────────
   savedAddresses: SavedAddress[];
   savedAddressesLoading: boolean;
+  // ── Available countries (live, Storefront API) ────────────────────────────
+  /** The shop's actual enabled countries — empty while loading or if the
+   *  fetch failed. Consumers should fall back to a plain text input when
+   *  this is empty rather than blocking on it. */
+  availableCountries: AvailableCountry[];
+  availableCountriesLoading: boolean;
   // ── Billing ───────────────────────────────────────────────────────────────
   billingOption: BillingOption;
   setBillingOption: (opt: BillingOption) => void;
@@ -259,8 +274,8 @@ function buildCheckoutPrefillParams(
  *                         needs a Storefront access token.
  */
 export function useCheckout(
-  _shopDomain: string,
-  _storefrontToken: string,
+  shopDomain: string,
+  storefrontToken: string,
   initialValues?: CheckoutInitialValues,
 ): UseCheckoutReturn {
   const [step, setStep] = useState<CheckoutStep>("collecting_shipping");
@@ -283,6 +298,11 @@ export function useCheckout(
     useState<ContactAddress>(EMPTY_ADDRESS);
   const [savedAddresses, setSavedAddresses] = useState<SavedAddress[]>([]);
   const [savedAddressesLoading, setSavedAddressesLoading] = useState(false);
+  const [availableCountries, setAvailableCountries] = useState<
+    AvailableCountry[]
+  >([]);
+  const [availableCountriesLoading, setAvailableCountriesLoading] =
+    useState(false);
 
   // Ref so selectDeliveryOption always reads the latest groups synchronously.
   const deliveryGroupsRef = useRef<DeliveryGroup[]>([]);
@@ -337,18 +357,114 @@ export function useCheckout(
         const defaultSaved = mapped.find((a) => a.isDefault) ?? mapped[0];
         if (defaultSaved) {
           setAddress((current) => {
-            const isStillEmpty = Object.keys(EMPTY_ADDRESS).every(
-              (k) =>
-                current[k as keyof ContactAddress] ===
-                EMPTY_ADDRESS[k as keyof ContactAddress],
+            // Only the ADDRESS-specific fields signal "the shopper already
+            // has real address data" — email/firstName/lastName are seeded
+            // from the logged-in customer's props above (lines 271-273)
+            // before this fetch ever resolves, so for every logged-in
+            // customer those three were already non-empty on first render.
+            // "country" is excluded too: the fetchAvailableCountries effect
+            // below independently defaults it away from EMPTY_ADDRESS as
+            // soon as the shop's active localized country loads, which can
+            // resolve before OR after this effect — including "country"
+            // here would reintroduce the exact same bug for whichever
+            // effect happens to finish second. Checking all of
+            // EMPTY_ADDRESS's keys (the original behaviour) meant
+            // isStillEmpty was false before this fetch even landed — the
+            // saved address was fetched and mapped correctly, then
+            // silently discarded, every time, for every logged-in customer.
+            const addressFields: (keyof ContactAddress)[] = [
+              "phone",
+              "company",
+              "address1",
+              "address2",
+              "city",
+              "province",
+              "zip",
+            ];
+            const isStillEmpty = addressFields.every(
+              (k) => current[k] === EMPTY_ADDRESS[k],
             );
-            return isStillEmpty ? defaultSaved.address : current;
+            return isStillEmpty
+              ? {
+                  ...defaultSaved.address,
+                  email: current.email || defaultSaved.address.email,
+                  firstName:
+                    current.firstName || defaultSaved.address.firstName,
+                  lastName: current.lastName || defaultSaved.address.lastName,
+                }
+              : current;
           });
         }
       })
       .catch((e) => console.warn("[MiraQ] fetchSavedAddresses:", e))
       .finally(() => setSavedAddressesLoading(false));
   }, []); // runs once on mount
+
+  // ── fetchAvailableCountries ────────────────────────────────────────────
+  // Replaces a hardcoded/free-text country field with the store's actual
+  // enabled countries. Storefront API only, since this is public storefront
+  // data and the widget already carries a storefront token for exactly this
+  // kind of call — no backend round-trip needed.
+  //
+  // Deliberately does NOT also fetch provinces/states: the Storefront API
+  // has no endpoint for a country's subdivisions (a long-standing, still-
+  // open gap — confirmed against Shopify's own community/feedback threads),
+  // and the Admin API's province data is both deprecated and requires
+  // merchant-level credentials this public widget doesn't have. Province
+  // stays free-text; only the country field gets the real list.
+  useEffect(() => {
+    if (!shopDomain || !storefrontToken) return;
+    setAvailableCountriesLoading(true);
+    storefrontFetch<{
+      localization: {
+        availableCountries: AvailableCountry[];
+        country: { isoCode: string };
+      };
+    }>(
+      `query AvailableCountries {
+        localization {
+          availableCountries { isoCode name }
+          country { isoCode }
+        }
+      }`,
+      undefined,
+      shopDomain,
+      storefrontToken,
+    )
+      .then((res) => {
+        const loc = res.data?.localization;
+        if (!loc) {
+          console.warn(
+            "[MiraQ] fetchAvailableCountries: empty response",
+            res.errors,
+          );
+          return;
+        }
+        const sorted = [...loc.availableCountries].sort((a, b) =>
+          a.name.localeCompare(b.name),
+        );
+        setAvailableCountries(sorted);
+
+        // Default new/incomplete addresses to the shop's own active
+        // localized country instead of the previous hardcoded "IN" — but
+        // only while the country field is still untouched, same guard
+        // shape as the saved-address prefill above.
+        if (loc.country?.isoCode) {
+          setAddress((current: ContactAddress) =>
+            current.country === EMPTY_ADDRESS.country
+              ? { ...current, country: loc.country.isoCode }
+              : current,
+          );
+        }
+      })
+      .catch((e) => {
+        // Non-fatal: ShopifyCheckoutPanel falls back to a plain text input
+        // when availableCountries is empty, so checkout is never blocked by
+        // this call failing.
+        console.warn("[MiraQ] fetchAvailableCountries:", e);
+      })
+      .finally(() => setAvailableCountriesLoading(false));
+  }, [shopDomain, storefrontToken]);
 
   // ── fetchDeliveryOptions ──────────────────────────────────────────────────
   // ── Delivery (not available in the review-and-redirect flow) ─────────────
@@ -433,6 +549,8 @@ export function useCheckout(
     selectDeliveryOption,
     savedAddresses,
     savedAddressesLoading,
+    availableCountries,
+    availableCountriesLoading,
     billingOption,
     setBillingOption,
     billingAddress,

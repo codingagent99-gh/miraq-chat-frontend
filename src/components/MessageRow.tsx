@@ -39,6 +39,8 @@ interface MessageRowProps {
   canPlaceOrder?: boolean;
   /** Site origin (WP base) passed to the bulk address card's checkout-fields hook */
   siteOrigin: string;
+  /** Logged-in user's email, forwarded to the bulk address card's rep default */
+  currentUserEmail?: string;
   miraQIcon: string;
   /**
    * True only for the last message in the list. Interactive cards replayed
@@ -109,6 +111,7 @@ export function MessageRow({
   onPlaceOrder,
   canPlaceOrder = false,
   siteOrigin,
+  currentUserEmail,
   miraQIcon,
   isLatest = true,
 }: MessageRowProps) {
@@ -199,12 +202,18 @@ export function MessageRow({
 
       <div className="xpert-message-bubble">
         <div className="xpert-bubble-content">
-          {/* Suppress text when order list cards are shown — cards are the UI */}
-          {!(
-            message.orders &&
-            message.orders.length >= 1 &&
-            !message.paymentUrl
-          ) && <ReactMarkdown>{message.text}</ReactMarkdown>}
+          {/* The text is NOT redundant with the order cards, and suppressing
+              it here silently discarded things the cards cannot show.
+              Originally the message above an order list was just a restated
+              count, so hiding it was harmless. It has since carried the
+              per-rep breakdown for a multi-rep report, the note that a rep's
+              list includes orders they placed on someone else's behalf, the
+              warning that names a rep who could not be looked up — and, worst
+              of all, the truncation warning, which is the one line telling an
+              admin that the numbers in front of them are a floor rather than
+              a total. A correctness warning must never be swallowed by a
+              layout rule. */}
+          {message.text && <ReactMarkdown>{message.text}</ReactMarkdown>}
 
           {message.categories && message.categories.length > 0 && (
             <CategoryGrid
@@ -324,6 +333,7 @@ export function MessageRow({
                       key={idx}
                       {...action.payload}
                       siteOrigin={siteOrigin}
+                      currentUserEmail={currentUserEmail}
                       onConfirm={() => onSuggestion("Yes, confirm")}
                       onSkip={() => onSuggestion("Skip this order")}
                       onSave={(msg) => onSuggestion(msg)}

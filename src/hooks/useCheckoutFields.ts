@@ -34,6 +34,16 @@ export interface CheckoutField {
   /** WC field type: "text" | "select" | "country" | "state" | "tel" | "email" | "textarea". */
   type: string;
   priority: number;
+  /**
+   * Options for select fields, as registered on the field itself. Present for
+   * e.g. project_rep, whose option map is the SAME list the storefront
+   * checkout renders — and which is not the same set as /reps (that endpoint
+   * only returns users holding a rep role). Rendering a select from any other
+   * source risks a stored value matching no option, which renders blank while
+   * still reading as filled. The empty-key placeholder entry is dropped; the
+   * card supplies its own.
+   */
+  options?: { value: string; label: string }[];
   /** Renderer hint for special dropdowns. */
   kind?: "rep" | "orderType" | "country" | "state";
 }
@@ -90,6 +100,17 @@ interface RawWcField {
 
 // ── Group parser ──────────────────────────────────────────────────────────────
 
+/** WC serialises select options as value → label. Drop the blank placeholder. */
+function parseOptions(
+  raw: Record<string, string> | undefined,
+): { value: string; label: string }[] | undefined {
+  if (!raw) return undefined;
+  const out = Object.entries(raw)
+    .filter(([value]) => value !== "")
+    .map(([value, label]) => ({ value, label: String(label) }));
+  return out.length ? out : undefined;
+}
+
 function parseGroup(
   raw: Record<string, RawWcField>,
   group: "billing" | "shipping",
@@ -102,6 +123,7 @@ function parseGroup(
       required: cfg.required ?? false,
       type: cfg.type ?? "text",
       priority: cfg.priority ?? 999,
+      options: parseOptions(cfg.options),
       kind: kindFor(wcKey, cfg.type ?? ""),
     }))
     .sort((a, b) => a.priority - b.priority);

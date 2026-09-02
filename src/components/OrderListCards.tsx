@@ -118,6 +118,17 @@ export function OrderListCards({
             <div className="xpert-order-card-date">
               {formatDate(order.date_created)}
             </div>
+            {/* Whose order this is. Only rendered for a report that named
+                reps — every other list leaves rep_names empty. Needed because
+                these lists mix several reps AND include orders placed on
+                someone else's behalf, so neither the card's billing name nor
+                its shipping name identifies the rep. Two names means the
+                order is credited to one rep and was placed by another. */}
+            {order.rep_names && order.rep_names.length > 0 && (
+              <div className="xpert-order-card-rep">
+                {order.rep_names.join(" · ")}
+              </div>
+            )}
             <div className="xpert-order-card-items">
               {order.items?.map((item, idx) => (
                 <div key={idx} className="xpert-order-card-item">

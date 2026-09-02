@@ -53,6 +53,14 @@ export interface Order {
   billing?: Record<string, any>;
   shipping?: Record<string, any>;
   payment_url?: string;
+  /**
+   * Sales rep(s) this order is credited to or was placed by. Only populated
+   * when the query named reps ("orders for cs_rep 1, cs_rep 2"); empty for
+   * every other order list. Usually one name — two when an order is credited
+   * to one rep and placed by another, which is also why the per-rep counts in
+   * such a report can sum to more than the combined total.
+   */
+  rep_names?: string[];
 }
 
 export interface PurchaseInfo {
@@ -393,6 +401,18 @@ export interface WidgetOptions {
   cartToken?: string;
   storefrontToken?: string; // ← add
   shopDomain?: string; // ← add
+  /** Shopify customer account login URL (routes.account_login_url), passed
+   *  by miraq_widget.liquid for a guest session. Absent on WooCommerce,
+   *  which has its own in-widget LoginPanel and needs no external link. */
+  loginUrl?: string;
+  /** Custom branding supplied by the Shopify merchant through the Theme
+   *  Editor (image_picker + text settings in miraq_widget.liquid), passed
+   *  by widget-entry.tsx. Shopify has no WordPress site for the WooCommerce
+   *  /widget-config fetch to reach, so branding arrives this way instead —
+   *  see the isShopify branch in ChatWidget's widget-config effect. Absent
+   *  on WooCommerce, which keeps using /widget-config unchanged. */
+  brandingLogoUrl?: string;
+  brandingFooterText?: string;
 }
 
 export interface DailyLimitError {

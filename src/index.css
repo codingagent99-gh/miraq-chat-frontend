@@ -188,53 +188,93 @@
 }
 
 #silfra-chat-widget-container .xpert-profile-card {
+  background: #ffffff;
+  color: var(--color-text);
+  margin: 1rem 1rem 0.5rem 1rem;
+  border-radius: 14px;
+  position: relative;
+  box-shadow: 0 4px 14px rgba(17, 24, 39, 0.08);
+  overflow: hidden;
+}
+
+#silfra-chat-widget-container .xpert-profile-card .xpert-profile-card-info {
+  padding: 1rem 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* Slim gradient bar under the header card — the widget's signature accent */
+#silfra-chat-widget-container .xpert-profile-accent {
+  height: 4px;
+  border-radius: 4px;
   background: linear-gradient(
-    135deg,
+    90deg,
     var(--color-primary-light) 0%,
     var(--color-primary) 100%
   );
-  color: white;
-  padding: 1.5rem;
-  margin: 1rem;
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  position: relative;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* Vertical rule separating the brand text from the controls cluster
+   (AI toggle / expand / close) — stretches to the row's full height. */
+#silfra-chat-widget-container .xpert-profile-divider {
+  align-self: stretch;
+  width: 1px;
+  background: var(--color-border);
+  flex-shrink: 0;
 }
 
 #silfra-chat-widget-container .xpert-profile-icon {
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
+  width: 40px;
+  height: 40px;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 24px;
+  flex-shrink: 0;
 }
 
 #silfra-chat-widget-container .xpert-profile-info {
   flex: 1;
+  min-width: 0;
 }
 
 #silfra-chat-widget-container .xpert-profile-label {
   font-size: var(--fs-xs);
-  opacity: 0.9;
+  color: #6b7280;
   margin-bottom: 0;
 }
 
 #silfra-chat-widget-container .xpert-profile-name {
-  font-size: var(--fs-lg);
+  font-size: 18px;
   font-weight: 700;
+  color: #111827;
   margin: 0;
   line-height: 1.2;
 }
 
 #silfra-chat-widget-container .xpert-profile-sub {
   font-size: var(--fs-xs);
-  opacity: 0.8;
-  margin-top: 0.2rem;
+  color: #6b7280;
+  margin-top: 0.15rem;
+  margin-bottom: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Icon buttons sitting on the now-white header card need the dark-on-white
+   treatment; .xpert-icon-btn's base rule is tuned for the colored chat
+   header (ChatHeader.tsx, ProductDetailPanel.tsx, etc.) and stays
+   untouched there — this only wins inside the profile card via specificity. */
+#silfra-chat-widget-container .xpert-profile-card .xpert-icon-btn {
+  background: transparent;
+  color: var(--color-primary);
+  padding: 4px;
+}
+
+#silfra-chat-widget-container .xpert-profile-card .xpert-icon-btn:hover {
+  background: rgba(0, 94, 184, 0.08);
 }
 
 #silfra-chat-widget-container .xpert-ready-badge {
@@ -335,10 +375,14 @@
 }
 
 /* --- Chat Window --- */
+/* flex:1 rather than height:100%: the panel is a flex column whose last child
+   is now the "Powered by MiraQ" bar. A screen root claiming the full height
+   would push that bar past the panel's overflow:hidden edge and hide it. */
 #silfra-chat-widget-container .xpert-chat-window {
   display: flex;
   flex-direction: column;
-  height: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
   background-color: white;
 }
 
@@ -372,6 +416,28 @@
 
 #silfra-chat-widget-container .xpert-icon-btn:hover {
   background: rgba(255, 255, 255, 0.3);
+}
+
+#silfra-chat-widget-container .xpert-header-login-btn {
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  color: white;
+  cursor: pointer;
+  padding: 6px 10px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  white-space: nowrap;
+  text-decoration: none;
+  transition: background 0.2s;
+}
+
+#silfra-chat-widget-container .xpert-header-login-btn:hover {
+  background: rgba(255, 255, 255, 0.3);
+  color: white;
 }
 
 #silfra-chat-widget-container .xpert-chat-header-info {
@@ -437,8 +503,8 @@
 }
 
 #silfra-chat-widget-container .xpert-bot-avatar {
-  width: 22px;
-  height: 22px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
   color: white;
   display: flex;
@@ -638,7 +704,7 @@
 
 #silfra-chat-widget-container .xpert-pager-btn:disabled {
   background: #d1d5db;
-  color: #9ca3af;
+  color: #4b5563;
   cursor: not-allowed;
   box-shadow: none;
 }
@@ -1097,6 +1163,44 @@
   margin: 0;
 }
 
+/* ── "Powered by MiraQ" attribution bar ──────────────────────────────────
+   Last child of the panel on every screen. flex-shrink:0 keeps it at its
+   natural height while the screen above it absorbs the remaining space. */
+#silfra-chat-widget-container .miraq-powered-by {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 28px;
+  padding: 5px 8px;
+  background: white;
+  border-top: 1px solid #eeede8;
+  margin: 0;
+  color: #9ca3af;
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+#silfra-chat-widget-container .miraq-attribution {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+#silfra-chat-widget-container .miraq-logo {
+  display: block;
+  height: 15px;
+  width: auto;
+  max-width: 80px;
+  object-fit: contain;
+}
+
+#silfra-chat-widget-container .miraq-powered-by strong {
+  color: #6b7280;
+  font-weight: 600;
+}
+
 /* --- Loader --- */
 #silfra-chat-widget-container .dot-loader {
   display: inline-flex;
@@ -1192,6 +1296,18 @@
 #silfra-chat-widget-container .xpert-order-card-date {
   font-size: var(--fs-xs);
   color: #6b7280;
+}
+
+/* Rep attribution, shown only on a report that named reps. Weighted a step
+   darker than the date and shipping lines beside it: in a mixed list this is
+   the field the admin is scanning down, not incidental metadata. */
+#silfra-chat-widget-container .xpert-order-card-rep {
+  font-size: var(--fs-xs);
+  color: #374151;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* Row 3: item count + total */
@@ -1881,23 +1997,14 @@
 #silfra-chat-widget-container .xpert-ai-toggle {
   display: flex;
   align-items: center;
-  gap: 4px;
   flex-shrink: 0;
-}
-
-#silfra-chat-widget-container .xpert-ai-toggle-label {
-  font-size: var(--fs-xs);
-  font-weight: 600;
-  color: rgba(255, 255, 255, 0.85);
-  letter-spacing: 0.5px;
-  line-height: 1;
 }
 
 #silfra-chat-widget-container .xpert-toggle-switch {
   position: relative;
-  width: 36px;
-  height: 20px;
-  border-radius: 10px;
+  width: 44px;
+  height: 24px;
+  border-radius: 12px;
   border: none;
   cursor: pointer;
   padding: 0;
@@ -1906,34 +2013,53 @@
 }
 
 #silfra-chat-widget-container .xpert-toggle-switch.xpert-toggle-on {
-  background: #4ade80;
+  background: linear-gradient(
+    135deg,
+    var(--color-primary-light) 0%,
+    var(--color-primary) 100%
+  );
 }
 
 #silfra-chat-widget-container .xpert-toggle-switch.xpert-toggle-off {
-  background: rgba(255, 255, 255, 0.3);
+  background: #c9d3e0;
+}
+
+/* Static brand glyph — always sits at the left of the track. The thumb
+   slides over it in the off position and uncovers it when on, so it
+   reads as "revealed" rather than as a separate control. */
+#silfra-chat-widget-container .xpert-toggle-icon {
+  position: absolute;
+  left: 5px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: white;
+  z-index: 1;
+  pointer-events: none;
 }
 
 #silfra-chat-widget-container .xpert-toggle-thumb {
   position: absolute;
-  top: 2px;
-  width: 16px;
-  height: 16px;
+  top: 3px;
+  width: 18px;
+  height: 18px;
   border-radius: 50%;
   background: white;
   transition: left 0.25s ease;
   pointer-events: none;
+  z-index: 2;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
 }
 
 #silfra-chat-widget-container
   .xpert-toggle-switch.xpert-toggle-on
   .xpert-toggle-thumb {
-  left: 18px;
+  left: 23px;
 }
 
 #silfra-chat-widget-container
   .xpert-toggle-switch.xpert-toggle-off
   .xpert-toggle-thumb {
-  left: 2px;
+  left: 3px;
 }
 
 /* ── Variant Picker ──────────────────────────────────────────────────────────
@@ -1991,7 +2117,7 @@
   white-space: nowrap;
 }
 
-#silfra-chat-widget-container .xpert-variant-chip:hover {
+#silfra-chat-widget-container .xpert-variant-chip:hover:not(:disabled) {
   background: var(--color-primary-light);
   border-color: var(--color-primary-light);
   color: white;
@@ -1999,8 +2125,22 @@
   box-shadow: 0 2px 6px rgba(0, 78, 100, 0.2);
 }
 
-#silfra-chat-widget-container .xpert-variant-chip:active {
+#silfra-chat-widget-container .xpert-variant-chip:active:not(:disabled) {
   transform: translateY(0);
+  box-shadow: none;
+}
+
+/* Disabled — the combination doesn't exist for what's selected on the other
+   axes (e.g. Finish=Honed once Colors=Beleza is picked). Grayed out and
+   inert rather than hidden, so the rep can see it was considered and why
+   (title tooltip), not wonder where an option went. */
+#silfra-chat-widget-container .xpert-variant-chip:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  background: white;
+  color: #9ca3af;
+  border-color: #d1d5db;
+  transform: none;
   box-shadow: none;
 }
 
@@ -2061,7 +2201,7 @@
 
 #silfra-chat-widget-container .xpert-place-order-btn:disabled {
   background: #d1d5db;
-  color: #9ca3af;
+  color: #4b5563;
   cursor: not-allowed;
   box-shadow: none;
 }
@@ -2544,6 +2684,81 @@
 }
 .bo-confirm__status {
   font-size: 12px;
+}
+
+/* Grouped-by-order layout: one card per order (recipient + address shown
+   once), several product rows underneath. Replaces the flat Customer/
+   Product/Qty/Status table for resolved, non-skipped lines — those keep
+   the old .bo-confirm__table/__thead/__row rules above, now used only for
+   unresolved/skipped lines via .bo-confirm__issue-row below. */
+.bo-confirm__groups {
+  margin-bottom: 10px;
+}
+.bo-confirm__group {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+}
+.bo-confirm__group:last-child {
+  margin-bottom: 0;
+}
+.bo-confirm__group-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.bo-confirm__group-name {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #1e293b;
+}
+.bo-confirm__group-address {
+  color: #475569;
+  font-size: 12px;
+  margin: 4px 0 8px;
+}
+.bo-confirm__group-address--warn {
+  color: #92400e;
+}
+.bo-confirm__group-items {
+  border-top: 1px solid #f1f5f9;
+  padding-top: 6px;
+}
+.bo-confirm__group-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: #1e293b;
+  padding: 2px 0;
+}
+.bo-confirm__group-item-qty {
+  color: #64748b;
+}
+.bo-confirm__issue-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin-bottom: 8px;
+  opacity: 0.6;
+}
+.bo-confirm__issue-row:last-child {
+  margin-bottom: 0;
+}
+.bo-confirm__issue-who {
+  font-weight: 500;
+  color: #1e293b;
+}
+.bo-confirm__issue-what {
+  color: #475569;
 }
 .bo-confirm__warning {
   color: #92400e;
@@ -3305,6 +3520,15 @@ select.bo-address__input {
     margin-bottom: 8px;
   }
 
+  /* Same reasoning as .bo-confirm__row above, for the grouped-order card:
+     "who · what x qty · status" wrapping mid-phrase at 336px reads as
+     broken, so it stacks into one field per line instead. */
+  .bo-confirm__issue-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+  }
+
   /* Stacked action buttons: three side-by-side buttons at 336px leave each too
      narrow to label, and wrapping mid-row reads as a broken layout. */
   .bo-confirm__btns {
@@ -3401,8 +3625,11 @@ select.bo-address__input {
      needs compacting here, because a 480px-tall viewport leaves almost nothing
      for the message list once the profile card and feature list are drawn. */
   #silfra-chat-widget-container .xpert-profile-card {
-    padding: 0.75rem;
     margin: 0.5rem;
+  }
+
+  #silfra-chat-widget-container .xpert-profile-card .xpert-profile-card-info {
+    padding: 0.75rem;
   }
 
   #silfra-chat-widget-container .xpert-features-list {

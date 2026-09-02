@@ -6,6 +6,15 @@
  * .env file. The correct implementation is resolved at build time — no
  * runtime branching, no bundle bloat from the unused platform.
  *
+ * PLATFORM comes from platform/current.ts rather than reading
+ * import.meta.env.VITE_PLATFORM again here. This file previously did its own
+ * `?? "woocommerce"` fallback with no validation — a typo'd VITE_PLATFORM
+ * would silently build the WooCommerce cart implementation for a Shopify
+ * store with no warning anywhere. platform/current.ts's resolvePlatform()
+ * does the same fallback but logs loudly when the value isn't recognized,
+ * and is the same constant ChatWidget.tsx and useStoreApi.ts now read too —
+ * one build can no longer disagree with itself about which platform it is.
+ *
  * Usage throughout the app stays identical:
  *   import { useCart } from "./hooks/useCart";
  *
@@ -16,10 +25,7 @@
 
 import { useCart as wcUseCart } from "../platform/woocommerce/useCart";
 import { useCart as shopifyUseCart } from "../platform/shopify/useCart";
-
-const PLATFORM = (import.meta.env.VITE_PLATFORM ?? "woocommerce") as
-  | "woocommerce"
-  | "shopify";
+import { PLATFORM } from "../platform/current";
 
 export const useCart = PLATFORM === "shopify" ? shopifyUseCart : wcUseCart;
 

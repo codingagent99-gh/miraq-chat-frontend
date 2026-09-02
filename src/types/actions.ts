@@ -37,6 +37,17 @@ export interface BulkOrderLine {
   unresolved_reason?: string | null;
   address_confirmed?: boolean;
   address_skipped?: boolean;
+  /**
+   * Which WooCommerce order this line will merge into — several products
+   * for the same recipient share one index, matching order_count above.
+   * Only set on resolved, non-skipped lines (backend: _order_group_key in
+   * handlers/bulk/orders.py); null/absent means this line renders on its
+   * own (unresolved or skipped, so it isn't part of any order's address
+   * group). shipping_address/billing_address on a grouped line are the
+   * EFFECTIVE address (overrides + rep default merged in) — the same
+   * address that will actually be used, not necessarily the raw parsed one.
+   */
+  group_index?: number | null;
 }
 
 /** A single line item inside a ProductOrderHistoryItem */
@@ -67,6 +78,9 @@ export type ChatAction =
         quantity: number;
         variation_id?: number;
         variation?: { attribute: string; value: string }[];
+        /** See useChatActions.ts — set on multi-line bulk adds so this
+         *  action doesn't also post a duplicate per-item confirmation. */
+        suppress_result?: boolean;
       };
     }
   | {
@@ -89,6 +103,8 @@ export type ChatAction =
         variant_numeric_id: string;
         quantity: number;
         name?: string;
+        /** See ADD_TO_CART above — same meaning. */
+        suppress_result?: boolean;
       };
     }
   | { type: "OPEN_CART_PANEL"; payload: Record<string, never> }

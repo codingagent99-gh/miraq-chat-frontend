@@ -18,9 +18,13 @@ import { CheckoutPanel } from "./components/checkout/CheckoutPanel";
 import { ShopifyCheckoutPanel } from "./components/checkout/ShopifyCheckoutPanel";
 import { useStoreApi } from "./hooks/useStoreApi";
 import { AiOptInScreen } from "./components/AiOptInScreen";
+import { useHealthMonitor } from "./hooks/useHealthMonitor";
+import { ServerDownOverlay } from "./components/ServerDownOverlay";
 // Side-effect import: registers built-in payment adapters before PaymentStep renders
 import "./components/checkout/payment";
 import { LoginPanel } from "./components/LoginPanel";
+import { PoweredByMiraQ } from "./components/PoweredByMiraQ";
+import { IS_SHOPIFY } from "./platform/current";
 
 // Must agree with MOBILE_BREAKPOINT in components/WidgetContainer.tsx
 // and the max-width used by the mobile block in index.css.
@@ -46,12 +50,33 @@ export function ChatWidget({
   nonceExpires,
   shopDomain,
   storefrontToken,
+  loginUrl,
+  brandingLogoUrl,
+  brandingFooterText,
 }: ChatWidgetInterface) {
-  // True for Shopify builds — governs checkout routing and panel choice.
-  // Shopify checkout stays in-widget (no page redirect); WC redirects to /checkout.
-  const isShopify = !!shopDomain;
+  // True for Shopify builds — governs checkout routing, container, cart
+  // implementation, and panel choice.
+  //
+  // Sourced from platform/current.ts's build-time IS_SHOPIFY, NOT from
+  // `!!shopDomain` as this used to read. That was a second, independent
+  // platform check living alongside the one hooks/useCart.ts and
+  // hooks/useStoreApi.ts each already do at build time from VITE_PLATFORM —
+  // exactly the "split-brained" hazard platform/current.ts's own docstring
+  // describes and was written to close, except this component was never
+  // migrated onto it. widget-entry.tsx's checkPlatformConfig() already
+  // refuses to mount when IS_SHOPIFY and a runtime shopDomain disagree, so by
+  // the time this component renders the two are guaranteed consistent —
+  // which also means IS_SHOPIFY is the one that can't be silently undermined
+  // by a shopDomain that failed to arrive at runtime for any reason (a stale
+  // build, a missing data-shop-domain attribute, a config-loading race),
+  // where !!shopDomain would have quietly rendered the wrong platform's UI
+  // (including WooCommerce's LoginPanel, which posts to a WordPress endpoint
+  // that doesn't exist on a Shopify store) instead of failing loudly.
+  const isShopify = IS_SHOPIFY;
   const Container = isShopify ? ShopifyWidgetContainer : WidgetContainer;
-  const MiraQIcon = `${assetBaseUrl}MiraQ-icon.png`;
+  const DandellionBlueIcon = `${assetBaseUrl}DandellionBlue.png`;
+  const DandellionWhiteIcon = `${assetBaseUrl}DandellionWhite.png`;
+
   const redirectingRef = useRef(false); // ← a navigation already committed for this page load
   // Runtime shopDomain (from Liquid data-shop-domain) is the source of truth.
   // WooCommerce: runtime wpBaseUrl from the injected config is the source of
@@ -62,6 +87,17 @@ export function ChatWidget({
     : wpBaseUrl || import.meta.env.VITE_WP_BASE_URL || window.location.origin;
 
   const isLoggedIn = !!(customerId || customerEmail);
+
+  // Guest-login affordance (Shopify only — WooCommerce has its own in-widget
+  // LoginPanel and needs no external link). Prefer the Liquid-supplied
+  // routes.account_login_url (loginUrl prop); only fall back to guessing
+  // "${siteOrigin}/account/login" if that's ever missing, since Liquid's own
+  // route resolves correctly across classic accounts, new customer accounts,
+  // and custom domains in a way a hand-built path might not.
+  const shopifyLoginUrl =
+    isShopify && !isLoggedIn
+      ? loginUrl || `${siteOrigin}/account/login`
+      : undefined;
 
   // Reactive so rotating a phone or resizing a desktop window re-evaluates.
   // The four `window.innerWidth <= 768` reads further down are one-shot
@@ -283,10 +319,19 @@ export function ChatWidget({
   const [widgetLogo, setWidgetLogo] = useState<string>("");
   const [widgetText, setWidgetText] = useState<string>("");
 
+  // Store branding is live once either field comes back from /widget-config.
+  // From that point widgetLogo has replaced the MiraQ mark on every surface —
+  // launcher, header, avatar, home and opt-in cards — so the attribution bar is
+  // the only place MiraQ is still named, and it has to be on every screen.
+  const brandingActive = !!(widgetLogo || widgetText);
+
   const apiClientRef = useRef<any>(null);
   if (!apiClientRef.current) {
     apiClientRef.current = createApiClient(apiUrl, apiKey);
   }
+
+  // ── Server-down overlay ───────────────────────────────────────────────────
+  const health = useHealthMonitor(apiUrl);
 
   type CartResultHandler = (opts: {
     success: boolean;
@@ -413,6 +458,18 @@ export function ChatWidget({
 
   // ── Fetch widget config (logo + text) from backend ────────────────────────
   useEffect(() => {
+    if (isShopify) {
+      // /widget-config is hardcoded to proxy a WordPress REST endpoint
+      // (wp-json/wdget-logo-uploader/v1/data) that doesn't exist for a
+      // Shopify store — the fetch would just fail every time and land on
+      // the silent catch below, so branding never showed up at all.
+      // Shopify branding instead comes from the merchant through the Theme
+      // Editor (image_picker + text settings in miraq_widget.liquid),
+      // threaded through widget-entry.tsx as these two props.
+      if (brandingLogoUrl) setWidgetLogo(brandingLogoUrl);
+      if (brandingFooterText) setWidgetText(brandingFooterText);
+      return;
+    }
     if (!apiUrl) return;
     fetch(`${apiUrl}/widget-config`)
       .then((r) => r.json())
@@ -421,9 +478,9 @@ export function ChatWidget({
         if (data.text) setWidgetText(data.text);
       })
       .catch(() => {
-        // silently fall back to default MiraQIcon
+        // silently fall back to default DandellionBlueIcon
       });
-  }, [apiUrl]);
+  }, [apiUrl, isShopify, brandingLogoUrl, brandingFooterText]);
   // ─────────────────────────────────────────────────────────────────────────
 
   // ── AI mode toggle handler ────────────────────────────────────────────────
@@ -616,19 +673,32 @@ export function ChatWidget({
           panelOpen={panelOpen}
           setPanelOpen={setPanelOpen}
           assetBaseUrl={assetBaseUrl || ""}
+          logoUrl={widgetLogo}
           isExpanded={isExpanded}
         >
-          {!isLoggedIn ? (
+          {!isLoggedIn && !isShopify ? (
+            // WooCommerce only. LoginPanel posts to /wp-json/custom-api/v1/*
+            // on siteOrigin, which does not exist on a Shopify store — so a
+            // Shopify guest was pinned to a login form that could never
+            // succeed, and could never reach the chat screen at all (screen
+            // only becomes "chat" via AiOptInScreen/HomeScreen, both of which
+            // sit in the branch this condition shadowed).
+            //
+            // Shopify guests are supported by design (the Liquid block sends
+            // data-customer-role="guest" and the backend BULK_ORDER gate lets
+            // guest through), so they fall through to the normal opt-in →
+            // chat flow and are offered login via the header pill instead —
+            // see shopifyLoginUrl above.
             <LoginPanel
               siteOrigin={siteOrigin}
               fallbackLogoUrl={`${assetBaseUrl}store-logo.png`}
-              miraQIcon={widgetLogo || MiraQIcon}
+              miraQIcon={widgetLogo || DandellionBlueIcon}
               onClose={() => setPanelOpen(false)}
             />
           ) : screen === "ai-opt-in" ? (
             // ── AI mode opt-in (also the "AI off" resting state) ───────────
             <AiOptInScreen
-              logoUrl={widgetLogo || MiraQIcon}
+              logoUrl={widgetLogo || DandellionBlueIcon}
               onClose={() => setPanelOpen(false)}
               aiEnabled={aiEnabled}
               onToggle={handleAiToggle}
@@ -638,7 +708,7 @@ export function ChatWidget({
             <HomeScreen
               onStartChat={() => setScreen("chat")}
               onClose={() => setPanelOpen(false)}
-              miraQIcon={widgetLogo || MiraQIcon}
+              miraQIcon={widgetLogo || DandellionBlueIcon}
               customerName={customerName}
               isLoggedIn={isLoggedIn}
               aiMode={aiEnabled}
@@ -647,6 +717,11 @@ export function ChatWidget({
               onToggleExpand={onToggleExpand}
             />
           )}
+          <PoweredByMiraQ
+            show={brandingActive}
+            text={widgetText}
+            logoUrl={`${assetBaseUrl}MiraQ-Icon.png`}
+          />
         </Container>
       </div>
     );
@@ -683,6 +758,7 @@ export function ChatWidget({
         panelOpen={panelOpen}
         setPanelOpen={setPanelOpen}
         assetBaseUrl={assetBaseUrl || ""}
+        logoUrl={widgetLogo}
         isExpanded={isExpanded}
       >
         <div
@@ -695,219 +771,239 @@ export function ChatWidget({
             customerRole={customerRole}
             onBack={() => setScreen("home")}
             onClose={() => setPanelOpen(false)}
-            logoUrl={widgetLogo || MiraQIcon}
-            headerText="MiraQ Commerce Assistant"
+            logoUrl={widgetLogo || DandellionWhiteIcon}
+            headerText="Dandelion"
             isExpanded={isExpanded}
             onToggleExpand={onToggleExpand}
+            loginUrl={shopifyLoginUrl}
           />
 
           <div
-            className="xpert-chat-messages"
-            onScroll={(e) => {
-              if (
-                e.currentTarget.scrollTop < 50 &&
-                hasMoreHistory &&
-                !loadingHistory
-              ) {
-                loadMoreHistory();
-              }
+            className="xpert-chat-body"
+            style={{
+              position: "relative",
+              flex: 1,
+              minHeight: 0,
+              display: "flex",
+              flexDirection: "column",
+              overflow: "hidden",
             }}
           >
-            {messages.map((message, _i) => (
-              <div
-                key={message.id}
-                ref={(el) => registerMessageRef(message.id, el)}
-              >
-                <MessageRow
-                  message={message}
-                  isLatest={_i === messages.length - 1}
-                  isBeingEdited={message.id === editingId}
-                  onSuggestion={handleSuggestionClick}
-                  onFilterSuggestion={sendFilterSuggestion}
-                  onEdit={handleEditClick}
-                  onOrderClick={(_orderId, orderNumber) =>
-                    sendMessage(`show me order #${orderNumber}`)
-                  }
-                  onProductClick={handleProductClick}
-                  onShowSimilar={handleShowSimilar}
-                  loadingSimilarId={loadingSimilarId}
-                  onVariantSelect={handleVariantSelect}
-                  onVariantAllSelected={setCanPlaceOrder}
-                  canPlaceOrder={canPlaceOrder}
-                  siteOrigin={siteOrigin}
-                  onPlaceOrder={() => {
-                    handleSend();
-                    setCanPlaceOrder(false);
-                  }}
-                  miraQIcon={widgetLogo || MiraQIcon}
-                />
-              </div>
-            ))}
-
-            {showServerLoadMore && (
-              <div className="xpert-pagination-controls">
-                {activePagination!.total_items != null &&
-                  activePagination!.total_pages != null && (
-                    <p className="xpert-pagination-info">
-                      Showing page {activePagination!.page} of{" "}
-                      {activePagination!.total_pages} •{" "}
-                      {activePagination!.total_items} total results
-                    </p>
-                  )}
-                <button
-                  className="xpert-load-more-btn"
-                  onClick={loadMore}
-                  type="button"
+            <div
+              className="xpert-chat-messages"
+              onScroll={(e) => {
+                if (
+                  e.currentTarget.scrollTop < 50 &&
+                  hasMoreHistory &&
+                  !loadingHistory
+                ) {
+                  loadMoreHistory();
+                }
+              }}
+            >
+              {messages.map((message, _i) => (
+                <div
+                  key={message.id}
+                  ref={(el) => registerMessageRef(message.id, el)}
                 >
-                  Load More Products ↓
-                </button>
-              </div>
-            )}
-
-            {showOrderLoadMore && (
-              <div className="xpert-pagination-controls">
-                {activeOrderPagination!.total_items != null &&
-                  activeOrderPagination!.total_pages != null && (
-                    <p className="xpert-pagination-info">
-                      Showing page {activeOrderPagination!.page} of{" "}
-                      {activeOrderPagination!.total_pages} •{" "}
-                      {activeOrderPagination!.total_items} total orders
-                    </p>
-                  )}
-                <button
-                  className="xpert-load-more-btn"
-                  onClick={loadMoreOrders}
-                  type="button"
-                >
-                  Load More Orders ↓
-                </button>
-              </div>
-            )}
-
-            {loading && (
-              <div className="xpert-message-row assistant">
-                <div className="xpert-bot-avatar">
-                  <img
-                    style={{ height: "100%", width: "100%" }}
-                    src={widgetLogo || MiraQIcon}
-                    alt="MiraQ"
+                  <MessageRow
+                    message={message}
+                    isLatest={_i === messages.length - 1}
+                    isBeingEdited={message.id === editingId}
+                    onSuggestion={handleSuggestionClick}
+                    onFilterSuggestion={sendFilterSuggestion}
+                    onEdit={handleEditClick}
+                    onOrderClick={(_orderId, orderNumber) =>
+                      sendMessage(`show me order #${orderNumber}`)
+                    }
+                    onProductClick={handleProductClick}
+                    onShowSimilar={handleShowSimilar}
+                    loadingSimilarId={loadingSimilarId}
+                    onVariantSelect={handleVariantSelect}
+                    onVariantAllSelected={setCanPlaceOrder}
+                    canPlaceOrder={canPlaceOrder}
+                    siteOrigin={siteOrigin}
+                    currentUserEmail={customerEmail}
+                    onPlaceOrder={() => {
+                      handleSend();
+                      setCanPlaceOrder(false);
+                    }}
+                    miraQIcon={widgetLogo || DandellionBlueIcon}
                   />
                 </div>
-                <div className="xpert-message-bubble">
-                  <div className="xpert-bubble-content">
-                    <div className="dot-loader">
-                      <span />
-                      <span />
-                      <span />
+              ))}
+
+              {showServerLoadMore && (
+                <div className="xpert-pagination-controls">
+                  {activePagination!.total_items != null &&
+                    activePagination!.total_pages != null && (
+                      <p className="xpert-pagination-info">
+                        Showing page {activePagination!.page} of{" "}
+                        {activePagination!.total_pages} •{" "}
+                        {activePagination!.total_items} total results
+                      </p>
+                    )}
+                  <button
+                    className="xpert-load-more-btn"
+                    onClick={loadMore}
+                    type="button"
+                  >
+                    Load More Products ↓
+                  </button>
+                </div>
+              )}
+
+              {showOrderLoadMore && (
+                <div className="xpert-pagination-controls">
+                  {activeOrderPagination!.total_items != null &&
+                    activeOrderPagination!.total_pages != null && (
+                      <p className="xpert-pagination-info">
+                        Showing page {activeOrderPagination!.page} of{" "}
+                        {activeOrderPagination!.total_pages} •{" "}
+                        {activeOrderPagination!.total_items} total orders
+                      </p>
+                    )}
+                  <button
+                    className="xpert-load-more-btn"
+                    onClick={loadMoreOrders}
+                    type="button"
+                  >
+                    Load More Orders ↓
+                  </button>
+                </div>
+              )}
+
+              {loading && (
+                <div className="xpert-message-row assistant">
+                  <div className="xpert-bot-avatar">
+                    <img
+                      style={{ height: "100%", width: "100%" }}
+                      src={widgetLogo || DandellionBlueIcon}
+                      alt="MiraQ"
+                    />
+                  </div>
+                  <div className="xpert-message-bubble">
+                    <div className="xpert-bubble-content">
+                      <div className="dot-loader">
+                        <span />
+                        <span />
+                        <span />
+                      </div>
                     </div>
                   </div>
                 </div>
+              )}
+
+              <div ref={bottomRef} />
+            </div>
+
+            {editingId && (
+              <div className="xpert-edit-indicator">
+                <span className="xpert-edit-indicator-label">
+                  ✏️ Editing message
+                </span>
+                <button
+                  className="xpert-edit-cancel-btn"
+                  onClick={handleCancelEdit}
+                  aria-label="Cancel edit"
+                  type="button"
+                >
+                  <FiX size={14} /> Cancel
+                </button>
               </div>
             )}
 
-            <div ref={bottomRef} />
-          </div>
-
-          {editingId && (
-            <div className="xpert-edit-indicator">
-              <span className="xpert-edit-indicator-label">
-                ✏️ Editing message
-              </span>
-              <button
-                className="xpert-edit-cancel-btn"
-                onClick={handleCancelEdit}
-                aria-label="Cancel edit"
-                type="button"
-              >
-                <FiX size={14} /> Cancel
-              </button>
-            </div>
-          )}
-
-          {dailyLimitHit && (
-            <div className="miraq-limit-banner">
-              <span className="miraq-limit-icon">🔒</span>
-              <p className="miraq-limit-title">Daily limit reached</p>
-              <p className="miraq-limit-subtitle">
-                You've used all 25 free questions for today.
-                {limitResetAt && <> Resets at midnight.</>}
-              </p>
-              {/* <button
+            {dailyLimitHit && (
+              <div className="miraq-limit-banner">
+                <span className="miraq-limit-icon">🔒</span>
+                <p className="miraq-limit-title">Daily limit reached</p>
+                <p className="miraq-limit-subtitle">
+                  You've used all 25 free questions for today.
+                  {limitResetAt && <> Resets at midnight.</>}
+                </p>
+                {/* <button
                 className="miraq-limit-upgrade-btn"
                 onClick={() => window.open("/premium", "_blank", "noopener")}
                 type="button"
               > */}
-              <div
-                className="miraq-limit-upgrade-btn"
-                style={{ cursor: "default !important" }}
-              >
-                Upgrade for unlimited
+                <div
+                  className="miraq-limit-upgrade-btn"
+                  style={{ cursor: "default !important" }}
+                >
+                  Upgrade for unlimited
+                </div>
+
+                {/* </button> */}
               </div>
-
-              {/* </button> */}
-            </div>
-          )}
-
-          <div
-            className={`xpert-chat-input-area${editingId ? " xpert-chat-input-area--editing" : ""}`}
-            style={{ display: "flex", alignItems: "center", gap: "8px" }}
-          >
-            <textarea
-              ref={inputRef}
-              className="xpert-chat-input"
-              placeholder={
-                dailyLimitHit
-                  ? "Upgrade to keep chatting" // ← add
-                  : isListening
-                    ? "Listening... Speak now"
-                    : editingId
-                      ? "Edit your message… (Enter to send, Esc to cancel)"
-                      : "Ask about products, orders, or your cart..."
-              }
-              value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
-              onKeyDown={handleKeyDown}
-              rows={1}
-              disabled={loading || dailyLimitHit}
-              autoFocus
-              spellCheck={true}
-              style={{ flex: 1 }}
-            />
-            {isSupported && !editingId && (
-              <button
-                className={`xpert-mic-btn ${isListening ? "listening" : ""}`}
-                onClick={handleMicClick}
-                type="button"
-                aria-label={
-                  isListening ? "Stop listening" : "Start voice typing"
-                }
-                style={{
-                  background: "none",
-                  border: "none",
-                  cursor: "pointer",
-                  padding: "8px",
-                  color: isListening ? "#ef4444" : "#64748b",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  transition: "color 0.2s ease",
-                }}
-              >
-                {isListening ? <FiMicOff size={20} /> : <FiMic size={20} />}
-              </button>
             )}
-            <button
-              className="xpert-send-btn"
-              onClick={handleSend}
-              disabled={!inputValue.trim() || loading || dailyLimitHit} // ← add dailyLimitHit
-              aria-label={editingId ? "Send edited message" : "Send message"}
-              type="button"
-            >
-              <FiSend size={18} />
-            </button>
-          </div>
 
-          <p className="xpert-footer-hint">{widgetText}</p>
+            <div
+              className={`xpert-chat-input-area${editingId ? " xpert-chat-input-area--editing" : ""}`}
+              style={{ display: "flex", alignItems: "center", gap: "8px" }}
+            >
+              <textarea
+                ref={inputRef}
+                className="xpert-chat-input"
+                placeholder={
+                  dailyLimitHit
+                    ? "Upgrade to keep chatting" // ← add
+                    : isListening
+                      ? "Listening... Speak now"
+                      : editingId
+                        ? "Edit your message… (Enter to send, Esc to cancel)"
+                        : "Ask about products, orders, or your cart..."
+                }
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value)}
+                onKeyDown={handleKeyDown}
+                rows={1}
+                disabled={loading || dailyLimitHit || health.blocking}
+                autoFocus
+                spellCheck={true}
+                style={{ flex: 1 }}
+              />
+              {isSupported && !editingId && (
+                <button
+                  className={`xpert-mic-btn ${isListening ? "listening" : ""}`}
+                  onClick={handleMicClick}
+                  type="button"
+                  aria-label={
+                    isListening ? "Stop listening" : "Start voice typing"
+                  }
+                  style={{
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    padding: "8px",
+                    color: isListening ? "#ef4444" : "#64748b",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    transition: "color 0.2s ease",
+                  }}
+                >
+                  {isListening ? <FiMicOff size={20} /> : <FiMic size={20} />}
+                </button>
+              )}
+              <button
+                className="xpert-send-btn"
+                onClick={handleSend}
+                disabled={
+                  !inputValue.trim() ||
+                  loading ||
+                  dailyLimitHit ||
+                  health.blocking
+                }
+                aria-label={editingId ? "Send edited message" : "Send message"}
+                type="button"
+              >
+                <FiSend size={18} />
+              </button>
+            </div>
+
+            {/* ── Server-down overlay — covers messages + input, not header ── */}
+            <ServerDownOverlay health={health} />
+          </div>
 
           {/* ── Cart Panel Overlay ── */}
           {isCartOpen && (
@@ -1012,6 +1108,16 @@ export function ChatWidget({
             }}
           />
         </div>
+
+        {/* Sibling of .xpert-chat-window, not a child of it: the cart and
+            checkout overlays are position:absolute inset:0 inside that window,
+            so anything placed within it is covered while they are open. Here
+            the bar stays visible on cart and checkout too. */}
+        <PoweredByMiraQ
+          show={brandingActive}
+          text={widgetText}
+          logoUrl={`${assetBaseUrl}MiraQ-Icon.png`}
+        />
       </Container>
     </div>
   );

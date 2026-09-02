@@ -59,6 +59,9 @@ function mountWidget(options?: WidgetOptions, assetBaseUrl?: string) {
   const customerRole = options?.customerRole || "";
   const storefrontToken = options?.storefrontToken || "";
   const shopDomain = options?.shopDomain || "";
+  const loginUrl = options?.loginUrl || "";
+  const brandingLogoUrl = options?.brandingLogoUrl || "";
+  const brandingFooterText = options?.brandingFooterText || "";
 
   console.log("Widget initialized with:", {
     apiUrl,
@@ -84,6 +87,9 @@ function mountWidget(options?: WidgetOptions, assetBaseUrl?: string) {
       cartToken={options?.cartToken}
       storefrontToken={storefrontToken}
       shopDomain={shopDomain}
+      loginUrl={loginUrl}
+      brandingLogoUrl={brandingLogoUrl}
+      brandingFooterText={brandingFooterText}
     />,
   );
 }
@@ -128,6 +134,11 @@ window.SilfraChatWidget = {
   const storefrontToken =
     config.storefrontToken || script?.dataset.storefrontToken || "";
   const shopDomain = config.shopDomain || script?.dataset.shopDomain || "";
+  const loginUrl = config.loginUrl || script?.dataset.loginUrl || "";
+  const brandingLogoUrl =
+    config.brandingLogoUrl || script?.dataset.widgetLogo || "";
+  const brandingFooterText =
+    config.brandingFooterText || script?.dataset.widgetFooterText || "";
 
   // 3. Fallback for assetBaseUrl in case document.currentScript is null
   // (If script is deferred, _currentScript is null, so we hardcode your production URL as a ultimate fallback)
@@ -178,6 +189,9 @@ window.SilfraChatWidget = {
       cartToken,
       storefrontToken,
       shopDomain,
+      loginUrl,
+      brandingLogoUrl,
+      brandingFooterText,
     },
     assetBaseUrl,
   );

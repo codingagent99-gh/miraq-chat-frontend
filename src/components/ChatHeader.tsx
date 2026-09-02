@@ -4,6 +4,7 @@ import {
   FiX,
   FiMaximize2,
   FiMinimize2,
+  FiLogIn,
 } from "react-icons/fi";
 interface ChatHeaderProps {
   cartCount: number;
@@ -15,6 +16,12 @@ interface ChatHeaderProps {
   headerText?: string;
   isExpanded?: boolean;
   onToggleExpand?: () => void;
+  /** Shopify account login URL for a guest session. When set, a persistent
+   *  "Log in" link is shown in the header — see ChatWidget.tsx for how it's
+   *  resolved (guest + Shopify only; unset on WooCommerce and for a logged-in
+   *  shopper on either platform). Opens in a new tab: navigating the page the
+   *  widget lives on would tear the widget down mid-conversation. */
+  loginUrl?: string;
 }
 
 export function ChatHeader({
@@ -27,6 +34,7 @@ export function ChatHeader({
   headerText,
   isExpanded,
   onToggleExpand,
+  loginUrl,
 }: ChatHeaderProps) {
   // Capitalise role: "customer" → "Customer"
   const displayRole = customerRole
@@ -59,9 +67,7 @@ export function ChatHeader({
       )}
 
       <div className="xpert-chat-header-info">
-        <h3 className="xpert-chat-header-title">
-          {headerText || "MiraQ Commerce Assistant"}
-        </h3>
+        <h3 className="xpert-chat-header-title">{headerText || "Dandelion"}</h3>
         {customerName ? (
           <p className="xpert-chat-header-sub">
             Hi, {customerName}
@@ -74,6 +80,22 @@ export function ChatHeader({
 
       {/* Right Side Actions Container */}
       <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+        {loginUrl && (
+          // New tab, not a same-tab navigation: the widget is embedded in
+          // the store's page, so navigating that page away would tear the
+          // widget (and this conversation) down before the login redirect
+          // ever completes.
+          <a
+            href={loginUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="xpert-header-login-btn"
+            aria-label="Log in to your account"
+          >
+            <FiLogIn size={14} />
+            Log in
+          </a>
+        )}
         {cartCount > 0 && (
           <div className="xpert-cart-badge">
             <FiShoppingCart size={20} />

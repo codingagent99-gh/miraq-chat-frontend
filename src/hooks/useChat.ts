@@ -17,6 +17,39 @@ const SESSION_KEY_PREFIX = "shop_chat_session_id";
 const EMAIL_KEY = "shop_chat_email";
 
 /**
+ * User-facing text for a failed request.
+ *
+ * NEVER surfaces the raw Error.message. On an axios failure that message is
+ * "Request failed with status code 500", which is what the chat was showing
+ * the user — an HTTP status code is not an explanation, and it hid the fact
+ * that the backend already sends a written reason in the 500 body. So:
+ * prefer the server's own bot_message, then fall back to something a shopper
+ * can act on.
+ *
+ * 429 is not handled here — handleDailyLimit intercepts it before this runs.
+ */
+function friendlyError(err: unknown, fallback?: string): string {
+  const response = (err as any)?.response;
+
+  const fromServer = response?.data?.bot_message;
+  if (typeof fromServer === "string" && fromServer.trim()) {
+    return fromServer.trim();
+  }
+
+  // No response at all — request never completed (offline, DNS, CORS, timeout).
+  if (!response) {
+    return "I couldn't reach the server. Check your connection and try again.";
+  }
+
+  const status = response.status;
+  if (typeof status === "number" && status >= 500) {
+    return "Something went wrong on our end. Please try again in a moment.";
+  }
+
+  return fallback || "Something went wrong. Please try again.";
+}
+
+/**
  * Friendly bubble text for a message carrying a structured card payload.
  *
  * Cards submit "__SENTINEL__<json>" so the backend flow handlers receive exact
@@ -613,14 +646,13 @@ export function useChat(options: UseChatOptions = {}) {
         }
       } catch (err) {
         if (handleDailyLimit(err)) return; // ← add this one line, rest unchanged
-        const detail =
-          err instanceof Error ? err.message : "Something went wrong.";
+        const detail = friendlyError(err);
         setError(detail);
         setPagination(null);
         const errMsg: ChatMessage = {
           id: uuidv4(),
           role: "bot",
-          text: `Oops – ${detail}. Please try again.`,
+          text: detail,
           timestamp: new Date(),
         };
         setMessages((prev) => enqueuMessages(prev, errMsg));
@@ -678,14 +710,13 @@ export function useChat(options: UseChatOptions = {}) {
         setMessages((prev) => enqueuMessages(prev, botMsg));
       } catch (err) {
         if (handleDailyLimit(err)) return; // ← add this one line, rest unchanged
-        const detail =
-          err instanceof Error ? err.message : "Something went wrong.";
+        const detail = friendlyError(err);
         setError(detail);
         setPagination(null);
         const errMsg: ChatMessage = {
           id: uuidv4(),
           role: "bot",
-          text: `Oops – ${detail}. Please try again.`,
+          text: detail,
           timestamp: new Date(),
         };
         setMessages((prev) => enqueuMessages(prev, errMsg));
@@ -749,14 +780,13 @@ export function useChat(options: UseChatOptions = {}) {
         }
       } catch (err) {
         if (handleDailyLimit(err)) return; // ← add this one line, rest unchanged
-        const detail =
-          err instanceof Error ? err.message : "Something went wrong.";
+        const detail = friendlyError(err);
         setError(detail);
         setPagination(null);
         const errMsg: ChatMessage = {
           id: uuidv4(),
           role: "bot",
-          text: `Oops – ${detail}. Please try again.`,
+          text: detail,
           timestamp: new Date(),
         };
         setMessages((prev) => enqueuMessages(prev, errMsg));
@@ -798,14 +828,13 @@ export function useChat(options: UseChatOptions = {}) {
       setMessages((prev) => enqueuMessages(prev, botMsg));
     } catch (err) {
       if (handleDailyLimit(err)) return; // ← add this one line, rest unchanged
-      const detail =
-        err instanceof Error ? err.message : "Something went wrong.";
+      const detail = friendlyError(err);
       setError(detail);
       setPagination(null);
       const errMsg: ChatMessage = {
         id: uuidv4(),
         role: "bot",
-        text: `Oops – ${detail}. Please try again.`,
+        text: detail,
         timestamp: new Date(),
       };
       setMessages((prev) => enqueuMessages(prev, errMsg));
@@ -852,14 +881,13 @@ export function useChat(options: UseChatOptions = {}) {
       setMessages((prev) => enqueuMessages(prev, botMsg));
     } catch (err) {
       if (handleDailyLimit(err)) return; // ← add this one line, rest unchanged
-      const detail =
-        err instanceof Error ? err.message : "Something went wrong.";
+      const detail = friendlyError(err);
       setError(detail);
       setPagination(null);
       const errMsg: ChatMessage = {
         id: uuidv4(),
         role: "bot",
-        text: `Oops – ${detail}. Please try again.`,
+        text: detail,
         timestamp: new Date(),
       };
       setMessages((prev) => enqueuMessages(prev, errMsg));
@@ -932,8 +960,7 @@ export function useChat(options: UseChatOptions = {}) {
         };
         setMessages((prev) => enqueuMessages(prev, botMsg));
       } catch (err) {
-        const detail =
-          err instanceof Error ? err.message : "Failed to place order.";
+        const detail = friendlyError(err, "Failed to place order.");
         setError(detail);
         const errMsg: ChatMessage = {
           id: uuidv4(),

@@ -43,6 +43,12 @@ interface Props {
    */
   validation_errors?: ValidationErrors;
   siteOrigin: string;
+  /**
+   * Email of the logged-in user, from __silfraWidgetConfig.customerEmail.
+   * Used to default the rep select: membership of the rep option list IS the
+   * "are they a rep" test, so no role list is duplicated here.
+   */
+  currentUserEmail?: string;
   onConfirm: () => void;
   onSkip: () => void;
   onSave: (message: string) => void;
@@ -67,7 +73,11 @@ export function BulkAddressConfirmationCard({
   progress,
   validation_errors,
   siteOrigin,
-  onConfirm,
+  currentUserEmail,
+  // onConfirm is intentionally NOT destructured: Confirm now posts the form
+  // via onSave (see handleConfirm). The prop stays on the interface so the
+  // existing MessageRow call site keeps compiling, and so a future non-form
+  // confirm surface has it available.
   onSkip,
   onSave,
   onCancel,
@@ -121,6 +131,7 @@ export function BulkAddressConfirmationCard({
     orderTypeOptions,
     billingFields, // ← API-driven; no more hardcoded BILLING_FIELDS
     shippingFields, // ← API-driven; no more hardcoded SHIPPING_FIELDS
+    isLoading: fieldsLoading,
   } = useCheckoutFields(siteOrigin);
 
   // Hardcoded bulk-order default for Order Type. It's a slug-backed <select>,
@@ -140,16 +151,40 @@ export function BulkAddressConfirmationCard({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orderTypeOptions]);
 
+  // The rep select's options come from the FIELD, not from /reps. The two are
+  // different rosters: /reps is users holding a rep role, while the field's
+  // option map is what the storefront checkout renders and what existing
+  // _billing_project_rep values were chosen from. Driving the select off /reps
+  // meant a stored value could match no option — which renders the select
+  // blank while isBlank() still reads it as filled, so it slipped past the
+  // required check and reached the order unseen. /reps stays as the fallback
+  // for installs where the field registers no options.
+  const repField = billingFields.find((f) => f.kind === "rep");
+  const repOptions = repField?.options?.length ? repField.options : reps;
+
+  // Rep default: the person placing the order picks themselves when they're a
+  // rep. Option values are user emails, so the widget's own customerEmail
+  // matches directly and membership of the list is the rep test — nothing here
+  // has to mirror rep_roles() in PHP. Runs on [repOptions] only, so a rep who
+  // then picks someone else is never overwritten.
   useEffect(() => {
-    if (billingForm.project_rep) return;
-    if (reps.length === 0) return;
-    const normalize = (s: string) => s.trim().toLowerCase().replace(/\.$/, "");
-    const ram = reps.find((r) => normalize(r.label) === "ram r");
-    if (ram) {
-      setBillingForm((p) => ({ ...p, project_rep: ram.value }));
-    }
+    if (repOptions.length === 0) return;
+    const norm = (s: string) => s.trim().toLowerCase();
+    setBillingForm((p) => {
+      const current = (p.project_rep ?? "").trim();
+      if (current && repOptions.some((r) => norm(r.value) === norm(current))) {
+        return p;
+      }
+      const me = currentUserEmail?.trim()
+        ? repOptions.find((r) => norm(r.value) === norm(currentUserEmail))
+        : undefined;
+      // Not a rep (admin, customer) or no email: clear anything unmatched so
+      // the field shows as missing rather than guessing a rep on their behalf.
+      if (!me) return current ? { ...p, project_rep: "" } : p;
+      return { ...p, project_rep: me.value };
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [reps]);
+  }, [repOptions, currentUserEmail]);
 
   // ── Saved company addresses ──
   // The picker belongs to the SHIPPING block (it chooses where goods go), so
@@ -194,7 +229,7 @@ export function BulkAddressConfirmationCard({
         // loaded — treat "still loading" as "not yet known," not "missing,"
         // so Confirm doesn't flash blocked on first render.
         !(f.kind === "orderType" && orderTypeOptions.length === 0) &&
-        !(f.kind === "rep" && reps.length === 0) &&
+        !(f.kind === "rep" && repOptions.length === 0) &&
         isRequired(f, backendKeys) &&
         isBlank(values[f.key]),
     );
@@ -232,31 +267,54 @@ export function BulkAddressConfirmationCard({
     return countries.find((c) => c.code === countryCode)?.states ?? [];
   }
 
+  // The Address Selector is a UI affordance, not an address field — don't
+  // ship its value to WooCommerce. Same rule as AddressForm.handleSubmit.
+  const strip = (v: AddrValues): AddrValues => {
+    const out = { ...v };
+    for (const k of Object.keys(out)) {
+      if (isAddressSelectorField(k)) delete out[k];
+    }
+    return out;
+  };
+
+  // The one place the panel's current values are turned into a message.
+  // Shared by Save and Confirm so the two can never send different things.
+  function addrPayload() {
+    return `__BULK_ADDR__${JSON.stringify({
+      billing: strip(billingForm),
+      shipping: strip(shippingForm),
+    })}`;
+  }
+
   function handleSave() {
+    // Same load-window guard as handleConfirm: saving now would persist a
+    // form whose Order Type field may not even be rendered yet.
+    if (fieldsLoading) return;
     // Never a silently-dead button: surface which fields are blocking instead.
     if (!isValid) {
       setShowErrors(true);
       return;
     }
-    // The Address Selector is a UI affordance, not an address field — don't
-    // ship its value to WooCommerce. Same rule as AddressForm.handleSubmit.
-    const strip = (v: AddrValues): AddrValues => {
-      const out = { ...v };
-      for (const k of Object.keys(out)) {
-        if (isAddressSelectorField(k)) delete out[k];
-      }
-      return out;
-    };
-    onSave(
-      `__BULK_ADDR__${JSON.stringify({
-        billing: strip(billingForm),
-        shipping: strip(shippingForm),
-      })}`,
-    );
+    onSave(addrPayload());
     setEditing(false);
   }
 
   function handleConfirm() {
+    // Field metadata is still in flight — the form is not what it will be in
+    // a moment, so confirming now would post a half-populated one.
+    //
+    // Every default on this card except Project Name waits on a response:
+    // Order Type's effect needs /order-types, and the rep auto-select needs
+    // the option list from /checkout-fields. Worse, the Order Type FIELD
+    // itself is only injected into billingFields once /order-types resolves,
+    // so before that it isn't rendered, isn't in renderedKeys, and can't be
+    // filled at all. Confirming inside that window posted blanks and the
+    // backend answered "missing 2 required fields".
+    //
+    // This is why the flow appeared to work only after pressing Change: the
+    // click never triggered the fetches (they start on mount), it just spent
+    // long enough for them to land.
+    if (fieldsLoading) return;
     // The backend gate rejects this too, but blocking here means the rep gets
     // told which fields are missing instead of bouncing off a server error.
     if (!isValid) {
@@ -264,7 +322,22 @@ export function BulkAddressConfirmationCard({
       setShowErrors(true);
       return;
     }
-    onConfirm();
+    // Send the FORM, not a bare "Yes, confirm".
+    //
+    // Several of these values exist only in this component until they are
+    // posted: billing_project falls back to a default above, and
+    // billing_field_type is written in by an effect once /order-types loads.
+    // isValid is computed from that same local state, so Confirm used to pass
+    // its own check and post a plain string carrying none of it — the backend
+    // still had blanks and answered "missing 2 required fields: Order Type,
+    // Project Name" while the panel sat there visibly showing both filled.
+    // Confirming again just repeated it.
+    //
+    // __BULK_ADDR__ is not merely a "save": on success the backend marks the
+    // line confirmed, propagates the decision and advances to the next line —
+    // exactly what Confirm is for. So this is one message, not a save
+    // followed by a racing confirm.
+    onSave(addrPayload());
   }
 
   // renderField now receives a full CheckoutField so it has access to .type
@@ -299,7 +372,7 @@ export function BulkAddressConfirmationCard({
           onChange={(e) => set(f.key, e.target.value)}
         >
           <option value="">Select a rep…</option>
-          {reps.map((r) => (
+          {repOptions.map((r) => (
             <option key={r.value} value={r.value}>
               {r.label}
             </option>
@@ -449,21 +522,28 @@ export function BulkAddressConfirmationCard({
               {addr_str || <em>No address on file</em>}
             </p>
           </div>
-          {!isValid && missingSummary}
+          {!isValid && !fieldsLoading && missingSummary}
           <div className="bo-confirm__btns">
             <button
-              className={`bo-btn ${isValid ? "bo-btn--primary" : "bo-btn--secondary"}`}
+              className={`bo-btn ${isValid && !fieldsLoading ? "bo-btn--primary" : "bo-btn--secondary"}`}
               onClick={handleConfirm}
-              disabled={!isValid}
+              disabled={fieldsLoading || !isValid}
               type="button"
             >
-              ✓ Confirm
+              {fieldsLoading ? "Loading fields…" : "✓ Confirm"}
             </button>
             {/* When the address is incomplete, Change is the only action that
-                can resolve it — promote it to primary. */}
+                can resolve it — promote it to primary.
+
+                Also disabled while loading: opening the editor early is what
+                made this bug look like a Change-button feature. The panel
+                would render without the Order Type field, the rep select
+                would have no options, and the defaults would land seconds
+                later underneath the rep. */}
             <button
-              className={`bo-btn ${isValid ? "bo-btn--secondary" : "bo-btn--primary"}`}
+              className={`bo-btn ${isValid || fieldsLoading ? "bo-btn--secondary" : "bo-btn--primary"}`}
               onClick={() => setEditing(true)}
+              disabled={fieldsLoading}
               type="button"
             >
               ✏️ Change
@@ -542,9 +622,10 @@ export function BulkAddressConfirmationCard({
             <button
               className="bo-btn bo-btn--primary"
               onClick={handleSave}
+              disabled={fieldsLoading}
               type="button"
             >
-              💾 Save
+              {fieldsLoading ? "Loading fields…" : "💾 Save"}
             </button>
             <button
               className="bo-btn bo-btn--ghost"

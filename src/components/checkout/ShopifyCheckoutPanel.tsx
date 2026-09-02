@@ -34,6 +34,7 @@ import type {
   ContactAddress,
   DeliveryOption,
   SavedAddress,
+  AvailableCountry,
 } from "../../platform/shopify/useCheckout";
 import "./CheckoutPanel.css";
 
@@ -298,6 +299,9 @@ interface ShippingAddressStepProps {
   onChange: React.Dispatch<React.SetStateAction<ContactAddress>>;
   savedAddresses: SavedAddress[];
   savedAddressesLoading: boolean;
+  /** Live from the Storefront API — empty while loading or on fetch failure,
+   *  in which case the country field falls back to plain text. */
+  availableCountries: AvailableCountry[];
   isLoading: boolean;
   onContinue: () => void;
 }
@@ -307,6 +311,7 @@ function ShippingAddressStep({
   onChange,
   savedAddresses,
   savedAddressesLoading,
+  availableCountries,
   isLoading,
   onContinue,
 }: ShippingAddressStepProps) {
@@ -340,7 +345,7 @@ function ShippingAddressStep({
   }, [savedAddressesLoading, savedAddresses]);
 
   function field(key: keyof ContactAddress) {
-    return (e: React.ChangeEvent<HTMLInputElement>) =>
+    return (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
       onChange((prev) => ({ ...prev, [key]: e.target.value }));
   }
 
@@ -690,20 +695,51 @@ function ShippingAddressStep({
                 )}
               </div>
               <div>
-                <label style={labelStyle}>Country code *</label>
-                <input
-                  type="text"
-                  value={address.country}
-                  onChange={field("country")}
-                  onBlur={touch("country")}
-                  placeholder="IN"
-                  maxLength={2}
-                  style={{
-                    ...inputStyle("country"),
-                    textTransform: "uppercase",
-                  }}
-                  autoComplete="country"
-                />
+                <label style={labelStyle}>Country *</label>
+                {availableCountries.length > 0 ? (
+                  <select
+                    value={address.country}
+                    onChange={field("country")}
+                    onBlur={touch("country")}
+                    style={inputStyle("country")}
+                    autoComplete="country"
+                  >
+                    {/* The shop's own active country may not always be in
+                        availableCountries (e.g. a saved address from a
+                        country the shop no longer serves) — keep it
+                        selectable rather than silently swapping it out from
+                        under the shopper. */}
+                    {!availableCountries.some(
+                      (c) => c.isoCode === address.country,
+                    ) &&
+                      address.country && (
+                        <option value={address.country}>
+                          {address.country}
+                        </option>
+                      )}
+                    {availableCountries.map((c) => (
+                      <option key={c.isoCode} value={c.isoCode}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  // Fetch still loading, or failed — same plain text field
+                  // this always was, so checkout is never blocked on it.
+                  <input
+                    type="text"
+                    value={address.country}
+                    onChange={field("country")}
+                    onBlur={touch("country")}
+                    placeholder="IN"
+                    maxLength={2}
+                    style={{
+                      ...inputStyle("country"),
+                      textTransform: "uppercase",
+                    }}
+                    autoComplete="country"
+                  />
+                )}
                 {shouldShowError("country") && allErrors.country && (
                   <p style={inlineErrorStyle}>{allErrors.country}</p>
                 )}
@@ -1037,6 +1073,7 @@ export function ShopifyCheckoutPanel({
             onChange={checkout.setAddress}
             savedAddresses={checkout.savedAddresses}
             savedAddressesLoading={checkout.savedAddressesLoading}
+            availableCountries={checkout.availableCountries}
             isLoading={checkout.isLoading}
             onContinue={() => checkout.setStep("review")}
           />

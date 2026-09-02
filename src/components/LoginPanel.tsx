@@ -132,25 +132,28 @@ export function LoginPanel({
     <div className="miraq-login">
       {/* ── MiraQ header ─────────────────────────────────────────────────── */}
       <div className="xpert-profile-card">
-        <div className="xpert-profile-icon">
-          <img
-            style={{ height: "100%", width: "100%", borderRadius: "50%" }}
-            src={miraQIcon}
-            alt="MiraQ"
-          />
+        <div className="xpert-profile-card-info">
+          <div className="xpert-profile-icon">
+            <img
+              style={{ height: "100%", width: "100%", borderRadius: "50%" }}
+              src={miraQIcon}
+              alt="MiraQ"
+            />
+          </div>
+          <div className="xpert-profile-info">
+            <p className="xpert-profile-label">Welcome to</p>
+            <h2 className="xpert-profile-name">Dandelion</h2>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="xpert-icon-btn"
+            aria-label="Close widget"
+            style={{ position: "absolute", right: "0px", top: "5px" }}
+          >
+            <FiX size={20} />
+          </button>
         </div>
-        <div className="xpert-profile-info">
-          <p className="xpert-profile-label">Welcome to</p>
-          <h2 className="xpert-profile-name">MiraQ Commerce Assistant</h2>
-        </div>
-        <button
-          type="button"
-          onClick={onClose}
-          className="xpert-icon-btn"
-          aria-label="Close widget"
-        >
-          <FiX size={20} />
-        </button>
       </div>
 
       <div className="miraq-login-inner">

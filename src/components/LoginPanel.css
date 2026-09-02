@@ -12,7 +12,9 @@
 
 #silfra-chat-widget-container .miraq-login {
   position: relative;
-  height: 100%;
+  /* flex:1 rather than height:100% — see .xpert-chat-window in index.css. */
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
   background: var(--color-surface);
   padding: 0 0 32px;
