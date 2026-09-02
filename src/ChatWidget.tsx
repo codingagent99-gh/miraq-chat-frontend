@@ -150,19 +150,23 @@ export function ChatWidget({
   const screenStorageKey = `silfra_screen_${customerId ?? customerEmail ?? "guest"}`;
 
   const [screen, setScreen] = useState<"ai-opt-in" | "home" | "chat">(() => {
-    if (isLoggedIn) {
-      try {
-        if (localStorage.getItem(aiStorageKey) === "true") {
-          const saved = sessionStorage.getItem(screenStorageKey);
-          if (saved === "chat" || saved === "home") return saved;
-          // No saved screen for this session — land straight in chat instead
-          // of the Home/"Start exploring" screen. Home stays reachable via
-          // the chat header's back button (see onBack further down).
-          return "chat";
-        }
-      } catch {
-        // fall through to "ai-opt-in"
+    // Restoring a saved "AI on" screen only depends on aiStorageKey/
+    // screenStorageKey, both of which already fall back to the "guest"
+    // bucket when customerId/customerEmail are absent — it never needed
+    // isLoggedIn. Gating on isLoggedIn broke Shopify, where anonymous
+    // storefront visitors (no Shopify customer account) are guests by
+    // design and should still resume "chat"/"home" across a reload.
+    // WooCommerce guests are unaffected: they're pinned to LoginPanel at
+    // render time regardless of `screen` (see the `!isLoggedIn && !isShopify`
+    // branch below), so this never mattered for them either way.
+    try {
+      if (localStorage.getItem(aiStorageKey) === "true") {
+        const saved = sessionStorage.getItem(screenStorageKey);
+        if (saved === "chat" || saved === "home") return saved;
+        return "chat";
       }
+    } catch {
+      // fall through to "ai-opt-in"
     }
     return "ai-opt-in";
   });

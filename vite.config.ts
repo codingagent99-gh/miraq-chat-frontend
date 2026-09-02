@@ -20,7 +20,7 @@ import { resolve } from "path";
 // nothing downstream (theme block, WP enqueue) needs updating for the
 // common case.
 const WIDGET_NAMES: Record<string, string> = {
-  shopify: "shopify-chat-widget",
+  shopify: "miraq-shopify",
 };
 
 export default defineConfig(({ mode }) => {
