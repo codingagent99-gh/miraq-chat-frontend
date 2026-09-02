@@ -11,6 +11,7 @@
     "build:geoffg7": "tsc -b && vite build --mode geoffg7",
     "build:staging": "tsc -b && vite build --mode staging",
     "build:shopify": "tsc -b && vite build --mode shopify",
+    "build:localdev": "tsc -b && vite build --mode localdev",
     "lint": "eslint .",
     "preview": "vite preview"
   },
