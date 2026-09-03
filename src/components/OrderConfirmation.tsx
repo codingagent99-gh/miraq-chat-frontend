@@ -6,7 +6,10 @@ interface OrderConfirmationProps {
   paymentUrl?: string;
 }
 
-export function OrderConfirmation({ order, paymentUrl }: OrderConfirmationProps) {
+export function OrderConfirmation({
+  order,
+  paymentUrl,
+}: OrderConfirmationProps) {
   const [copied, setCopied] = useState(false);
 
   const copyLink = () => {
@@ -32,9 +35,20 @@ export function OrderConfirmation({ order, paymentUrl }: OrderConfirmationProps)
       <div className="xpert-order-details">
         {order.items && order.items.length > 0 ? (
           order.items.map((item, idx) => (
-            <div key={idx} className="xpert-order-detail-row">
-              <span>{item.name}</span>
-              <span>× {item.quantity}</span>
+            <div key={idx} className="xpert-order-detail-item">
+              <div className="xpert-order-detail-row">
+                <span>{item.name}</span>
+                <span>× {item.quantity}</span>
+              </div>
+              {/* Which variant was actually bought. Without this, two lines of
+                  the same parent product in different colours are
+                  indistinguishable on the confirmation. */}
+              {item.variation_attributes &&
+                item.variation_attributes.length > 0 && (
+                  <div className="xpert-order-detail-variation">
+                    {item.variation_attributes.map((v) => v.value).join(" · ")}
+                  </div>
+                )}
             </div>
           ))
         ) : (

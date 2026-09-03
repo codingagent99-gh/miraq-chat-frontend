@@ -209,7 +209,9 @@ export function MessageRow({
                 products={message.products}
                 onProductClick={onProductClick}
                 onShowSimilar={similarHandler}
-                onAddToCart={(product) => onSuggestion(`order ${product.name}`)}
+                onAddToCart={(product, quantity) =>
+                  onSuggestion(`order ${quantity} ${product.name}`)
+                }
                 loadingSimilarId={loadingSimilarId}
               />
               {similarHandler && (

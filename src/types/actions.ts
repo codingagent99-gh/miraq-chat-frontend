@@ -120,6 +120,10 @@ export type ChatAction =
         quantity: number;
         progress: { current: number; total: number };
         attributes: { name: string; options: string[] }[];
+        /** Axis values already resolved from the user's message, or settled by
+         *  the catalog because every variation shares one value. Seeds the
+         *  picker so the user isn't asked to re-pick what they already said. */
+        preselected?: Record<string, string>;
         variations: { id: number; attributes: Record<string, string> }[];
       };
     }

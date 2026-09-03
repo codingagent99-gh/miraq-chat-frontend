@@ -21,7 +21,11 @@ export function AiOptInScreen({
         flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
-        height: "100%",
+        // flex:1 rather than height:100% — the panel is a flex column and now
+        // has the attribution bar as a second child, so claiming the full
+        // height would push that bar outside the panel's overflow:hidden box.
+        flex: 1,
+        minHeight: 0,
         padding: "2rem",
         textAlign: "center",
         backgroundColor: "#fff",

@@ -5,6 +5,8 @@ interface WidgetContainerProps {
   setPanelOpen: (open: boolean) => void;
   isExpanded: boolean;
   assetBaseUrl: string;
+  /** Store logo from /widget-config. Falls back to the bundled MiraQ mark. */
+  logoUrl?: string;
   children: React.ReactNode;
   overlayClickCloses?: boolean;
 }
@@ -80,9 +82,13 @@ export function WidgetContainer({
   isExpanded,
   children,
   assetBaseUrl,
+  logoUrl,
   overlayClickCloses = false,
 }: WidgetContainerProps) {
-  const MiraQIcon = `${assetBaseUrl}MiraQ-icon.png`;
+  // Launcher mark. Once the store uploads its own logo the bundled MiraQ icon
+  // must go here too — this button is the widget's most visible surface, and
+  // leaving it as MiraQ was the one place the swap used to miss.
+  const MiraQIcon = logoUrl || `${assetBaseUrl}MiraQ-icon.png`;
 
   const [isMobile, setIsMobile] = useState(
     () => window.innerWidth <= MOBILE_BREAKPOINT,

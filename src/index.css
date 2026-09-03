@@ -343,7 +343,11 @@
 #silfra-chat-widget-container .xpert-chat-window {
   display: flex;
   flex-direction: column;
-  height: 100%;
+  /* flex:1 rather than height:100% — the panel is a flex column and now has
+     the attribution bar as a second child, so claiming the full height would
+     push that bar outside the panel's overflow:hidden box. */
+  flex: 1 1 auto;
+  min-height: 0;
   background-color: white;
 }
 
@@ -1085,6 +1089,45 @@
   padding: 0.5rem;
   background: white;
   margin: 0;
+}
+
+/* ── "Powered by MiraQ" attribution bar ──────────────────────────────────
+   Last child of the panel on every screen. flex-shrink:0 keeps it at its
+   natural height while the screen above it absorbs the remaining space. */
+#silfra-chat-widget-container .miraq-powered-by {
+  flex-shrink: 0;
+  text-align: center;
+  font-size: 10px;
+  line-height: 1.4;
+  color: #9ca3af;
+  padding: 6px 8px;
+  background: white;
+  border-top: 1px solid #eeede8;
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#silfra-chat-widget-container .miraq-powered-by strong {
+  color: #6b7280;
+  font-weight: 600;
+}
+
+/* The default (non-custom-text) form is "Powered by" + the MiraQ mark. The
+   mark is an <img>, so without an explicit height it renders at its natural
+   size and blows the bar open — these two rules are what keep it inline and
+   vertically centred against the text. */
+#silfra-chat-widget-container .miraq-attribution {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+#silfra-chat-widget-container .miraq-attribution .miraq-logo {
+  height: 12px;
+  width: auto;
+  display: block;
 }
 
 /* --- Loader --- */
@@ -2155,6 +2198,99 @@
 #silfra-chat-widget-container .xpert-similar-btn:disabled {
   opacity: 0.55;
   cursor: not-allowed;
+}
+
+/* Actions row on a product card. Reproduces exactly what the inline styles
+   on ProductCards.tsx used to set (flex, 6px gap, centred, 4px top margin) —
+   the point of moving it here is that a stylesheet rule can be overridden by
+   a media or container query, whereas an inline style cannot. */
+#silfra-chat-widget-container .xpert-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+/* Manual quantity prompt, shown in place of the actions row once "Add to
+   Cart" is clicked. No preset quantities — a bare number input, because the
+   useful quantity for a sample order is rarely one of a handful of presets. */
+#silfra-chat-widget-container .xpert-cart-qty-row {
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+#silfra-chat-widget-container .xpert-cart-qty-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 6px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  font-size: 13px;
+  outline: none;
+}
+
+#silfra-chat-widget-container .xpert-cart-qty-input:focus {
+  border-color: var(--color-primary);
+}
+
+#silfra-chat-widget-container .xpert-cart-qty-confirm {
+  flex: 0 0 auto;
+  padding: 0 10px;
+  background: linear-gradient(
+    135deg,
+    var(--color-primary-light) 0%,
+    var(--color-primary) 100%
+  );
+  border: 1px solid transparent;
+  color: #ffffff;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+#silfra-chat-widget-container .xpert-cart-qty-confirm:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+#silfra-chat-widget-container .xpert-cart-qty-cancel {
+  flex: 0 0 28px;
+  background: transparent;
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+  border-radius: 6px;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+/* Unavailable variant chip — the combination it would make does not exist in
+   the product's variation matrix. Dimmed rather than hidden so the option's
+   absence is visible and explicable, not a silently shorter list. */
+#silfra-chat-widget-container .xpert-variant-chip--unavailable {
+  opacity: 0.35;
+  cursor: not-allowed;
+  text-decoration: line-through;
+}
+
+/* Variation attributes under an order confirmation line item. */
+#silfra-chat-widget-container .xpert-order-detail-item {
+  margin-bottom: 8px;
+}
+
+#silfra-chat-widget-container .xpert-order-detail-item:last-child {
+  margin-bottom: 0;
+}
+
+#silfra-chat-widget-container .xpert-order-detail-variation {
+  font-size: 11px;
+  color: #999;
+  margin: 2px 0 0 0;
+  text-transform: capitalize;
+  letter-spacing: 0.02em;
 }
 
 #silfra-chat-widget-container .xpert-add-to-cart-btn {

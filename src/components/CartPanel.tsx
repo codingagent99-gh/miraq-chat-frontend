@@ -67,6 +67,13 @@ export function CartPanel({
   const minorUnit = cart?.totals.currency_minor_unit ?? 2;
   const symbol = cart?.totals.currency_symbol ?? "₹";
 
+  // Whole order is free (all sample/enquiry items) — don't show a 0 total.
+  // A row of zeroes reads as a pricing bug rather than "these are free", and
+  // on a sample-only store it is every single order.
+  const orderIsFree = cart
+    ? parseInt(cart.totals.total_price, 10) === 0
+    : false;
+
   return (
     <div className="miraq-cart-panel">
       {/* ── Header ── */}
@@ -187,7 +194,9 @@ export function CartPanel({
                     </p>
                   )}
 
-                  <p className="miraq-cart-item-price">{unitPrice} each</p>
+                  {parseInt(item.prices.price, 10) > 0 && (
+                    <p className="miraq-cart-item-price">{unitPrice} each</p>
+                  )}
 
                   <div className="miraq-cart-item-qty">
                     <button
@@ -212,7 +221,9 @@ export function CartPanel({
 
                 {/* Right */}
                 <div className="miraq-cart-item-right">
-                  <span className="miraq-cart-item-total">{lineTotal}</span>
+                  {parseInt(item.totals.line_total, 10) > 0 && (
+                    <span className="miraq-cart-item-total">{lineTotal}</span>
+                  )}
                   <button
                     className="miraq-cart-item-remove"
                     onClick={() => onRemove(item.key)}
@@ -229,39 +240,44 @@ export function CartPanel({
       {/* ── Footer ── */}
       {!isEmpty && cart && (
         <div className="miraq-cart-footer">
-          <div className="miraq-cart-totals">
-            <div className="miraq-cart-total-row">
-              <span>Subtotal</span>
-              <span>
-                {formatPrice(cart.totals.total_items, symbol, minorUnit)}
-              </span>
-            </div>
-
-            {parseInt(cart.totals.total_shipping, 10) > 0 && (
+          {/* Suppressed entirely when nothing costs anything: Subtotal 0,
+              Total 0 reads as a broken price lookup rather than "free". The
+              checkout button below stays exactly where it was. */}
+          {!orderIsFree && (
+            <div className="miraq-cart-totals">
               <div className="miraq-cart-total-row">
-                <span>Shipping</span>
+                <span>Subtotal</span>
                 <span>
-                  {formatPrice(cart.totals.total_shipping, symbol, minorUnit)}
+                  {formatPrice(cart.totals.total_items, symbol, minorUnit)}
                 </span>
               </div>
-            )}
 
-            {parseInt(cart.totals.total_tax, 10) > 0 && (
-              <div className="miraq-cart-total-row">
-                <span>Tax</span>
+              {parseInt(cart.totals.total_shipping, 10) > 0 && (
+                <div className="miraq-cart-total-row">
+                  <span>Shipping</span>
+                  <span>
+                    {formatPrice(cart.totals.total_shipping, symbol, minorUnit)}
+                  </span>
+                </div>
+              )}
+
+              {parseInt(cart.totals.total_tax, 10) > 0 && (
+                <div className="miraq-cart-total-row">
+                  <span>Tax</span>
+                  <span>
+                    {formatPrice(cart.totals.total_tax, symbol, minorUnit)}
+                  </span>
+                </div>
+              )}
+
+              <div className="miraq-cart-total-row miraq-cart-grand-total">
+                <span>Total</span>
                 <span>
-                  {formatPrice(cart.totals.total_tax, symbol, minorUnit)}
+                  {formatPrice(cart.totals.total_price, symbol, minorUnit)}
                 </span>
               </div>
-            )}
-
-            <div className="miraq-cart-total-row miraq-cart-grand-total">
-              <span>Total</span>
-              <span>
-                {formatPrice(cart.totals.total_price, symbol, minorUnit)}
-              </span>
             </div>
-          </div>
+          )}
 
           {onCheckout && (
             <button

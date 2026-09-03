@@ -5,6 +5,10 @@ import { useChat } from "./hooks/useChat";
 import { useChatActions } from "./hooks/useChatActions";
 import { createApiClient } from "./services/api";
 import { WidgetContainer } from "./components/WidgetContainer";
+import { LoginPanel } from "./components/LoginPanel";
+import { PoweredByMiraQ } from "./components/PoweredByMiraQ";
+import { ServerDownOverlay } from "./components/ServerDownOverlay";
+import { useHealthMonitor } from "./hooks/useHealthMonitor";
 import { ShopifyWidgetContainer } from "./components/ShopifyWidgetContainer";
 import { HomeScreen } from "./components/HomeScreen";
 import { ChatHeader } from "./components/ChatHeader";
@@ -208,6 +212,16 @@ export function ChatWidget({
   // ── Widget config (logo + header text from backend) ──────────────────────
   const [widgetLogo, setWidgetLogo] = useState<string>("");
   const [widgetText, setWidgetText] = useState<string>("");
+
+  // Store branding is live once either field comes back from /widget-config.
+  // The attribution bar only shows then: on a default install the MiraQ mark
+  // is still on screen and attribution would be redundant.
+  const brandingActive = !!(widgetLogo || widgetText);
+
+  // Polls /health. licenseId is passed so the response reports THIS tenant's
+  // store health rather than "unknown" — see _health_loader_for_request in
+  // server.py.
+  const health = useHealthMonitor(apiUrl, licenseId);
   console.log("[MiraQ DEBUG] licenseId prop:", licenseId);
 
   const apiClientRef = useRef<any>(null);
@@ -551,66 +565,24 @@ export function ChatWidget({
           panelOpen={panelOpen}
           setPanelOpen={setPanelOpen}
           assetBaseUrl={assetBaseUrl || ""}
+          logoUrl={widgetLogo}
           isExpanded={isExpanded}
         >
           {!isLoggedIn ? (
-            // ── Login required ─────────────────────────────────────────────
-            <div
-              style={{
-                position: "relative",
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-                height: "100%",
-                padding: "2rem",
-                textAlign: "center",
-                backgroundColor: "#fff",
-              }}
-            >
-              <button
-                onClick={() => setPanelOpen(false)}
-                style={{
-                  position: "absolute",
-                  top: "16px",
-                  right: "16px",
-                  background: "transparent",
-                  border: "none",
-                  cursor: "pointer",
-                  color: "#666",
-                  padding: "4px",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-                aria-label="Close widget"
-                type="button"
-              >
-                <FiX size={20} />
-              </button>
-              <img
-                src={widgetLogo || MiraQIcon}
-                alt="MiraQ"
-                style={{
-                  width: "64px",
-                  height: "64px",
-                  marginBottom: "1.5rem",
-                  borderRadius: "50%",
-                }}
-              />
-              <h3 style={{ margin: "0 0 0.5rem 0" }}>Login Required</h3>
-              <p
-                style={{
-                  margin: "0",
-                  color: "#666",
-                  fontSize: "14px",
-                  lineHeight: "1.5",
-                }}
-              >
-                Please log in to your account to use our AI shopping assistant,
-                track your orders, and get personalized recommendations.
-              </p>
-            </div>
+            // ── Login ──────────────────────────────────────────────────────
+            // Replaces the old static "Login Required" notice, which told the
+            // user to go and log in but gave them no way to do it — the widget
+            // was a dead end until they left the page and came back.
+            //
+            // LoginPanel POSTs to core WooCommerce on siteOrigin and reads its
+            // branding and links from /wp-json/custom-api/v1/login-nonce, so
+            // nothing store-specific is compiled in.
+            <LoginPanel
+              siteOrigin={siteOrigin}
+              fallbackLogoUrl={`${assetBaseUrl}MiraQ-icon.png`}
+              miraQIcon={widgetLogo || MiraQIcon}
+              onClose={() => setPanelOpen(false)}
+            />
           ) : screen === "ai-opt-in" ? (
             // ── AI mode opt-in (also the "AI off" resting state) ───────────
             <AiOptInScreen
@@ -633,6 +605,13 @@ export function ChatWidget({
               onToggleExpand={() => setIsExpanded((p) => !p)}
             />
           )}
+          {/* Last child of the panel rather than inside any one screen, so it
+              survives switches between login / opt-in / home. */}
+          <PoweredByMiraQ
+            show={brandingActive}
+            text={widgetText}
+            logoUrl={`${assetBaseUrl}MiraQ-icon.png`}
+          />
         </Container>
       </div>
     );
@@ -669,6 +648,7 @@ export function ChatWidget({
         panelOpen={panelOpen}
         setPanelOpen={setPanelOpen}
         assetBaseUrl={assetBaseUrl || ""}
+        logoUrl={widgetLogo}
         isExpanded={isExpanded}
       >
         <div
@@ -849,7 +829,7 @@ export function ChatWidget({
               onChange={(e) => setInputValue(e.target.value)}
               onKeyDown={handleKeyDown}
               rows={1}
-              disabled={loading || dailyLimitHit}
+              disabled={loading || dailyLimitHit || health.blocking}
               autoFocus
               spellCheck={true}
               style={{ flex: 1 }}
@@ -880,7 +860,12 @@ export function ChatWidget({
             <button
               className="xpert-send-btn"
               onClick={handleSend}
-              disabled={!inputValue.trim() || loading || dailyLimitHit} // ← add dailyLimitHit
+              disabled={
+                !inputValue.trim() ||
+                loading ||
+                dailyLimitHit ||
+                health.blocking
+              }
               aria-label={editingId ? "Send edited message" : "Send message"}
               type="button"
             >
@@ -888,7 +873,8 @@ export function ChatWidget({
             </button>
           </div>
 
-          <p className="xpert-footer-hint">{widgetText}</p>
+          {/* ── Server-down overlay — covers messages + input, not the header ── */}
+          <ServerDownOverlay health={health} />
 
           {/* ── Cart Panel Overlay ── */}
           {isCartOpen && (
@@ -993,6 +979,20 @@ export function ChatWidget({
             }}
           />
         </div>
+
+        {/* Sibling of .xpert-chat-window, not a child of it: the cart and
+            checkout overlays are position:absolute inset:0 inside that window,
+            so anything placed within it is covered while they are open. Here
+            the bar stays visible on cart and checkout too.
+
+            This also takes over the slot the bare .xpert-footer-hint paragraph
+            used to occupy — the store's custom footer text still renders, it
+            just replaces the attribution instead of sitting in a second bar. */}
+        <PoweredByMiraQ
+          show={brandingActive}
+          text={widgetText}
+          logoUrl={`${assetBaseUrl}MiraQ-icon.png`}
+        />
       </Container>
     </div>
   );

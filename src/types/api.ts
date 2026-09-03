@@ -26,6 +26,10 @@ export interface OrderItem {
   total?: number;
   sku?: string;
   image?: string;
+  /** Variation attributes (Colour: Beige, Size: 12"x24") off the line item's
+   *  WooCommerce meta_data, so an order card can show which variant was
+   *  actually bought rather than just the parent product name. */
+  variation_attributes?: { attribute: string; value: string }[];
 }
 
 export interface Order {

@@ -615,6 +615,21 @@ export function useCheckout(
       }
 
       setStep("redirecting");
+      // Clear the panel-resume flags before leaving. Shopify's hosted
+      // checkout is same-origin, so sessionStorage survives the round trip —
+      // if silfra_checkout_open is left "true" here, ChatWidget's mount-time
+      // initializer reads it back as true when the shopper returns to the
+      // store and reopens this (now stale/empty-cart) checkout panel instead
+      // of chat. There's no scenario where resuming checkout is correct once
+      // we've handed off to Shopify's own checkout, so these are cleared
+      // unconditionally rather than consumed-on-read like the Woo flow.
+      try {
+        sessionStorage.removeItem("silfra_checkout_open");
+        sessionStorage.removeItem("silfra_cart_open");
+        sessionStorage.removeItem("silfra_resume_open");
+      } catch {
+        // sessionStorage unavailable — nothing to clean up
+      }
       window.open(resolvedUrl, "_blank", "noopener,noreferrer");
     },
     [address, billingAddress, billingOption, shopDomain, storefrontToken],
