@@ -724,7 +724,7 @@ export function ChatWidget({
           <PoweredByMiraQ
             show={brandingActive}
             text={widgetText}
-            logoUrl={`${assetBaseUrl}MiraQ-Icon.png`}
+            logoUrl={`${assetBaseUrl}MiraQ-icon.png`}
           />
         </Container>
       </div>
@@ -1120,7 +1120,7 @@ export function ChatWidget({
         <PoweredByMiraQ
           show={brandingActive}
           text={widgetText}
-          logoUrl={`${assetBaseUrl}MiraQ-Icon.png`}
+          logoUrl={`${assetBaseUrl}MiraQ-icon.png`}
         />
       </Container>
     </div>

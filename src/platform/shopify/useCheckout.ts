@@ -117,6 +117,11 @@ export interface CheckoutInitialValues {
   lastName?: string;
   customerId?: string | number;
   apiUrl?: string;
+  /** Widget session id — attached as a Shopify cart attribute in
+   *  prefillAndRedirect so the orders/paid webhook can correlate the
+   *  resulting order back to this chat session (see routes/shopify.py:
+   *  shopify_order_paid_event). */
+  sessionId?: string;
 }
 
 export interface UseCheckoutReturn {
@@ -493,6 +498,30 @@ export function useCheckout(
     async (checkoutUrl: string): Promise<void> => {
       setError(null);
 
+      // Attach the widget session id as a cart attribute so it survives
+      // the handoff to Shopify's hosted checkout — cart attributes carry
+      // through to the resulting order's note attributes automatically,
+      // which is how the orders/paid webhook correlates the order back to
+      // this session. Same-origin call against the theme's own Ajax Cart
+      // API (the widget already shares this cart — see useCart.ts's header
+      // comment on why storefront cart mutations are used here instead of
+      // the Storefront API). Best-effort: if this fails, checkout still
+      // proceeds — the shopper just won't get an in-widget confirmation.
+      if (initialValues?.sessionId) {
+        try {
+          await fetch("/cart/update.js", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "same-origin",
+            body: JSON.stringify({
+              attributes: { miraq_session_id: initialValues.sessionId },
+            }),
+          });
+        } catch {
+          // Non-fatal — see comment above.
+        }
+      }
+
       // Best-effort pre-fill via query params. Under Checkout Extensibility
       // these checkout[...] params may be ignored (open item C4); they are
       // harmless either way, and logged-in customers get Shopify's own
@@ -511,12 +540,36 @@ export function useCheckout(
       }
 
       setStep("redirecting");
+      // Clear the panel-resume flags before leaving. Shopify's hosted
+      // checkout is same-origin, so sessionStorage survives the round trip —
+      // if silfra_checkout_open is left "true" here, ChatWidget's mount-time
+      // initializer reads it back as true when the shopper returns to the
+      // store and reopens this (now stale/empty-cart) checkout panel instead
+      // of chat. There's no scenario where resuming checkout is correct once
+      // we've handed off to Shopify's own checkout, so these are cleared
+      // unconditionally rather than consumed-on-read like the Woo flow.
+      try {
+        sessionStorage.removeItem("silfra_checkout_open");
+        sessionStorage.removeItem("silfra_cart_open");
+        sessionStorage.removeItem("silfra_resume_open");
+        // Consumed by ChatWidget on mount to trigger the /chat/order-status
+        // poll. Only set when we actually have a sessionId to correlate —
+        // no point polling for a confirmation the webhook could never match.
+        if (initialValues?.sessionId) {
+          sessionStorage.setItem(
+            "silfra_awaiting_shopify_order",
+            initialValues.sessionId,
+          );
+        }
+      } catch {
+        // sessionStorage unavailable — nothing to clean up
+      }
       // Same-tab navigation: the checkout lives on the same storefront the
       // widget is embedded in, matching how the widget already navigates to
       // /cart, and avoiding pop-up blockers that can swallow window.open().
       window.location.assign(resolvedUrl);
     },
-    [address, billingAddress, billingOption],
+    [address, billingAddress, billingOption, initialValues],
   );
 
   const reset = useCallback(() => {

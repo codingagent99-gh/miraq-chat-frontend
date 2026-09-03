@@ -168,6 +168,20 @@ export function createApiClient(baseURL?: string, apiKey?: string) {
     return data;
   }
 
+  /* ── /chat/order-status (Shopify) ──
+   * Polled after returning from Shopify's hosted checkout, since the widget
+   * has no client-side order id the way Woo's in-widget checkout does — see
+   * ChatWidget.tsx's silfra_awaiting_shopify_order handling. */
+  async function checkOrderStatus(
+    sessionId: string,
+  ): Promise<{ confirmed: boolean; bot_message: string | null }> {
+    const { data } = await client.get("/chat/order-status", {
+      params: { session_id: sessionId },
+      headers: { "X-MiraQ-Session": sessionId },
+    });
+    return data;
+  }
+
   /* ── /health ── */
   async function healthCheck(): Promise<any> {
     const { data } = await client.get("/health");
@@ -185,6 +199,7 @@ export function createApiClient(baseURL?: string, apiKey?: string) {
     placeOrder,
     submitCartResult,
     submitOrderConfirmation,
+    checkOrderStatus,
     healthCheck,
   };
 }

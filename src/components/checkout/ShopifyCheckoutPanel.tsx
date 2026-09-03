@@ -67,6 +67,8 @@ interface ShopifyCheckoutPanelProps {
 
   customerId?: string | number;
   apiUrl?: string;
+  /** Widget session id — see useCheckout's CheckoutInitialValues.sessionId. */
+  sessionId?: string;
 }
 
 // ─── Step config ──────────────────────────────────────────────────────────────
@@ -1020,6 +1022,7 @@ export function ShopifyCheckoutPanel({
   customerName,
   customerId,
   apiUrl,
+  sessionId,
 }: ShopifyCheckoutPanelProps) {
   // Split "First Last" into firstName / lastName for address pre-fill.
   const [initialFirstName, initialLastName] = useMemo(() => {
@@ -1034,6 +1037,7 @@ export function ShopifyCheckoutPanel({
     lastName: initialLastName,
     customerId,
     apiUrl,
+    sessionId,
   });
 
   // checkoutUrl is added to PlatformCart by useCart (Shopify) at runtime.
