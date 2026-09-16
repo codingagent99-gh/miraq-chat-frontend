@@ -1,7 +1,7 @@
 // ============================================================================
 // Chat Action — discriminated union consumed from backend `actions[]` envelope
 // ============================================================================
-
+import type { Product } from "./api";
 export interface AddressDict {
   [key: string]: string | undefined;
   first_name?: string;
@@ -197,6 +197,18 @@ export type ChatAction =
         token: string;
         rep_name?: string | null;
         quick_options?: string[];
+      };
+    }
+  | {
+      type: "SHOW_TOP_SELLERS_BY_COLLECTION";
+      payload: {
+        window_label?: string;
+        groups: {
+          slug: string;
+          name: string;
+          total_units: number;
+          products: Product[];
+        }[];
       };
     };
 

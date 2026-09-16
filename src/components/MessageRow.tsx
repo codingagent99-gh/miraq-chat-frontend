@@ -14,6 +14,16 @@ import { BulkVariantPromptCard } from "./BulkVariantPromptCard";
 import { BulkOrderConfirmationCard } from "./BulkOrderConfirmationCard";
 import { ProductRecentOrdersCard } from "./ProductRecentOrdersCard";
 import { DateRangePickerCard } from "./DateRangePickerCard";
+import { TopSellersByCollectionCard } from "./TopSellersByCollectionCard";
+
+/** External links open in a new tab; the widget mounts into the store page,
+    so a bare <a> would navigate the shopper away from their cart mid-session.
+    `node` is destructured out so react-markdown's AST node never reaches the DOM. */
+const MARKDOWN_COMPONENTS = {
+  a: ({ node, ...props }: any) => (
+    <a {...props} target="_blank" rel="noopener noreferrer" />
+  ),
+};
 
 interface MessageRowProps {
   message: ChatMessage;
@@ -168,7 +178,9 @@ export function MessageRow({
           </button>
           <div className="xpert-message-bubble">
             <div className="xpert-bubble-content">
-              <ReactMarkdown>{message.text}</ReactMarkdown>
+              <ReactMarkdown components={MARKDOWN_COMPONENTS}>
+                {message.text}
+              </ReactMarkdown>
             </div>
             <p style={{ ...timestampStyle, textAlign: "right" }}>
               {formattedTime}
@@ -213,7 +225,11 @@ export function MessageRow({
               admin that the numbers in front of them are a floor rather than
               a total. A correctness warning must never be swallowed by a
               layout rule. */}
-          {message.text && <ReactMarkdown>{message.text}</ReactMarkdown>}
+          {message.text && (
+            <ReactMarkdown components={MARKDOWN_COMPONENTS}>
+              {message.text}
+            </ReactMarkdown>
+          )}
 
           {message.categories && message.categories.length > 0 && (
             <CategoryGrid
@@ -252,6 +268,19 @@ export function MessageRow({
                 </div>
               )}
             </>
+          )}
+
+          {message.actions?.map((a, i) =>
+            a.type === "SHOW_TOP_SELLERS_BY_COLLECTION" ? (
+              <TopSellersByCollectionCard
+                key={i}
+                groups={a.payload.groups}
+                windowLabel={a.payload.window_label}
+                onProductClick={onProductClick}
+                onShowSimilar={similarHandler}
+                loadingSimilarId={loadingSimilarId}
+              />
+            ) : null,
           )}
 
           {message.cart && <CartDisplay cart={message.cart} />}
