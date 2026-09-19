@@ -150,6 +150,8 @@ export interface UseChatOptions {
   cartToken?: string;
   /** WP site origin from the injected config (see WidgetOptions.wpBaseUrl). */
   wpBaseUrl?: string;
+  /** Tenant identifier from the injected config (see WidgetOptions.licenseId). */
+  licenseId?: string;
   onViewCart?: () => void;
   onAddToCart?: (
     productId: number,
@@ -190,6 +192,13 @@ export function useChat(options: UseChatOptions = {}) {
   );
   const [dailyLimitHit, setDailyLimitHit] = useState(false);
   const [limitResetAt, setLimitResetAt] = useState<string | null>(null);
+  // Set on a 400/404 tenant-config error from /chat (missing/unrecognized
+  // license). Never cleared automatically — it's a config bug, not a
+  // transient state — so ServerDownOverlay can show it distinctly instead
+  // of implying the usual auto-retry.
+  const [tenantConfigError, setTenantConfigError] = useState<string | null>(
+    null,
+  );
   const lastQueryRef = useRef<string | null>(null);
 
   // State Variables for History Pagination
@@ -212,7 +221,9 @@ export function useChat(options: UseChatOptions = {}) {
   messagesRef.current = messages;
   const justLoadedHistoryRef = useRef(false);
 
-  const apiRef = useRef(createApiClient(options.apiUrl, options.apiKey));
+  const apiRef = useRef(
+    createApiClient(options.apiUrl, options.apiKey, options.licenseId),
+  );
 
   // ── Nonce state for WooCommerce Store API ──
   const nonceRef = useRef<string>(options.nonce ?? "");
@@ -473,6 +484,14 @@ export function useChat(options: UseChatOptions = {}) {
     return true;
   }, []);
 
+  const handleTenantConfigError = useCallback((err: any): boolean => {
+    if (!err?.isTenantConfigError) return false;
+    // Config bug (missing/unknown tenant) — log loudly, don't retry.
+    console.error("[MiraQ] Tenant config error:", err.tenantConfigDetail);
+    setTenantConfigError(err.tenantConfigDetail ?? "unknown tenant");
+    return true;
+  }, []);
+
   const processChatResponse = useCallback(
     async (res: ChatResponse) => {
       if (res.session_id) {
@@ -646,6 +665,7 @@ export function useChat(options: UseChatOptions = {}) {
         }
       } catch (err) {
         if (handleDailyLimit(err)) return; // ← add this one line, rest unchanged
+        if (handleTenantConfigError(err)) return;
         const detail = friendlyError(err);
         setError(detail);
         setPagination(null);
@@ -666,6 +686,7 @@ export function useChat(options: UseChatOptions = {}) {
       processChatResponse,
       focusInput,
       handleDailyLimit,
+      handleTenantConfigError,
       options,
     ],
   );
@@ -710,6 +731,7 @@ export function useChat(options: UseChatOptions = {}) {
         setMessages((prev) => enqueuMessages(prev, botMsg));
       } catch (err) {
         if (handleDailyLimit(err)) return; // ← add this one line, rest unchanged
+        if (handleTenantConfigError(err)) return;
         const detail = friendlyError(err);
         setError(detail);
         setPagination(null);
@@ -729,6 +751,7 @@ export function useChat(options: UseChatOptions = {}) {
       loading,
       buildUserContext,
       handleDailyLimit,
+      handleTenantConfigError,
       options,
       processChatResponse,
       focusInput,
@@ -780,6 +803,7 @@ export function useChat(options: UseChatOptions = {}) {
         }
       } catch (err) {
         if (handleDailyLimit(err)) return; // ← add this one line, rest unchanged
+        if (handleTenantConfigError(err)) return;
         const detail = friendlyError(err);
         setError(detail);
         setPagination(null);
@@ -798,6 +822,7 @@ export function useChat(options: UseChatOptions = {}) {
     [
       buildUserContext,
       handleDailyLimit,
+      handleTenantConfigError,
       options,
       processChatResponse,
       focusInput,
@@ -828,6 +853,7 @@ export function useChat(options: UseChatOptions = {}) {
       setMessages((prev) => enqueuMessages(prev, botMsg));
     } catch (err) {
       if (handleDailyLimit(err)) return; // ← add this one line, rest unchanged
+      if (handleTenantConfigError(err)) return;
       const detail = friendlyError(err);
       setError(detail);
       setPagination(null);
@@ -845,6 +871,7 @@ export function useChat(options: UseChatOptions = {}) {
   }, [
     pagination,
     handleDailyLimit,
+    handleTenantConfigError,
     options,
     loading,
     buildUserContext,
@@ -881,6 +908,7 @@ export function useChat(options: UseChatOptions = {}) {
       setMessages((prev) => enqueuMessages(prev, botMsg));
     } catch (err) {
       if (handleDailyLimit(err)) return; // ← add this one line, rest unchanged
+      if (handleTenantConfigError(err)) return;
       const detail = friendlyError(err);
       setError(detail);
       setPagination(null);
@@ -902,6 +930,7 @@ export function useChat(options: UseChatOptions = {}) {
     processChatResponse,
     focusInput,
     handleDailyLimit,
+    handleTenantConfigError,
     options,
   ]);
 
@@ -1094,5 +1123,6 @@ export function useChat(options: UseChatOptions = {}) {
     loadingHistory,
     dailyLimitHit,
     limitResetAt,
+    tenantConfigError,
   };
 }

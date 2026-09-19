@@ -62,6 +62,7 @@ function mountWidget(options?: WidgetOptions, assetBaseUrl?: string) {
   const loginUrl = options?.loginUrl || "";
   const brandingLogoUrl = options?.brandingLogoUrl || "";
   const brandingFooterText = options?.brandingFooterText || "";
+  const licenseId = options?.licenseId || "";
 
   console.log("Widget initialized with:", {
     apiUrl,
@@ -82,6 +83,7 @@ function mountWidget(options?: WidgetOptions, assetBaseUrl?: string) {
       customerRole={customerRole}
       assetBaseUrl={assetBaseUrl}
       wpBaseUrl={options?.wpBaseUrl}
+      licenseId={licenseId}
       nonce={options?.nonce}
       nonceExpires={options?.nonceExpires}
       cartToken={options?.cartToken}
@@ -101,6 +103,17 @@ window.SilfraChatWidget = {
   },
 };
 
+// Local dev convenience: a `vite --mode localdev` build can inject an API
+// URL and license ID without a WordPress install. Tree-shaken out of
+// production bundles, so there's no risk of a dev license ID shipping.
+const _isLocalDevBuild = import.meta.env.MODE === "localdev";
+const DEV_API_URL = _isLocalDevBuild
+  ? import.meta.env.VITE_DEV_API_URL
+  : undefined;
+const DEV_LICENSE_ID = _isLocalDevBuild
+  ? import.meta.env.VITE_DEV_LICENSE_ID
+  : undefined;
+
 (function autoInit() {
   // 1. Safely grab the global config object, defaulting to an empty object
   const config = (window as any).__silfraWidgetConfig || {};
@@ -111,7 +124,7 @@ window.SilfraChatWidget = {
   const script = _currentScript;
 
   // 2. Extract values: Prefer the global config first, then dataset, then empty strings
-  const apiUrl = config.apiUrl || script?.dataset.apiUrl || "";
+  const apiUrl = DEV_API_URL || config.apiUrl || script?.dataset.apiUrl || "";
   const customerId = config.customerId || script?.dataset.customerId || "";
   const customerEmail =
     config.customerEmail || script?.dataset.customerEmail || "";
@@ -123,6 +136,12 @@ window.SilfraChatWidget = {
   // Absolute WP origin, injected by class-widget.php (get_site_url()). Empty on
   // dev builds, where ChatWidget falls back to VITE_WP_BASE_URL / current origin.
   const wpBaseUrl = config.wpBaseUrl || script?.dataset.wpBaseUrl || "";
+
+  // Tenant identifier from class-widget.php's injected config. No
+  // window.location fallback: guessing a tenant is worse than failing
+  // loudly, and the backend 400s on an empty header anyway.
+  const licenseId =
+    DEV_LICENSE_ID || config.licenseId || script?.dataset.licenseId || "";
 
   const nonceExpires = config.nonceExpires
     ? parseInt(config.nonceExpires, 10)
@@ -184,6 +203,7 @@ window.SilfraChatWidget = {
       customerName,
       customerRole,
       wpBaseUrl,
+      licenseId,
       nonce,
       nonceExpires,
       cartToken,

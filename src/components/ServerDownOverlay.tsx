@@ -1,13 +1,24 @@
 import type { HealthState } from "../hooks/useHealthMonitor";
 
-export function ServerDownOverlay({ health }: { health: HealthState }) {
-  if (!health.blocking) return null;
+export function ServerDownOverlay({
+  health,
+  tenantConfigError,
+}: {
+  health: HealthState;
+  /** Set on a 400/404 tenant-config error from /chat (missing/unknown
+   *  license). A config bug, not a transient outage — takes priority over
+   *  the health-based overlay and never implies auto-reconnect. */
+  tenantConfigError?: string | null;
+}) {
+  if (!tenantConfigError && !health.blocking) return null;
 
-  const message = !health.components
-    ? "We can't reach the store right now."
-    : health.components.upstream === "down"
-      ? "The assistant is offline right now."
-      : "The store is temporarily unavailable.";
+  const message = tenantConfigError
+    ? "This widget isn't configured correctly."
+    : !health.components
+      ? "We can't reach the store right now."
+      : health.components.upstream === "down"
+        ? "The assistant is offline right now."
+        : "The store is temporarily unavailable.";
 
   return (
     <div
@@ -34,13 +45,15 @@ export function ServerDownOverlay({ health }: { health: HealthState }) {
         <span />
       </div>
       <p style={{ fontWeight: 700, fontSize: 16, margin: 0 }}>
-        Connection Lost
+        {tenantConfigError ? "Configuration Error" : "Connection Lost"}
       </p>
       <p style={{ fontSize: 13, color: "#64748b", margin: "0 0 2px" }}>
         {message}
       </p>
       <p style={{ fontSize: 13, color: "#64748b", margin: 0 }}>
-        We'll reconnect automatically — please wait a moment.
+        {tenantConfigError
+          ? "Please contact support."
+          : "We'll reconnect automatically — please wait a moment."}
       </p>
     </div>
   );

@@ -18,7 +18,11 @@ function getWooCommerceSession() {
   return "";
 }
 
-export function createApiClient(baseURL?: string, apiKey?: string) {
+export function createApiClient(
+  baseURL?: string,
+  apiKey?: string,
+  licenseId?: string,
+) {
   const resolvedBase = baseURL || import.meta.env.VITE_BASE || "";
 
   console.log("[MiraQ API] baseURL resolved to:", resolvedBase);
@@ -28,6 +32,9 @@ export function createApiClient(baseURL?: string, apiKey?: string) {
   };
   if (apiKey) {
     headers["Authorization"] = `Bearer ${apiKey}`;
+  }
+  if (licenseId) {
+    headers["X-MiraQ-License-Id"] = licenseId;
   }
 
   const client: AxiosInstance = axios.create({
@@ -59,6 +66,19 @@ export function createApiClient(baseURL?: string, apiKey?: string) {
         const e: any = new Error("DAILY_LIMIT_REACHED");
         e.isDailyLimitError = true;
         e.limitData = err.response.data.error; // { limit, used, reset_at }
+        throw e;
+      }
+      if (
+        (err.response?.status === 400 || err.response?.status === 404) &&
+        (err.response?.data?.error === "missing tenant" ||
+          err.response?.data?.error === "unknown tenant")
+      ) {
+        // register_before_request() rejected the call before it reached the
+        // handler — a config bug (missing/unrecognized X-MiraQ-License-Id),
+        // not a transient outage. Log loudly, don't retry.
+        const e: any = new Error("TENANT_CONFIG_ERROR");
+        e.isTenantConfigError = true;
+        e.tenantConfigDetail = err.response.data.error;
         throw e;
       }
       throw err;
