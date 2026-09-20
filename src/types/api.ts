@@ -396,6 +396,13 @@ export interface WidgetOptions {
   /** Absolute origin of the WordPress site, injected by class-widget.php.
    *  Resolved at runtime so one bundle works on any install. */
   wpBaseUrl?: string;
+  /**
+   * Tenant identifier issued by the Silfra license server, injected by
+   * class-widget.php as `licenseId`. Sent as X-MiraQ-License-Id on every
+   * backend call; the backend's register_before_request() resolves the
+   * tenant from it and 400s without it.
+   */
+  licenseId?: string;
   nonce?: string;
   nonceExpires?: number; // JS timestamp in ms
   cartToken?: string;

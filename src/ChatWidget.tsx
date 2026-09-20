@@ -45,6 +45,7 @@ export function ChatWidget({
   customerRole,
   assetBaseUrl,
   wpBaseUrl,
+  licenseId,
   nonce,
   cartToken,
   nonceExpires,
@@ -331,7 +332,7 @@ export function ChatWidget({
 
   const apiClientRef = useRef<any>(null);
   if (!apiClientRef.current) {
-    apiClientRef.current = createApiClient(apiUrl, apiKey);
+    apiClientRef.current = createApiClient(apiUrl, apiKey, licenseId);
   }
 
   // ── Server-down overlay ───────────────────────────────────────────────────
@@ -399,10 +400,12 @@ export function ChatWidget({
     loadMoreHistory,
     hasMoreHistory,
     loadingHistory,
+    tenantConfigError,
   } = useChat({
     apiUrl,
     apiKey,
     wpBaseUrl,
+    licenseId,
     customerId:
       typeof customerId === "string" ? parseInt(customerId, 10) : customerId,
     customerEmail,
@@ -475,7 +478,9 @@ export function ChatWidget({
       return;
     }
     if (!apiUrl) return;
-    fetch(`${apiUrl}/widget-config`)
+    fetch(`${apiUrl}/widget-config`, {
+      headers: licenseId ? { "X-MiraQ-License-Id": licenseId } : {},
+    })
       .then((r) => r.json())
       .then((data) => {
         if (data.image_url) setWidgetLogo(data.image_url);
@@ -484,7 +489,7 @@ export function ChatWidget({
       .catch(() => {
         // silently fall back to default DandellionBlueIcon
       });
-  }, [apiUrl, isShopify, brandingLogoUrl, brandingFooterText]);
+  }, [apiUrl, isShopify, brandingLogoUrl, brandingFooterText, licenseId]);
   // ─────────────────────────────────────────────────────────────────────────
 
   // ── AI mode toggle handler ────────────────────────────────────────────────
@@ -1006,7 +1011,10 @@ export function ChatWidget({
             </div>
 
             {/* ── Server-down overlay — covers messages + input, not header ── */}
-            <ServerDownOverlay health={health} />
+            <ServerDownOverlay
+              health={health}
+              tenantConfigError={tenantConfigError}
+            />
           </div>
 
           {/* ── Cart Panel Overlay ── */}
