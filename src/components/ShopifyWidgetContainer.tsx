@@ -173,6 +173,9 @@ export function ShopifyWidgetContainer({
               position: "fixed",
               inset: 0,
               zIndex: 99999,
+              display: "flex",
+              flexDirection: "column",
+              overflow: "hidden",
               animation: "silfra-slide-up 0.28s cubic-bezier(0.22,1,0.36,1)",
             }}
           >
