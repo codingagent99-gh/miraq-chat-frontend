@@ -3649,3 +3649,79 @@ select.bo-address__input {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* --- Top sellers by collection (SHOW_TOP_SELLERS_BY_COLLECTION) --- */
+#silfra-chat-widget-container .xpert-top-sellers-by-collection {
+  margin-top: 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+#silfra-chat-widget-container .xpert-top-sellers-heading {
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin: 0 0 0.15rem;
+}
+
+#silfra-chat-widget-container .xpert-top-sellers-group {
+  border: 1.5px solid var(--color-border);
+  border-radius: 10px;
+  overflow: hidden;
+  background: #f8fafc;
+}
+
+#silfra-chat-widget-container .xpert-top-sellers-group-toggle {
+  width: 100%;
+  background: transparent;
+  border: none;
+  padding: 0.6rem 0.85rem;
+  cursor: pointer;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: var(--fs-sm);
+  color: var(--color-text);
+  transition: background 0.18s ease;
+}
+
+#silfra-chat-widget-container .xpert-top-sellers-group-toggle:hover {
+  background: #eef4f7;
+}
+
+#silfra-chat-widget-container .xpert-top-sellers-group-toggle:focus-visible {
+  outline: 2px solid var(--color-primary-light);
+  outline-offset: -2px;
+}
+
+#silfra-chat-widget-container .xpert-top-sellers-group-name {
+  font-weight: 700;
+  color: var(--color-primary);
+  flex: 1;
+  /* Long collection names must not push the count off the row. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#silfra-chat-widget-container .xpert-top-sellers-group-count {
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: #6b7280;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 20px;
+  padding: 0.15rem 0.6rem;
+  white-space: nowrap;
+}
+
+/* The product grid sits inside the expanded group, so it needs its own
+   padding — .xpert-product-grid only carries a top margin. */
+#silfra-chat-widget-container .xpert-top-sellers-group .xpert-product-grid {
+  padding: 0 0.6rem 0.7rem;
+  margin-top: 0.25rem;
+}

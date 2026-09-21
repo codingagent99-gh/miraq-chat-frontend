@@ -22,7 +22,15 @@ const DEFAULT_RETRY_DOWN = 5;
  * forceCheck() lets a failed /chat POST trigger an immediate check instead of
  * waiting for the next scheduled poll (see note below on wiring that up).
  */
-export function useHealthMonitor(apiUrl: string | undefined) {
+export function useHealthMonitor(
+  apiUrl: string | undefined,
+  /** Tenant id, sent as X-MiraQ-License-Id (WooCommerce). Without it the
+   *  multi-tenant backend cannot tell which store is asking, so /health only
+   *  reports that the server process is up — never this store's catalog or
+   *  upstream state. Omitted on Shopify, where the App Proxy's signed `shop`
+   *  parameter identifies the store instead. */
+  licenseId?: string,
+) {
   const [state, setState] = useState<HealthState>({
     blocking: false,
     checked: false,
@@ -42,6 +50,7 @@ export function useHealthMonitor(apiUrl: string | undefined) {
       const t = setTimeout(() => controller.abort(), 8000);
       const res = await fetch(`${apiUrl}/health`, {
         signal: controller.signal,
+        headers: licenseId ? { "X-MiraQ-License-Id": licenseId } : {},
       });
       clearTimeout(t);
       const data = await res.json(); // 503 is still valid JSON on the down path
@@ -69,7 +78,7 @@ export function useHealthMonitor(apiUrl: string | undefined) {
     } finally {
       inFlightRef.current = false;
     }
-  }, [apiUrl]);
+  }, [apiUrl, licenseId]);
 
   const scheduleNext = useCallback(
     (seconds: number) => {

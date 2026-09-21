@@ -69,6 +69,18 @@ export function createApiClient(
         throw e;
       }
       if (
+        err.response?.status === 503 &&
+        err.response?.data?.status === "warming"
+      ) {
+        // The store was just activated and its catalog is still building.
+        // register_before_request() answers with a complete chat-shaped body
+        // (bot_message, products, suggestions, intent, metadata) precisely so
+        // it can be shown like any other reply. Treating it as an error
+        // surfaced a generic failure to the first shoppers after every
+        // install, for as long as the build took.
+        return err.response.data as ChatResponse;
+      }
+      if (
         (err.response?.status === 400 || err.response?.status === 404) &&
         (err.response?.data?.error === "missing tenant" ||
           err.response?.data?.error === "unknown tenant")

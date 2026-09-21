@@ -336,7 +336,7 @@ export function ChatWidget({
   }
 
   // ── Server-down overlay ───────────────────────────────────────────────────
-  const health = useHealthMonitor(apiUrl);
+  const health = useHealthMonitor(apiUrl, licenseId);
 
   type CartResultHandler = (opts: {
     success: boolean;
