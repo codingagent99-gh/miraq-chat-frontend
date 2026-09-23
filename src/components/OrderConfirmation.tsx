@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { Order } from "../types/api";
+import { decodeCurrency, storeCurrency } from "../utils/currency";
 
 interface OrderConfirmationProps {
   order: Order;
@@ -11,6 +12,8 @@ export function OrderConfirmation({
   paymentUrl,
 }: OrderConfirmationProps) {
   const [copied, setCopied] = useState(false);
+  // The order's own currency, else the store's — never a hardcoded "$".
+  const symbol = decodeCurrency(order.currency) || storeCurrency();
 
   const copyLink = () => {
     if (paymentUrl) {
@@ -65,7 +68,10 @@ export function OrderConfirmation({
         {order.total > 0 && (
           <div className="xpert-order-detail-row">
             <span>Total:</span>
-            <span className="xpert-order-total">${order.total.toFixed(2)}</span>
+            <span className="xpert-order-total">
+              {symbol}
+              {order.total.toFixed(2)}
+            </span>
           </div>
         )}
       </div>
@@ -79,7 +85,8 @@ export function OrderConfirmation({
             rel="noopener noreferrer"
             className="xpert-payment-btn"
           >
-            💳 Pay ${order.total.toFixed(2)}
+            💳 Pay {symbol}
+            {order.total.toFixed(2)}
           </a>
           <button onClick={copyLink} className="xpert-copy-link-btn">
             {copied ? "✓ Copied!" : "📋 Copy Payment Link"}

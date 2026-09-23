@@ -19,6 +19,7 @@ import {
   FiMinimize2,
   FiArrowLeft,
 } from "react-icons/fi";
+import { decodeCurrency, storeCurrency } from "../../utils/currency";
 
 interface CheckoutPanelProps {
   storeApiFetch: StoreApiFetch;
@@ -322,7 +323,7 @@ export function CheckoutPanel({
     : null;
 
   const activeIndex = stepToIndex(checkout.step);
-  const symbol = cart?.totals.currency_symbol ?? "₹";
+  const symbol = decodeCurrency(cart?.totals.currency_symbol) || storeCurrency();
   const minorUnit = cart?.totals.currency_minor_unit ?? 2;
   // Whole order is free (all sample/enquiry items) — don't show a ₹0 total.
   const orderIsFree = cart

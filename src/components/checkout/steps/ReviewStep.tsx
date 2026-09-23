@@ -10,6 +10,7 @@ import type { MultiShipGroup } from "../../../types/multiAddress";
 import { makeAddressLabel } from "../../../types/multiAddress";
 import type { PaymentGatewayAdapter } from "../payment/PaymentGatewayAdapter";
 import { FiCheck } from "react-icons/fi";
+import { decodeCurrency, storeCurrency } from "../../../utils/currency";
 
 interface ReviewStepProps {
   cart: WCCart | null;
@@ -104,7 +105,7 @@ function MultiShipmentSummary({
   groups: MultiShipGroup[];
   cart: WCCart | null;
 }) {
-  const symbol = cart?.totals.currency_symbol ?? "$";
+  const symbol = decodeCurrency(cart?.totals.currency_symbol) || storeCurrency();
   const minorUnit = cart?.totals.currency_minor_unit ?? 2;
 
   // Build a lookup of cart_key → line_total from the cart
@@ -303,7 +304,7 @@ export function ReviewStep({
   onSetStep,
   onClearError,
 }: ReviewStepProps) {
-  const symbol = cart?.totals.currency_symbol ?? "₹";
+  const symbol = decodeCurrency(cart?.totals.currency_symbol) || storeCurrency();
   const minorUnit = cart?.totals.currency_minor_unit ?? 2;
 
   const disabledReason = getDisabledReason(paymentPayload, isLoading);

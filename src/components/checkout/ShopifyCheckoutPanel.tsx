@@ -37,6 +37,7 @@ import type {
   AvailableCountry,
 } from "../../platform/shopify/useCheckout";
 import "./CheckoutPanel.css";
+import { decodeCurrency, storeCurrency } from "../../utils/currency";
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
@@ -1044,7 +1045,7 @@ export function ShopifyCheckoutPanel({
   const checkoutUrl = (cart as ShopifyPlatformCart | null)?.checkoutUrl ?? "";
 
   const activeIndex = stepToIndex(checkout.step);
-  const symbol = cart?.totals.currency_symbol ?? "₹";
+  const symbol = decodeCurrency(cart?.totals.currency_symbol) || storeCurrency();
   const minorUnit = cart?.totals.currency_minor_unit ?? 2;
 
   // Shipping cost in minor units for the total calculation.

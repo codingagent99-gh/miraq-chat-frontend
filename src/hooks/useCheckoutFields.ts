@@ -130,6 +130,13 @@ function parseGroup(
 }
 
 // ── Fallbacks (used when the fetch fails) ─────────────────────────────────────
+//
+// WooCommerce's own default checkout fields — nothing store-specific. Used
+// while /checkout-fields loads and whenever it fails (a firewall block, an
+// older plugin). A store's custom fields (Order Type, Project Name, Your Rep,
+// …) appear only when that store's live /checkout-fields lists them; a
+// fallback that assumed one store's form made every other store's shoppers
+// fill in fields their checkout doesn't have.
 
 const BILLING_FIELDS_FALLBACK: CheckoutField[] = [
   {
@@ -152,26 +159,9 @@ const BILLING_FIELDS_FALLBACK: CheckoutField[] = [
     key: "company",
     wcKey: "billing_company",
     label: "Company name",
-    required: true,
+    required: false,
     type: "text",
     priority: 30,
-  },
-  {
-    key: "billing_field_type",
-    wcKey: "billing_field_type",
-    label: "Order Type",
-    required: true,
-    type: "select",
-    priority: 35,
-    kind: "orderType",
-  },
-  {
-    key: "billing_project",
-    wcKey: "billing_project",
-    label: "Project Name",
-    required: true,
-    type: "text",
-    priority: 37,
   },
   {
     key: "country",
@@ -239,26 +229,9 @@ const BILLING_FIELDS_FALLBACK: CheckoutField[] = [
     type: "email",
     priority: 110,
   },
-  {
-    key: "project_rep",
-    wcKey: "project_rep",
-    label: "Your Rep",
-    required: true,
-    type: "select",
-    priority: 120,
-    kind: "rep",
-  },
 ];
 
 const SHIPPING_FIELDS_FALLBACK: CheckoutField[] = [
-  {
-    key: "company",
-    wcKey: "shipping_company",
-    label: "Company name",
-    required: true,
-    type: "text",
-    priority: -1,
-  },
   {
     key: "first_name",
     wcKey: "shipping_first_name",
@@ -274,6 +247,14 @@ const SHIPPING_FIELDS_FALLBACK: CheckoutField[] = [
     required: true,
     type: "text",
     priority: 20,
+  },
+  {
+    key: "company",
+    wcKey: "shipping_company",
+    label: "Company name",
+    required: false,
+    type: "text",
+    priority: 30,
   },
   {
     key: "country",
@@ -312,7 +293,7 @@ const SHIPPING_FIELDS_FALLBACK: CheckoutField[] = [
     key: "state",
     wcKey: "shipping_state",
     label: "State",
-    required: true,
+    required: false,
     type: "state",
     priority: 80,
     kind: "state",
@@ -326,22 +307,6 @@ const SHIPPING_FIELDS_FALLBACK: CheckoutField[] = [
     priority: 90,
   },
   {
-    key: "phone",
-    wcKey: "shipping_phone",
-    label: "Phone",
-    required: false,
-    type: "tel",
-    priority: 100,
-  },
-  {
-    key: "email",
-    wcKey: "shipping_email",
-    label: "Shipping Email",
-    required: true,
-    type: "email",
-    priority: 110,
-  },
-  {
     key: "order_notes",
     wcKey: "order_comments",
     label: "Order notes",
@@ -351,18 +316,17 @@ const SHIPPING_FIELDS_FALLBACK: CheckoutField[] = [
   },
 ];
 
-const BILLING_REQUIRED_FALLBACK: Record<string, { required?: boolean }> = {
-  company: { required: true },
-  billing_field_type: { required: true },
-  billing_project: { required: true },
-  project_rep: { required: true },
-  state: { required: true },
-};
+/** Required flags for the fallback lists, derived from them so the two can't drift. */
+function requiredMap(
+  fields: CheckoutField[],
+): Record<string, { required?: boolean }> {
+  return Object.fromEntries(
+    fields.map((f) => [f.key, { required: f.required }]),
+  );
+}
 
-const SHIPPING_REQUIRED_FALLBACK: Record<string, { required?: boolean }> = {
-  company: { required: true },
-  state: { required: false },
-};
+const BILLING_REQUIRED_FALLBACK = requiredMap(BILLING_FIELDS_FALLBACK);
+const SHIPPING_REQUIRED_FALLBACK = requiredMap(SHIPPING_FIELDS_FALLBACK);
 
 // ── Single fetch ──────────────────────────────────────────────────────────────
 

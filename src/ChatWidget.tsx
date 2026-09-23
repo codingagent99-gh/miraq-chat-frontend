@@ -25,6 +25,7 @@ import "./components/checkout/payment";
 import { LoginPanel } from "./components/LoginPanel";
 import { PoweredByMiraQ } from "./components/PoweredByMiraQ";
 import { IS_SHOPIFY } from "./platform/current";
+import { setStoreCurrency } from "./utils/currency";
 
 // Must agree with MOBILE_BREAKPOINT in components/WidgetContainer.tsx
 // and the max-width used by the mobile block in index.css.
@@ -485,6 +486,7 @@ export function ChatWidget({
       .then((data) => {
         if (data.image_url) setWidgetLogo(data.image_url);
         if (data.text) setWidgetText(data.text);
+        setStoreCurrency(data.currency_symbol);
       })
       .catch(() => {
         // silently fall back to default DandellionBlueIcon

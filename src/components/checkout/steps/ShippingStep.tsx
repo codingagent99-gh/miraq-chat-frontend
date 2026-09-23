@@ -4,6 +4,7 @@ import type { WCCart } from "../../../hooks/useCart";
 import type { CheckoutStep } from "../../../types/checkout";
 import type { MultiShipGroup } from "../../../types/multiAddress";
 import { makeAddressLabel } from "../../../types/multiAddress";
+import { decodeCurrency, storeCurrency } from "../../../utils/currency";
 
 interface ShippingStepProps {
   shippingPackages: ShippingPackage[];
@@ -47,7 +48,7 @@ export function ShippingStep({
   multiAddressGroups,
   onMultiRateChange,
 }: ShippingStepProps) {
-  const symbol = cart?.totals.currency_symbol ?? "₹";
+  const symbol = decodeCurrency(cart?.totals.currency_symbol) || storeCurrency();
   const minorUnit = cart?.totals.currency_minor_unit ?? 2;
 
   const cartNeedsShipping = cart?.needs_shipping !== false;

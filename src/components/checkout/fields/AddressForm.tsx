@@ -157,8 +157,10 @@ export function fieldLabel(key: keyof AddressDict | CustomField): string {
 }
 
 /**
- * Fields that are required whenever they appear in the rendered form.
- * phone + email are required only on billing (they're absent on shipping).
+ * Required-by-default fields, used ONLY when the store's own checkout config
+ * (fieldOverrides, from /checkout-fields) says nothing about a field. When it
+ * does, the store's flag wins — a store whose checkout makes phone optional
+ * must not have the widget demand it.
  */
 const ALWAYS_REQUIRED: (keyof AddressDict)[] = [
   "first_name",
@@ -204,17 +206,17 @@ export function AddressForm({
   // Use live WP countries when available, fall back to built-in list
   const countryList = wpCountries;
 
-  // Fields required because they're always required AND present in this form,
-  // plus any fields explicitly marked required via fieldOverrides.
-  const requiredFields = visibleFields.filter(
-    (f) =>
-      // The Address Selector writes into the other fields and stays blank
-      // itself, so it can never satisfy a required check — treating it as
-      // required would block submit forever.
-      !isAddressSelectorField(f as string) &&
-      (ALWAYS_REQUIRED.includes(f as keyof AddressDict) ||
-        (fieldOverrides as any)?.[f]?.required === true),
-  );
+  // A field is required when the store's checkout config says so; only when
+  // the config is silent about a field does ALWAYS_REQUIRED decide.
+  const requiredFields = visibleFields.filter((f) => {
+    // The Address Selector writes into the other fields and stays blank
+    // itself, so it can never satisfy a required check — treating it as
+    // required would block submit forever.
+    if (isAddressSelectorField(f as string)) return false;
+    const storeFlag = (fieldOverrides as any)?.[f]?.required;
+    if (typeof storeFlag === "boolean") return storeFlag;
+    return ALWAYS_REQUIRED.includes(f as keyof AddressDict);
+  });
 
   const [values, setValues] = useState<FormValues>(() => {
     if (initialValues && Object.keys(initialValues).length > 0) {

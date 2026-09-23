@@ -11,6 +11,7 @@ import {
   FiMinimize2,
 } from "react-icons/fi";
 import type { WCCart } from "../hooks/useCart";
+import { decodeCurrency, storeCurrency } from "../utils/currency";
 
 interface CartPanelProps {
   cart: WCCart | null;
@@ -65,7 +66,7 @@ export function CartPanel({
 }: CartPanelProps) {
   const isEmpty = !cart || cart.items.length === 0;
   const minorUnit = cart?.totals.currency_minor_unit ?? 2;
-  const symbol = cart?.totals.currency_symbol ?? "₹";
+  const symbol = decodeCurrency(cart?.totals.currency_symbol) || storeCurrency();
   // Whole order is free (all sample/enquiry items) — don't show a ₹0 total.
   const orderIsFree = cart
     ? parseInt(cart.totals.total_price, 10) === 0

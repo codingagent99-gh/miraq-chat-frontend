@@ -2,9 +2,12 @@
  * BillingAddressForm
  *
  * Public component for the billing address step.
- * Field order matches the CS site billing form:
+ * Renders the store's own billing fields (dynamicFields, from /checkout-fields).
+ * Only when those are unavailable does it fall back to WooCommerce's defaults:
  *   first_name · last_name | company | country | address_1 | address_2 |
- *   city | state | postcode | phone | email | project_rep
+ *   city | state | postcode | phone | email
+ * Store-specific fields (Order Type, Project Name, Your Rep) are rendered only
+ * when the store's checkout actually has them.
  */
 import { AddressForm } from "./AddressForm";
 import type {
@@ -19,18 +22,11 @@ import type {
   WpOrderTypeOption,
 } from "../../../hooks/useCheckoutFields";
 
-/** All fields shown on the billing form, in CS site order. */
-const BILLING_FIELDS: (
-  | keyof AddressDict
-  | "project_rep"
-  | "billing_field_type"
-  | "billing_project"
-)[] = [
+/** WooCommerce's default billing fields — used only without the store's own list. */
+const BILLING_FIELDS: (keyof AddressDict)[] = [
   "first_name",
   "last_name",
   "company",
-  "billing_field_type", // Order Type — /wp-json/custom-api/v1/checkout-fields
-  "billing_project", // Project Name
   "country",
   "address_1",
   "address_2",
@@ -39,7 +35,6 @@ const BILLING_FIELDS: (
   "postcode",
   "phone",
   "email",
-  "project_rep", // Your Rep — /wp-json/custom-api/v1/reps
 ];
 
 // ── Label-only overrides ─────────────────────────────────────────────────────

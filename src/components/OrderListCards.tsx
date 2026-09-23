@@ -5,6 +5,7 @@ import {
   csvFilename,
   downloadCsv,
 } from "../utils/orderCsv";
+import { decodeCurrency, storeCurrency } from "../utils/currency";
 
 const STATUS_COLOR: Record<string, string> = {
   completed: "#22c55e",
@@ -16,11 +17,9 @@ const STATUS_COLOR: Record<string, string> = {
   failed: "#ef4444",
 };
 
-function decodeCurrency(raw: string | undefined): string {
-  if (!raw) return "₹";
-  return raw.replace(/&#(\d+);/g, (_, code) =>
-    String.fromCharCode(Number(code)),
-  );
+// Order's own currency, else the store's — never a hardcoded symbol.
+function orderCurrency(raw: string | undefined): string {
+  return decodeCurrency(raw) || storeCurrency();
 }
 
 function formatDate(dateStr: string) {
@@ -172,7 +171,7 @@ export function OrderListCards({
               </span>
               {totalNum > 0 && (
                 <span className="xpert-order-card-total">
-                  {decodeCurrency(order.currency)}
+                  {orderCurrency(order.currency)}
                   {totalStr}
                 </span>
               )}

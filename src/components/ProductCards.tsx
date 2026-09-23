@@ -1,6 +1,11 @@
 import { useState } from "react";
 import type { Product } from "../types/api";
+import { decodeCurrency, storeCurrency } from "../utils/currency";
 import { FiShoppingCart } from "react-icons/fi";
+
+function currencyOf(product: Product): string {
+  return decodeCurrency(product.currency_symbol) || storeCurrency();
+}
 
 interface ProductCardsProps {
   products: Product[];
@@ -156,22 +161,30 @@ export function ProductCards({
                   (product.regular_price ?? 0) > 0
                 : (product.price ?? 0) > 0) && (
                 <div className="xpert-product-price">
+                  {/* Store currency from the product itself (the backend
+                      attaches it), else the store default — never a
+                      hardcoded "$". */}
                   {product.on_sale && product.sale_price ? (
                     <>
                       {product.sale_price > 0 && (
                         <span className="xpert-price-sale">
-                          ${product.sale_price}
+                          {currencyOf(product)}
+                          {product.sale_price}
                         </span>
                       )}
                       {product.regular_price > 0 && (
                         <span className="xpert-price-regular">
-                          ${product.regular_price}
+                          {currencyOf(product)}
+                          {product.regular_price}
                         </span>
                       )}
                     </>
                   ) : (
                     product.price > 0 && (
-                      <span className="xpert-price">${product.price}</span>
+                      <span className="xpert-price">
+                        {currencyOf(product)}
+                        {product.price}
+                      </span>
                     )
                   )}
                 </div>

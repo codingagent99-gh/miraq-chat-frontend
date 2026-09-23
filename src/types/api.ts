@@ -365,6 +365,8 @@ export interface Product {
   weight: string;
   dimensions: { height: string; length: string; width: string };
   total_sales: number;
+  /** Store currency symbol, attached by the backend's product formatter. */
+  currency_symbol?: string;
   /** Product attributes — available when fetched via /products/:id detail */
   attributes?: ProductAttribute[];
   /** Tag names */

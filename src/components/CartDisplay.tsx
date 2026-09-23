@@ -1,11 +1,13 @@
 import { FiShoppingCart } from "react-icons/fi";
 import type { CartData } from "../types/api";
+import { storeCurrency } from "../utils/currency";
 
 interface CartDisplayProps {
   cart: CartData;
 }
 
 export function CartDisplay({ cart }: CartDisplayProps) {
+  const symbol = storeCurrency();
   if (!cart || !cart.items || cart.items.length === 0) {
     return (
       <div className="xpert-cart-empty">
@@ -50,23 +52,23 @@ export function CartDisplay({ cart }: CartDisplayProps) {
         <div className="xpert-cart-totals">
           <div className="xpert-cart-total-row">
             <span>Subtotal:</span>
-            <span>${cart.totals.subtotal.toFixed(2)}</span>
+            <span>{symbol}{cart.totals.subtotal.toFixed(2)}</span>
           </div>
           {cart.totals.shipping > 0 && (
             <div className="xpert-cart-total-row">
               <span>Shipping:</span>
-              <span>${cart.totals.shipping.toFixed(2)}</span>
+              <span>{symbol}{cart.totals.shipping.toFixed(2)}</span>
             </div>
           )}
           {cart.totals.tax > 0 && (
             <div className="xpert-cart-total-row">
               <span>Tax:</span>
-              <span>${cart.totals.tax.toFixed(2)}</span>
+              <span>{symbol}{cart.totals.tax.toFixed(2)}</span>
             </div>
           )}
           <div className="xpert-cart-total-row xpert-cart-total-final">
             <span>Total:</span>
-            <span>${cart.totals.total.toFixed(2)}</span>
+            <span>{symbol}{cart.totals.total.toFixed(2)}</span>
           </div>
         </div>
       )}
