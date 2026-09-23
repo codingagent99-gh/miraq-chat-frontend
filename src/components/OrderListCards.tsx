@@ -24,7 +24,9 @@ function orderCurrency(raw: string | undefined): string {
 
 function formatDate(dateStr: string) {
   try {
-    return new Date(dateStr).toLocaleDateString("en-IN", {
+    // Browser's locale (undefined), like the rest of the widget — a store
+    // outside India shouldn't get Indian date formatting.
+    return new Date(dateStr).toLocaleDateString(undefined, {
       day: "numeric",
       month: "short",
       year: "numeric",

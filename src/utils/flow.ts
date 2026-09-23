@@ -8,17 +8,21 @@ import type {
 const FLOW_INTENTS = new Set(["disambiguation", "guided_flow"]);
 
 // ── Flow states whose suggestions should render as prominent action buttons ──
+// Choice states only: the chips ARE the answer. Free-text prompts (bulk email,
+// company, product, quantity) keep regular chips.
 const FLOW_STATES: Set<FlowState> = new Set([
   "awaiting_intent_choice",
   "awaiting_quantity",
-  "awaiting_order_confirm",
-  "awaiting_final_confirm",
-  "awaiting_shipping_confirm",
-  "awaiting_new_address",
-  "awaiting_address_confirm",
   "awaiting_anything_else",
   "awaiting_variant_selection",
   "awaiting_filter_clarification",
+  "awaiting_refinement_choice",
+  "awaiting_no_results_choice",
+  "awaiting_order_for_customer",
+  "awaiting_bulk_recipient",
+  "awaiting_bulk_recipient_mode",
+  "awaiting_bulk_address_choice",
+  "awaiting_bulk_company_choice",
 ]);
 
 /**

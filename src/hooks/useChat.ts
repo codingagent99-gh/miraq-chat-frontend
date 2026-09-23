@@ -934,97 +934,6 @@ export function useChat(options: UseChatOptions = {}) {
     options,
   ]);
 
-  const handleOrderProduct = useCallback(
-    async (productId: number) => {
-      if (!userEmail) {
-        const errMsg: ChatMessage = {
-          id: uuidv4(),
-          role: "bot",
-          text: "⚠️ Please set your email address first (click the 📧 button in the header) to place an order.",
-          timestamp: new Date(),
-        };
-        setMessages((prev) => enqueuMessages(prev, errMsg));
-        return;
-      }
-
-      setLoading(true);
-      setError(null);
-
-      try {
-        const res = await apiRef.current.placeOrder(
-          {
-            product_id: productId,
-            quantity: 1,
-            session_id: sessionIdRef.current,
-            user_context: {
-              email: userEmail,
-              ...(options.customerId
-                ? { customer_id: options.customerId }
-                : {}),
-              ...(options.customerRole ? { role: options.customerRole } : {}),
-            },
-          },
-          sessionIdRef.current,
-        ); // 🚀 Pass Session ID!
-
-        if (res.session_id) {
-          sessionIdRef.current = res.session_id;
-          saveSessionId(res.session_id, userId);
-        }
-
-        flowRef.current = { flow_state: "awaiting_anything_else" };
-
-        const botMsg: ChatMessage = {
-          id: uuidv4(),
-          role: "bot",
-          text: res.bot_message,
-          orders: res.order ? [res.order] : undefined,
-          timestamp: new Date(),
-          suggestions: [
-            "Show me more products",
-            "Check my orders",
-            "No, that's all",
-          ],
-          isFlowPrompt: true,
-        };
-        setMessages((prev) => enqueuMessages(prev, botMsg));
-      } catch (err) {
-        const detail = friendlyError(err, "Failed to place order.");
-        setError(detail);
-        const errMsg: ChatMessage = {
-          id: uuidv4(),
-          role: "bot",
-          text: `❌ Order failed: ${detail}`,
-          timestamp: new Date(),
-        };
-        setMessages((prev) => enqueuMessages(prev, errMsg));
-      } finally {
-        setLoading(false);
-        focusInput();
-      }
-    },
-    [userEmail, options.customerId, focusInput, userId],
-  );
-
-  const clearAll = useCallback(async () => {
-    if (sessionIdRef.current) {
-      try {
-        await apiRef.current.clearHistory(sessionIdRef.current);
-      } catch (_e) {
-        /* best-effort */
-      }
-    }
-    setMessages([WELCOME_MESSAGE]);
-    localStorage.removeItem(sessionKey(userId));
-    sessionIdRef.current = uuidv4();
-    saveSessionId(sessionIdRef.current, userId);
-    flowRef.current = { flow_state: "idle" };
-    setPagination(null);
-    setOrderPagination(null);
-    lastQueryRef.current = null;
-    focusInput();
-  }, [focusInput, userId]);
-
   const appendBotMessage = useCallback(
     (payload: string | Partial<ChatMessage>) => {
       const overrides =
@@ -1105,8 +1014,6 @@ export function useChat(options: UseChatOptions = {}) {
     sendMessage,
     editMessage,
     sendFilterSuggestion,
-    handleOrderProduct,
-    clearAll,
     appendBotMessage,
     handleCartResult,
     getSessionId: () => sessionIdRef.current,

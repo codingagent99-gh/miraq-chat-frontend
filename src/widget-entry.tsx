@@ -3,6 +3,7 @@ import "./index.css";
 import { ChatWidget } from "./ChatWidget";
 import type { WidgetOptions } from "./types/api";
 import { checkPlatformConfig } from "./platform/current";
+import { setIdentity } from "./utils/identity";
 
 declare global {
   interface Window {
@@ -63,6 +64,9 @@ function mountWidget(options?: WidgetOptions, assetBaseUrl?: string) {
   const brandingLogoUrl = options?.brandingLogoUrl || "";
   const brandingFooterText = options?.brandingFooterText || "";
   const licenseId = options?.licenseId || "";
+
+  // Signed identity — the only identity the backend trusts (utils/identity.ts).
+  setIdentity(options?.identityToken, options?.identityExpires, options?.wpBaseUrl);
 
   console.log("Widget initialized with:", {
     apiUrl,
@@ -150,6 +154,8 @@ const DEV_LICENSE_ID = _isLocalDevBuild
       : 0;
 
   const cartToken = config.cartToken || script?.dataset.cartToken || "";
+  const identityToken = config.identityToken || "";
+  const identityExpires = Number(config.identityExpires) || 0;
   const storefrontToken =
     config.storefrontToken || script?.dataset.storefrontToken || "";
   const shopDomain = config.shopDomain || script?.dataset.shopDomain || "";
@@ -204,6 +210,8 @@ const DEV_LICENSE_ID = _isLocalDevBuild
       customerRole,
       wpBaseUrl,
       licenseId,
+      identityToken,
+      identityExpires,
       nonce,
       nonceExpires,
       cartToken,

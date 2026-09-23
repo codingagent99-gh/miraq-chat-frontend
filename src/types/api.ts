@@ -110,34 +110,42 @@ export interface FilterSuggestion {
 // Flow State — Guided Conversation
 // ============================================================================
 
-/** Must match the FlowState enum values in backend conversation_flow.py */
+/**
+ * Must match the FlowState enum values in backend conversation_flow.py —
+ * same members, same order. The old in-chat checkout states (order / final /
+ * shipping / address confirm, order_complete) are gone: the backend has none
+ * of them.
+ */
 export type FlowState =
   | "idle"
   | "awaiting_intent_choice"
   | "awaiting_product_or_category"
   | "showing_results"
   | "awaiting_quantity"
-  | "awaiting_order_confirm"
-  | "awaiting_final_confirm"
-  | "awaiting_shipping_confirm"
-  | "awaiting_new_address"
-  | "awaiting_address_confirm"
-  | "order_complete"
   | "awaiting_anything_else"
   | "closing"
   | "awaiting_variant_selection"
-  | "awaiting_filter_clarification"
-  | "awaiting_cart_confirmation"
-  | "awaiting_reorder_id"
   | "awaiting_order_detail"
-  // ── Bulk order states ────────────────────────────────────────────────────
+  | "awaiting_reorder_id"
+  | "awaiting_filter_clarification"
+  | "awaiting_refinement_choice"
+  | "awaiting_no_results_choice"
+  | "awaiting_cart_confirmation"
+  | "awaiting_order_for_customer"
   | "awaiting_bulk_order_input"
   | "awaiting_bulk_order_confirmation"
   | "awaiting_bulk_address_confirmation"
   | "awaiting_bulk_variant_selection"
-  // ── Order reporting states ───────────────────────────────────────────────
+  | "awaiting_bulk_email"
+  | "awaiting_bulk_company"
+  | "awaiting_bulk_recipient"
+  | "awaiting_bulk_recipient_mode"
+  | "awaiting_bulk_address_choice"
+  | "awaiting_bulk_product"
+  | "awaiting_bulk_quantity"
   | "awaiting_rep_choice"
-  | "awaiting_date_range";
+  | "awaiting_date_range"
+  | "awaiting_bulk_company_choice";
 
 /** Context carried across turns for multi-step flows */
 export interface FlowContext {
@@ -405,6 +413,10 @@ export interface WidgetOptions {
    * tenant from it and 400s without it.
    */
   licenseId?: string;
+  /** Signed identity from class-identity.php (WooCommerce, logged-in users only). */
+  identityToken?: string;
+  /** Unix seconds when identityToken expires. */
+  identityExpires?: number;
   nonce?: string;
   nonceExpires?: number; // JS timestamp in ms
   cartToken?: string;

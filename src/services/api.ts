@@ -1,4 +1,5 @@
 import axios, { type AxiosInstance } from "axios";
+import { identityExpired, identityToken, refreshIdentity } from "../utils/identity";
 import type {
   ChatRequest,
   ChatResponse,
@@ -41,6 +42,34 @@ export function createApiClient(
     baseURL: resolvedBase,
     headers,
     timeout: 30_000,
+  });
+
+  // Signed identity (utils/identity.ts) on every call — read per request, so
+  // a refreshed token is picked up without rebuilding the client.
+  client.interceptors.request.use(async (config) => {
+    // Known to be expired already: refresh first rather than spend a round
+    // trip on a 401. The response interceptor below still covers clock skew.
+    if (identityExpired()) await refreshIdentity(fetchWpIdentity);
+    const t = identityToken();
+    if (t) config.headers.set("X-MiraQ-Identity", t);
+    return config;
+  });
+
+  // The token lasts 12h. When the backend says it has expired, fetch a fresh
+  // one from WordPress and retry the request once.
+  client.interceptors.response.use(undefined, async (err) => {
+    const config = err.config as (typeof err.config & { _identityRetried?: boolean }) | undefined;
+    if (
+      err.response?.status === 401 &&
+      err.response?.data?.error === "identity_expired" &&
+      config &&
+      !config._identityRetried
+    ) {
+      config._identityRetried = true;
+      await refreshIdentity(fetchWpIdentity);
+      return client.request(config);
+    }
+    throw err;
   });
 
   /* ── /chat ── */
@@ -115,19 +144,6 @@ export function createApiClient(
     return data;
   }
 
-  /* ── /chat/clear/:id ── */
-  async function clearHistory(sessionId: string): Promise<void> {
-    await client.delete(`/chat/clear/${sessionId}`);
-  }
-
-  /* ── /products/categories ── */
-  async function fetchCategories(): Promise<any[]> {
-    const { data } = await client.get<{ categories: any[] }>(
-      "/products/categories",
-    );
-    return data.categories;
-  }
-
   /* ── /products/:id ── */
   async function fetchProduct(id: number): Promise<Product> {
     const { data } = await client.get<{ product: Product }>(`/products/${id}`);
@@ -156,17 +172,6 @@ export function createApiClient(
       text,
       products,
     });
-  }
-
-  /* ── /order/place ── */
-  async function placeOrder(body: any, sessionId: string): Promise<any> {
-    const { data } = await client.post<any>("/order/place", body, {
-      headers: {
-        "X-MiraQ-Session": sessionId,
-        "X-WC-Session": getWooCommerceSession(),
-      },
-    });
-    return data;
   }
 
   async function submitCartResult(
@@ -223,12 +228,9 @@ export function createApiClient(
   return {
     sendChat,
     fetchHistory,
-    clearHistory,
-    fetchCategories,
     fetchProduct,
     fetchSimilarProducts,
     saveSimilarMessage,
-    placeOrder,
     submitCartResult,
     submitOrderConfirmation,
     checkOrderStatus,
@@ -355,6 +357,15 @@ async function wpRestFetch(
 }
 
 // ── WP REST API fetch helpers ──────────────────────────────────────────────
+
+/** Fresh signed identity from the plugin (includes/class-identity.php). */
+export async function fetchWpIdentity(
+  wpBase: string,
+): Promise<{ token?: string; expires?: number } | null> {
+  const res = await wpRestFetch(wpBase, "/wp-json/custom-api/v1/identity");
+  if (!res || !res.ok) return null;
+  return res.json();
+}
 
 export async function fetchWpCountries(wpBase: string): Promise<WpCountry[]> {
   const res = await fetch(`${wpBase}/wp-json/custom-api/v1/countries`, {
