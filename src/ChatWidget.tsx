@@ -428,6 +428,9 @@ export function ChatWidget({
       await addItem(productId, quantity, variationId, variationAttributes);
     },
     onSimilarProductsPrompt: (id, name) => {
+      // Similar products is WooCommerce-only (the backend route reads
+      // WooCommerce's recommended/upsell/related lists) — no nudge on Shopify.
+      if (isShopify) return;
       setTimeout(() => {
         appendBotMessage({ text: "", similarProductPrompt: { id, name } });
       }, 600);
@@ -721,7 +724,12 @@ export function ChatWidget({
               onClose={() => setPanelOpen(false)}
               miraQIcon={widgetLogo || DandellionBlueIcon}
               customerName={customerName}
-              isLoggedIn={isLoggedIn}
+              // Shopify guests can chat by design (login is offered from the
+              // chat header), so they get the normal home screen with its
+              // "Start exploring" button. The locked variant had no way back
+              // to the chat. WooCommerce guests never reach this screen —
+              // they see LoginPanel above.
+              isLoggedIn={isLoggedIn || isShopify}
               aiMode={aiEnabled}
               onToggleAI={() => handleAiToggle(!aiEnabled)}
               isExpanded={isExpanded}
@@ -828,7 +836,10 @@ export function ChatWidget({
                       sendMessage(`show me order #${orderNumber}`)
                     }
                     onProductClick={handleProductClick}
-                    onShowSimilar={handleShowSimilar}
+                    // WooCommerce-only feature: without a handler, the
+                    // "Similar items" buttons and the "see similar products"
+                    // prompts are not rendered at all.
+                    onShowSimilar={isShopify ? undefined : handleShowSimilar}
                     loadingSimilarId={loadingSimilarId}
                     onVariantSelect={handleVariantSelect}
                     onVariantAllSelected={setCanPlaceOrder}
@@ -1084,6 +1095,7 @@ export function ChatWidget({
                 )
               }
               onOrderComplete={(productId, productName) => {
+                if (isShopify) return; // similar products: WooCommerce-only
                 setTimeout(() => {
                   appendBotMessage({
                     text: "",
