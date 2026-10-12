@@ -1,9 +1,16 @@
 import axios, { type AxiosInstance } from "axios";
-import { identityExpired, identityToken, refreshIdentity } from "../utils/identity";
+import {
+  identityExpired,
+  identityToken,
+  refreshIdentity,
+} from "../utils/identity";
+import { pluginApiUrl } from "../utils/pluginApi";
 import type {
   ChatRequest,
   ChatResponse,
   HistoryResponse,
+  HistorySearchResponse,
+  HistoryWindowResponse,
   Product,
 } from "../types/api";
 
@@ -58,7 +65,9 @@ export function createApiClient(
   // The token lasts 12h. When the backend says it has expired, fetch a fresh
   // one from WordPress and retry the request once.
   client.interceptors.response.use(undefined, async (err) => {
-    const config = err.config as (typeof err.config & { _identityRetried?: boolean }) | undefined;
+    const config = err.config as
+      | (typeof err.config & { _identityRetried?: boolean })
+      | undefined;
     if (
       err.response?.status === 401 &&
       err.response?.data?.error === "identity_expired" &&
@@ -131,9 +140,72 @@ export function createApiClient(
     sessionId: string,
     page: number = 1,
     limit: number = 20,
+    customerId?: string | number,
   ): Promise<HistoryResponse> {
+    const params = new URLSearchParams({
+      page: String(page),
+      limit: String(limit),
+    });
+    // Local Shopify testing only. With no App Proxy signature the backend
+    // runs in SHOPIFY_CUSTOMER_AUTH=insecure_client_claim and identifies the
+    // caller from user_context.customer_id (POST /chat) or ?customer_id=
+    // (this GET). Without it, history requests looked like a guest, the
+    // ownership check returned nothing, and every reload showed an empty
+    // chat. On a live store the proxy signature decides who the customer is
+    // and this parameter is ignored.
+    if (customerId) params.set("customer_id", String(customerId));
     const { data } = await client.get<HistoryResponse>(
-      `/chat/history?page=${page}&limit=${limit}`,
+      `/chat/history?${params.toString()}`,
+      {
+        headers: {
+          "X-MiraQ-Session": sessionId,
+          "X-WC-Session": getWooCommerceSession(),
+        },
+      },
+    );
+    return data;
+  }
+
+  /* ── /chat/history/search ── */
+  // Same headers and customer_id dev fallback as fetchHistory: the backend
+  // scopes results to the verified customer, or to this session for a guest.
+  async function searchHistory(
+    sessionId: string,
+    q: string,
+    customerId?: string | number,
+    signal?: AbortSignal,
+  ): Promise<HistorySearchResponse> {
+    const params = new URLSearchParams({ q });
+    if (customerId) params.set("customer_id", String(customerId));
+    const { data } = await client.get<HistorySearchResponse>(
+      `/chat/history/search?${params.toString()}`,
+      {
+        headers: {
+          "X-MiraQ-Session": sessionId,
+          "X-WC-Session": getWooCommerceSession(),
+        },
+        signal,
+      },
+    );
+    return data;
+  }
+
+  /* ── /chat/history/window ── */
+  async function fetchHistoryWindow(
+    sessionId: string,
+    conversationId: string,
+    cursor: { around: number } | { before: number } | { after: number },
+    limit: number = 20,
+    customerId?: string | number,
+  ): Promise<HistoryWindowResponse> {
+    const params = new URLSearchParams({
+      conversation_id: conversationId,
+      limit: String(limit),
+    });
+    for (const [k, v] of Object.entries(cursor)) params.set(k, String(v));
+    if (customerId) params.set("customer_id", String(customerId));
+    const { data } = await client.get<HistoryWindowResponse>(
+      `/chat/history/window?${params.toString()}`,
       {
         headers: {
           "X-MiraQ-Session": sessionId,
@@ -228,6 +300,8 @@ export function createApiClient(
   return {
     sendChat,
     fetchHistory,
+    searchHistory,
+    fetchHistoryWindow,
     fetchProduct,
     fetchSimilarProducts,
     saveSimilarMessage,
@@ -325,14 +399,14 @@ export async function ensureWpRestNonce(): Promise<string> {
  */
 async function wpRestFetch(
   wpBase: string,
-  path: string,
+  path: string, // plugin route, e.g. "/identity" — see utils/pluginApi.ts
   init: RequestInit = {},
 ): Promise<Response | null> {
   const nonce = await ensureWpRestNonce();
   if (!nonce) return null;
 
   const send = (n: string) =>
-    fetch(`${wpBase}${path}`, {
+    fetch(pluginApiUrl(wpBase, path), {
       ...init,
       credentials: "include",
       headers: {
@@ -362,13 +436,13 @@ async function wpRestFetch(
 export async function fetchWpIdentity(
   wpBase: string,
 ): Promise<{ token?: string; expires?: number } | null> {
-  const res = await wpRestFetch(wpBase, "/wp-json/custom-api/v1/identity");
+  const res = await wpRestFetch(wpBase, "/identity");
   if (!res || !res.ok) return null;
   return res.json();
 }
 
 export async function fetchWpCountries(wpBase: string): Promise<WpCountry[]> {
-  const res = await fetch(`${wpBase}/wp-json/custom-api/v1/countries`, {
+  const res = await fetch(pluginApiUrl(wpBase, "/countries"), {
     credentials: "include",
   });
   if (!res.ok) throw new Error(`Countries fetch failed: ${res.status}`);
@@ -383,7 +457,7 @@ export async function fetchWpCountries(wpBase: string): Promise<WpCountry[]> {
  * like a permissions problem but was purely client-side.
  */
 export async function fetchWpReps(wpBase: string): Promise<WpRep[]> {
-  const res = await fetch(`${wpBase}/wp-json/custom-api/v1/reps`, {
+  const res = await fetch(pluginApiUrl(wpBase, "/reps"), {
     credentials: "include",
   });
   if (!res.ok) throw new Error(`Reps fetch failed: ${res.status}`);
@@ -393,7 +467,7 @@ export async function fetchWpReps(wpBase: string): Promise<WpRep[]> {
 export async function fetchWpOrderTypes(
   wpBase: string,
 ): Promise<WpOrderTypeOption[]> {
-  const res = await fetch(`${wpBase}/wp-json/custom-api/v1/order-types`, {
+  const res = await fetch(pluginApiUrl(wpBase, "/order-types"), {
     credentials: "include",
   });
   if (!res.ok) throw new Error(`Order types fetch failed: ${res.status}`);
@@ -422,10 +496,7 @@ export interface ThwmaSavedAddress {
 export async function fetchWpSavedAddresses(
   wpBase: string,
 ): Promise<ThwmaSavedAddress[]> {
-  const res = await wpRestFetch(
-    wpBase,
-    "/wp-json/custom-api/v1/saved-addresses",
-  );
+  const res = await wpRestFetch(wpBase, "/saved-addresses");
   if (!res || !res.ok) return [];
   const data = await res.json();
   return Array.isArray(data) ? (data as ThwmaSavedAddress[]) : [];
@@ -511,7 +582,7 @@ export async function fetchCompanyAddresses(
   if (!company.trim()) return [];
   const res = await wpRestFetch(
     wpBase,
-    `/wp-json/custom-api/v1/company-addresses?company=${encodeURIComponent(company)}`,
+    `/company-addresses?company=${encodeURIComponent(company)}`,
   );
   if (!res || !res.ok) return [];
   const data = await res.json();
@@ -548,7 +619,7 @@ export async function saveWpAddress(
 ): Promise<{ success: boolean; id: string }> {
   const res = await wpRestFetch(
     wpBase,
-    "/wp-json/custom-api/v1/saved-addresses",
+    "/saved-addresses",
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },

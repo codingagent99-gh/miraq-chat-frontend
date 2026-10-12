@@ -15,6 +15,7 @@ import { useCheckoutFields } from "../../../hooks/useCheckoutFields";
 import { BillingAddressForm } from "../fields/BillingAddressForm";
 import { SavedAddressConfirmCard } from "../SavedAddressConfirmCard";
 import { fetchWpSavedAddresses, saveWpAddress } from "../../../services/api";
+import { pluginFeatures } from "../../../utils/pluginApi";
 import type { AddressFormProps, CustomField } from "../fields/AddressForm";
 interface AddressStepProps {
   cart: WCCart | null;
@@ -757,9 +758,14 @@ export function AddressStep({
   );
   const [view, setView] = useState<"billing" | "shipping">("billing");
 
+  // Per-item shipping only when the store's plugin build can save it on the
+  // order (utils/pluginApi.ts). Without that code the order would silently
+  // ship everything to one address, so the option is not offered at all.
+  const multiShipSupported = pluginFeatures().multiShipping;
+
   // "billing" | "single" | "multi"
   const [shipMode, setShipMode] = useState<ShipMode>(
-    multiAddressEnabled ? "multi" : "billing",
+    multiAddressEnabled && multiShipSupported ? "multi" : "billing",
   );
 
   // ── Helpers ──────────────────────────────────────────────────────────────
@@ -927,13 +933,15 @@ export function AddressStep({
         description="Enter one alternative shipping address"
         onChange={handleShipModeChange}
       />
-      <ShipModeOption
-        mode="multi"
-        current={shipMode}
-        label="Ship to multiple addresses"
-        description="Send each item to its own address"
-        onChange={handleShipModeChange}
-      />
+      {multiShipSupported && (
+        <ShipModeOption
+          mode="multi"
+          current={shipMode}
+          label="Ship to multiple addresses"
+          description="Send each item to its own address"
+          onChange={handleShipModeChange}
+        />
+      )}
 
       {/* ── Mode: billing ── */}
       {shipMode === "billing" && (

@@ -208,6 +208,8 @@ export interface ChatMessage {
   metadata?: Record<string, unknown>;
   /** Set on synthetic nudge messages after cart/order — drives the similar products prompt UI */
   similarProductPrompt?: { id: number; name: string };
+  /** messages.id for rows loaded from history; absent on live turns */
+  dbId?: number;
 }
 
 // ============================================================================
@@ -308,6 +310,8 @@ export interface ChatResponse {
 // ============================================================================
 
 export interface HistoryEntry {
+  /** messages.id — cursor for /chat/history/window and the target of a search jump */
+  id?: number;
   role: "user" | "bot";
   message: string;
   intent?: string;
@@ -333,6 +337,35 @@ export interface HistoryResponse {
   messages: HistoryEntry[];
   has_more: boolean;
   next_page: number | null;
+}
+
+/** One hit from GET /chat/history/search */
+export interface HistorySearchResult {
+  message_id: number;
+  conversation_id: string;
+  /** True when the hit is in the session the widget currently has open */
+  is_current_session: boolean;
+  role: "user" | "bot";
+  /** Where the query matched — drives the result's label */
+  matched_in: "text" | "product" | "order";
+  snippet: string;
+  timestamp: string | null;
+}
+
+export interface HistorySearchResponse {
+  results: HistorySearchResult[];
+  /** More hits exist than were returned (capped server-side) */
+  has_more: boolean;
+}
+
+/** GET /chat/history/window — a slice of one conversation by message-id cursor */
+export interface HistoryWindowResponse {
+  conversation_id?: string;
+  messages: HistoryEntry[];
+  /** Absent on an `after` page */
+  has_more_before?: boolean;
+  /** Absent on a `before` page */
+  has_more_after?: boolean;
 }
 
 export interface Category {
@@ -406,6 +439,14 @@ export interface WidgetOptions {
   /** Absolute origin of the WordPress site, injected by class-widget.php.
    *  Resolved at runtime so one bundle works on any install. */
   wpBaseUrl?: string;
+  /** Full base URL of the plugin's own REST routes (e.g.
+   *  https://site/wp-json/miraq/v1/), injected by class-widget.php from
+   *  plugin 1.0.6. Absent on older builds, which only answer on
+   *  custom-api/v1 — see utils/pluginApi.ts. */
+  restBase?: string;
+  /** Optional plugin features (plugin 1.0.6+). Absent means the older
+   *  defaults — see utils/pluginApi.ts. */
+  features?: { multiShipping?: boolean };
   /**
    * Tenant identifier issued by the Silfra license server, injected by
    * class-widget.php as `licenseId`. Sent as X-MiraQ-License-Id on every

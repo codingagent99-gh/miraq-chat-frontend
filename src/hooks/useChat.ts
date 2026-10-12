@@ -1,11 +1,20 @@
-import { useState, useCallback, useRef, useEffect } from "react";
+import {
+  useState,
+  useCallback,
+  useRef,
+  useEffect,
+  useLayoutEffect,
+} from "react";
 import { v4 as uuidv4 } from "uuid";
+import { pluginApiUrl } from "../utils/pluginApi";
 import type {
   ChatMessage,
   FlowContext,
   ChatResponse,
   PaginationData,
   FilterSuggestion,
+  HistoryResponse,
+  HistorySearchResponse,
 } from "../types/api";
 import type { ChatAction } from "../types/actions";
 import { createApiClient } from "../services/api";
@@ -15,6 +24,66 @@ import { enqueuMessages } from "../utils/chatHistory";
 // 🚀 Shifted to localStorage so sessions survive tab closes
 const SESSION_KEY_PREFIX = "shop_chat_session_id";
 const EMAIL_KEY = "shop_chat_email";
+
+// ── Scroll diagnostics (temporary) ─────────────────────────────────────────
+// Off unless the tester runs, in the store page's console:
+//   localStorage.setItem("miraq_debug_scroll", "1"); location.reload();
+// Turn off with localStorage.removeItem("miraq_debug_scroll").
+// Safe to ship: when the flag is absent nothing below runs.
+const SCROLL_DEBUG = (() => {
+  try {
+    return localStorage.getItem("miraq_debug_scroll") === "1";
+  } catch {
+    return false;
+  }
+})();
+// Bump when the scroll code changes, so the log proves which bundle loaded.
+const SCROLL_BUILD = "scroll-anchor-v3";
+function scrollDebug(...args: unknown[]) {
+  if (SCROLL_DEBUG) console.log("[MiraQ scroll]", ...args);
+}
+function scrollSnapshot(el: HTMLElement | null) {
+  if (!el) return { container: "NOT FOUND" };
+  return {
+    top: Math.round(el.scrollTop),
+    height: el.scrollHeight,
+    client: el.clientHeight,
+  };
+}
+// CSS that changes how a programmatic scrollTop assignment behaves. A store
+// theme can set these on our container (or on *), which a bare local test
+// page never does.
+function scrollStyles(el: HTMLElement | null) {
+  if (!el) return {};
+  const c = getComputedStyle(el);
+  return {
+    containerScrollBehavior: c.scrollBehavior,
+    containerOverflowAnchor: (c as any).overflowAnchor,
+    containerOverflowY: c.overflowY,
+    htmlScrollBehavior: getComputedStyle(document.documentElement)
+      .scrollBehavior,
+    bodyScrollBehavior: getComputedStyle(document.body).scrollBehavior,
+  };
+}
+// After a restore, report every change to the container's position or height
+// for 2s — catches late image loads and anything else that moves the view.
+function watchScroll(el: HTMLElement, label: string) {
+  if (!SCROLL_DEBUG) return;
+  const start = performance.now();
+  let last = `${el.scrollTop}|${el.scrollHeight}`;
+  const tick = () => {
+    const now = `${el.scrollTop}|${el.scrollHeight}`;
+    const ms = Math.round(performance.now() - start);
+    if (now !== last) {
+      scrollDebug(`${label} +${ms}ms changed`, scrollSnapshot(el));
+      last = now;
+    }
+    if (ms < 2000) requestAnimationFrame(tick);
+    else scrollDebug(`${label} watch end`, scrollSnapshot(el));
+  };
+  requestAnimationFrame(tick);
+}
+if (SCROLL_DEBUG) console.log("[MiraQ scroll] debug on | build:", SCROLL_BUILD);
 
 /**
  * User-facing text for a failed request.
@@ -94,6 +163,7 @@ function describeSentinel(text: string): string {
 function mapHistoryEntryToMessage(m: any): ChatMessage {
   return {
     id: uuidv4(),
+    dbId: typeof m.id === "number" ? m.id : undefined,
     role: m.role,
     text: m.message,
     intent: m.intent,
@@ -119,6 +189,21 @@ function mapHistoryEntryToMessage(m: any): ChatMessage {
       m.allow_order_download === true,
   };
 }
+
+/**
+ * Set while the message list shows a slice loaded around a search hit
+ * (/chat/history/window) rather than the tail of the current session.
+ * Older pages then come by message-id cursor instead of /chat/history page
+ * numbers, and newer pages load as the user scrolls down.
+ */
+interface HistoryView {
+  conversationId: string;
+  /** Newer messages exist below the loaded slice */
+  hasMoreAfter: boolean;
+}
+
+/** Messages per /chat/history/window request around a search hit */
+const JUMP_WINDOW_SIZE = 30;
 
 function sessionKey(userId?: string | number): string {
   return userId ? `${SESSION_KEY_PREFIX}_${userId}` : SESSION_KEY_PREFIX;
@@ -200,11 +285,42 @@ export function useChat(options: UseChatOptions = {}) {
     null,
   );
   const lastQueryRef = useRef<string | null>(null);
+  // The filter chip behind the current product list, if it came from one.
+  // Page 1 of a chip is answered by the suggestion_retry path, not by
+  // re-classifying the label — so later pages must send the same payload.
+  const lastSuggestionRetryRef = useRef<FilterSuggestion | null>(null);
 
   // State Variables for History Pagination
   const [historyPage, setHistoryPage] = useState(1);
   const [hasMoreHistory, setHasMoreHistory] = useState(false);
   const [loadingHistory, setLoadingHistory] = useState(false);
+  // Synchronous twin of loadingHistory. The state value only changes on the
+  // next render, and a fast scroll fires several scroll events before that —
+  // each one saw loadingHistory=false and requested the same page again, so
+  // its messages were prepended twice and the view jumped. The ref flips
+  // immediately, so only one request per page can be in flight.
+  const historyInFlightRef = useRef(false);
+
+  // ── Search jump state (see HistoryView) ──
+  // The ref is what async callbacks read; the state drives rendering.
+  const [historyView, setHistoryView] = useState<HistoryView | null>(null);
+  const historyViewRef = useRef<HistoryView | null>(null);
+  const updateHistoryView = useCallback((v: HistoryView | null) => {
+    historyViewRef.current = v;
+    setHistoryView(v);
+  }, []);
+  // Bumped whenever the list is replaced wholesale (jump, back to latest,
+  // user change). A history request that started under an older generation
+  // is discarded on arrival, so a slow page can't land in the wrong list.
+  const viewGenRef = useRef(0);
+  const [loadingNewerHistory, setLoadingNewerHistory] = useState(false);
+  const newerInFlightRef = useRef(false);
+  // Client id of the search hit to centre once the jumped-to slice renders.
+  const pendingJumpRef = useRef<string | null>(null);
+  const [highlightedMessageId, setHighlightedMessageId] = useState<
+    string | null
+  >(null);
+  const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const sessionIdRef = useRef<string>(loadSessionId(userId) ?? uuidv4());
 
@@ -220,6 +336,10 @@ export function useChat(options: UseChatOptions = {}) {
   const messagesRef = useRef<ChatMessage[]>([]);
   messagesRef.current = messages;
   const justLoadedHistoryRef = useRef(false);
+  // Scroll position captured just before older history is prepended, so the
+  // view can stay on the message the user was reading (see the layout effect
+  // below). null when no prepend is pending.
+  const prependAnchorRef = useRef<{ height: number; top: number } | null>(null);
 
   const apiRef = useRef(
     createApiClient(options.apiUrl, options.apiKey, options.licenseId),
@@ -243,10 +363,9 @@ export function useChat(options: UseChatOptions = {}) {
     }
     // Expired — hit the WP refresh endpoint
     try {
-      const res = await fetch(
-        `${siteOrigin}/wp-json/custom-api/v1/refresh-nonce`,
-        { credentials: "include" },
-      );
+      const res = await fetch(pluginApiUrl(siteOrigin, "/refresh-nonce"), {
+        credentials: "include",
+      });
       const data = await res.json();
       nonceRef.current = data.nonce;
       nonceExpiresRef.current = data.expires;
@@ -288,6 +407,44 @@ export function useChat(options: UseChatOptions = {}) {
     [getFreshNonce, siteOrigin],
   );
 
+  // ── LATEST PAGE OF THE CURRENT SESSION ──
+  // Used on mount / user change, and by returnToLatest to leave a search jump.
+  const fetchLatestHistory = useCallback(async () => {
+    const gen = ++viewGenRef.current;
+    updateHistoryView(null);
+    setLoading(true);
+    try {
+      const res = await apiRef.current.fetchHistory(
+        sessionIdRef.current,
+        1,
+        undefined,
+        options.customerId,
+      );
+      if (gen !== viewGenRef.current) return;
+      console.log("[MiraQ DEBUG] fetchHistory on mount", {
+        sessionId: sessionIdRef.current,
+        messageCount: res.messages?.length,
+      });
+      if (res.messages && res.messages.length > 0) {
+        // Rebuild React message objects from DB rows
+        const formattedHistory: ChatMessage[] = res.messages.map(
+          mapHistoryEntryToMessage,
+        );
+        setMessages(formattedHistory);
+        setHasMoreHistory(res.has_more);
+        if (res.next_page) setHistoryPage(res.next_page);
+      } else {
+        setMessages([WELCOME_MESSAGE]); // Fresh chat
+      }
+    } catch (err) {
+      if (gen !== viewGenRef.current) return;
+      console.error("Failed to fetch database history", err);
+      setMessages([WELCOME_MESSAGE]); // Fallback on network error
+    } finally {
+      setLoading(false);
+    }
+  }, [options.customerId, updateHistoryView]);
+
   // ── INITIAL CHAT HISTORY FROM POSTGRES ──
   useEffect(() => {
     if (!userId) return;
@@ -302,6 +459,7 @@ export function useChat(options: UseChatOptions = {}) {
       setPagination(null);
       setOrderPagination(null);
       lastQueryRef.current = null;
+      lastSuggestionRetryRef.current = null;
       setError(null);
       setHistoryPage(1); // Reset history page
     } else {
@@ -309,63 +467,288 @@ export function useChat(options: UseChatOptions = {}) {
       saveSessionId(sessionIdRef.current, userId);
     }
 
-    async function fetchDatabaseHistory() {
-      setLoading(true);
-      try {
-        const res = await apiRef.current.fetchHistory(sessionIdRef.current, 1);
-        console.log("[MiraQ DEBUG] fetchHistory on mount", {
-          sessionId: sessionIdRef.current,
-          messageCount: res.messages?.length,
-        });
-        if (res.messages && res.messages.length > 0) {
-          // Rebuild React message objects from DB rows
-          const formattedHistory: ChatMessage[] = res.messages.map(
-            mapHistoryEntryToMessage,
-          );
-          setMessages(formattedHistory);
-          setHasMoreHistory(res.has_more);
-          if (res.next_page) setHistoryPage(res.next_page);
-        } else {
-          setMessages([WELCOME_MESSAGE]); // Fresh chat
-        }
-      } catch (err) {
-        console.error("Failed to fetch database history", err);
-        setMessages([WELCOME_MESSAGE]); // Fallback on network error
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    fetchDatabaseHistory();
+    fetchLatestHistory();
   }, [userId]);
 
   // ── 🚀 LOAD OLDER HISTORY (Triggered on Scroll Up) ──
   const loadMoreHistory = useCallback(async () => {
+    if (historyInFlightRef.current) {
+      if (!loadingHistory)
+        scrollDebug("loadMoreHistory skipped: request already in flight");
+      return;
+    }
     if (loadingHistory || !hasMoreHistory) return;
+    historyInFlightRef.current = true;
+    scrollDebug(
+      "loadMoreHistory start | page",
+      historyPage,
+      scrollSnapshot(
+        bottomRef.current?.closest(
+          ".xpert-chat-messages",
+        ) as HTMLElement | null,
+      ),
+    );
 
     setLoadingHistory(true);
+    const gen = viewGenRef.current;
     try {
-      const res = await apiRef.current.fetchHistory(
-        sessionIdRef.current,
-        historyPage,
-      );
+      // After a search jump, older pages come by cursor from the jumped-to
+      // conversation; page numbers only describe the tail of this session.
+      const view = historyViewRef.current;
+      let res: HistoryResponse;
+      if (view) {
+        const firstDbId = messagesRef.current.find(
+          (m) => m.dbId != null,
+        )?.dbId;
+        if (firstDbId == null) {
+          res = { messages: [], has_more: false, next_page: null };
+        } else {
+          const w = await apiRef.current.fetchHistoryWindow(
+            sessionIdRef.current,
+            view.conversationId,
+            { before: firstDbId },
+            undefined,
+            options.customerId,
+          );
+          res = {
+            messages: w.messages ?? [],
+            has_more: !!w.has_more_before,
+            next_page: null,
+          };
+        }
+      } else {
+        res = await apiRef.current.fetchHistory(
+          sessionIdRef.current,
+          historyPage,
+          undefined,
+          options.customerId,
+        );
+      }
+      // The list was replaced (jump / back to latest) while this was in flight.
+      if (gen !== viewGenRef.current) return;
       if (res.messages && res.messages.length > 0) {
         const olderMessages: ChatMessage[] = res.messages.map(
           mapHistoryEntryToMessage,
         );
 
+        // Remember where the user is before the list grows above them.
+        const container = bottomRef.current?.closest(
+          ".xpert-chat-messages",
+        ) as HTMLElement | null;
+        prependAnchorRef.current = container
+          ? { height: container.scrollHeight, top: container.scrollTop }
+          : null;
+        scrollDebug(
+          "history arrived | older msgs",
+          olderMessages.length,
+          "| anchor",
+          prependAnchorRef.current,
+          "| has_more",
+          res.has_more,
+        );
         justLoadedHistoryRef.current = true;
         // Prepend older messages to the top of the array
         setMessages((prev) => [...olderMessages, ...prev]);
         setHasMoreHistory(res.has_more);
         if (res.next_page) setHistoryPage(res.next_page);
+      } else {
+        // An empty page means there is nothing older; without this the
+        // loader row stayed and every scroll near the top re-requested it.
+        setHasMoreHistory(false);
       }
     } catch (err) {
       console.error("Failed to load more history", err);
     } finally {
+      historyInFlightRef.current = false;
       setLoadingHistory(false);
     }
-  }, [historyPage, hasMoreHistory, loadingHistory]);
+  }, [historyPage, hasMoreHistory, loadingHistory, options.customerId]);
+
+  // ── SEARCH JUMP: load newer messages below a jumped-to slice ──
+  const loadNewerHistory = useCallback(async () => {
+    const view = historyViewRef.current;
+    if (!view || !view.hasMoreAfter || newerInFlightRef.current) return;
+
+    let lastDbId: number | undefined;
+    const msgs = messagesRef.current;
+    for (let i = msgs.length - 1; i >= 0; i--) {
+      if (msgs[i].dbId != null) {
+        lastDbId = msgs[i].dbId;
+        break;
+      }
+    }
+    if (lastDbId == null) {
+      updateHistoryView({ ...view, hasMoreAfter: false });
+      return;
+    }
+
+    newerInFlightRef.current = true;
+    setLoadingNewerHistory(true);
+    const gen = viewGenRef.current;
+    try {
+      const w = await apiRef.current.fetchHistoryWindow(
+        sessionIdRef.current,
+        view.conversationId,
+        { after: lastDbId },
+        undefined,
+        options.customerId,
+      );
+      if (gen !== viewGenRef.current) return;
+      const newer = (w.messages ?? []).map(mapHistoryEntryToMessage);
+      if (newer.length > 0) {
+        // Appended below the reader — no auto-scroll.
+        justLoadedHistoryRef.current = true;
+        setMessages((prev) => [...prev, ...newer]);
+      }
+      updateHistoryView({
+        ...view,
+        hasMoreAfter: newer.length > 0 && !!w.has_more_after,
+      });
+    } catch (err) {
+      console.error("Failed to load newer history", err);
+    } finally {
+      newerInFlightRef.current = false;
+      setLoadingNewerHistory(false);
+    }
+  }, [options.customerId, updateHistoryView]);
+
+  /**
+   * Centres a rendered message vertically in the messages container.
+   * Always an instant jump, never smooth: a smooth scroll that passes near the
+   * top fires loadMoreHistory, and the prepend's anchor restore (layout effect
+   * above) would cut the animation short wherever it happened to be. From an
+   * instant position the restore keeps the hit exactly where it was put.
+   */
+  const centerMessage = useCallback(
+    (id: string) => {
+      const container = bottomRef.current?.closest(
+        ".xpert-chat-messages",
+      ) as HTMLElement | null;
+      const target = messageRefs.current.get(id);
+      if (!container || !target) return;
+      const cRect = container.getBoundingClientRect();
+      const tRect = target.getBoundingClientRect();
+      const top = Math.max(
+        0,
+        container.scrollTop +
+          (tRect.top - cRect.top) -
+          Math.max(0, (container.clientHeight - tRect.height) / 2),
+      );
+      container.scrollTop = top;
+    },
+    [],
+  );
+
+  const flashMessage = useCallback((id: string) => {
+    if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
+    setHighlightedMessageId(id);
+    highlightTimerRef.current = setTimeout(
+      () => setHighlightedMessageId(null),
+      2500,
+    );
+  }, []);
+
+  useEffect(
+    () => () => {
+      if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
+    },
+    [],
+  );
+
+  // Jumped-to slice has rendered: centre the hit before paint. Runs before
+  // the auto-scroll effect below, which justLoadedHistoryRef tells to stand
+  // down. Product images in the slice load after this and can push the hit
+  // down, so it is re-centred once they have had a moment.
+  useLayoutEffect(() => {
+    const id = pendingJumpRef.current;
+    if (!id) return;
+    pendingJumpRef.current = null;
+    centerMessage(id);
+    flashMessage(id);
+    const t = setTimeout(() => centerMessage(id), 400);
+    return () => clearTimeout(t);
+  }, [messages, centerMessage, flashMessage]);
+
+  /**
+   * Shows a search hit in the chat. If it is already in the loaded list it is
+   * just scrolled to; otherwise the list is replaced by a slice around it.
+   * Resolves false when the slice could not be loaded (caller keeps the
+   * search open so the user can try again).
+   */
+  const jumpToMessage = useCallback(
+    async (conversationId: string, messageId: number): Promise<boolean> => {
+      const view = historyViewRef.current;
+      const listConversation = view
+        ? view.conversationId
+        : sessionIdRef.current;
+      if (listConversation === conversationId) {
+        const existing = messagesRef.current.find((m) => m.dbId === messageId);
+        if (existing) {
+          centerMessage(existing.id);
+          flashMessage(existing.id);
+          return true;
+        }
+      }
+
+      const gen = ++viewGenRef.current;
+      try {
+        const w = await apiRef.current.fetchHistoryWindow(
+          sessionIdRef.current,
+          conversationId,
+          { around: messageId },
+          JUMP_WINDOW_SIZE,
+          options.customerId,
+        );
+        if (gen !== viewGenRef.current) return false;
+        const rows = (w.messages ?? []).map(mapHistoryEntryToMessage);
+        const target = rows.find((m) => m.dbId === messageId);
+        if (!target) return false;
+
+        justLoadedHistoryRef.current = true;
+        prependAnchorRef.current = null;
+        pendingJumpRef.current = target.id;
+        setMessages(rows);
+        setHasMoreHistory(!!w.has_more_before);
+        updateHistoryView({
+          conversationId,
+          hasMoreAfter: !!w.has_more_after,
+        });
+        return true;
+      } catch (err) {
+        console.error("Failed to load search result", err);
+        return false;
+      }
+    },
+    [options.customerId, centerMessage, flashMessage, updateHistoryView],
+  );
+
+  /** Leaves a search jump and reloads the latest page of the current session. */
+  const returnToLatest = useCallback(async () => {
+    setHasMoreHistory(false);
+    setHistoryPage(1);
+    await fetchLatestHistory();
+  }, [fetchLatestHistory]);
+
+  // Anything that adds a NEW turn must land at the live end of the current
+  // session, never inside a past slice. Cheap no-op in normal mode.
+  const isDetached = useCallback(() => {
+    const v = historyViewRef.current;
+    return !!v && (v.conversationId !== sessionIdRef.current || v.hasMoreAfter);
+  }, []);
+  const ensureLive = useCallback(async () => {
+    if (isDetached()) await returnToLatest();
+  }, [isDetached, returnToLatest]);
+
+  const searchHistory = useCallback(
+    (q: string, signal?: AbortSignal): Promise<HistorySearchResponse> =>
+      apiRef.current.searchHistory(
+        sessionIdRef.current,
+        q,
+        options.customerId,
+        signal,
+      ),
+    [options.customerId],
+  );
 
   /**
    * Scrolls the chat messages container to the bottom.
@@ -433,6 +816,39 @@ export function useChat(options: UseChatOptions = {}) {
     [],
   );
 
+  // Older history was just prepended: shift scrollTop by exactly the height
+  // that was added above, so the message the user was reading stays put.
+  // Layout effect = runs before paint, so there is no visible jump. Browsers'
+  // own scroll anchoring can't be relied on for this: Safari has none, and
+  // Chrome/Firefox skip it when the scroll position is 0 — which is exactly
+  // where a fast upward scroll ends.
+  useLayoutEffect(() => {
+    const anchor = prependAnchorRef.current;
+    if (!anchor) return;
+    prependAnchorRef.current = null;
+    const container = bottomRef.current?.closest(
+      ".xpert-chat-messages",
+    ) as HTMLElement | null;
+    if (container) {
+      const target = anchor.top + (container.scrollHeight - anchor.height);
+      container.scrollTop = target;
+      if (SCROLL_DEBUG) {
+        scrollDebug(
+          "restore | anchor",
+          anchor,
+          "| target",
+          target,
+          "| after set",
+          scrollSnapshot(container),
+          scrollStyles(container),
+        );
+        watchScroll(container, "after restore");
+      }
+    } else {
+      scrollDebug("restore skipped: container not found");
+    }
+  }, [messages]);
+
   // Scroll when the message list changes (but NOT when loading older
   // history). A brand-new bot reply gets its TOP aligned to the container
   // so the user reads it from the start; everything else — the user's own
@@ -442,6 +858,7 @@ export function useChat(options: UseChatOptions = {}) {
     if (justLoadedHistoryRef.current) {
       justLoadedHistoryRef.current = false;
       prevMessagesLengthRef.current = messages.length;
+      scrollDebug("scroll effect: history prepend, no auto-scroll");
       return;
     }
     const container = bottomRef.current?.closest(
@@ -456,6 +873,15 @@ export function useChat(options: UseChatOptions = {}) {
     const lastMessage = messages[messages.length - 1];
     prevMessagesLengthRef.current = messages.length;
 
+    scrollDebug(
+      "scroll effect: auto-scroll |",
+      grew && lastMessage?.role === "bot" ? "to new bot message" : "to bottom",
+      "| msgs",
+      messages.length,
+      "| loading",
+      loading,
+      scrollSnapshot(container),
+    );
     if (grew && lastMessage?.role === "bot") {
       // Wait a frame so the new message has actually painted before we
       // measure its position.
@@ -464,7 +890,11 @@ export function useChat(options: UseChatOptions = {}) {
     }
 
     scrollToBottom("smooth");
-  }, [messages, loading, loadingHistory, scrollToBottom, scrollMessageToTop]);
+    // loadingHistory is deliberately NOT a dependency. It flips to true the
+    // moment the user scrolls near the top, and re-running this effect then
+    // fell through to scrollToBottom() above — yanking the user back to the
+    // latest message every time they tried to read older ones.
+  }, [messages, loading, scrollToBottom, scrollMessageToTop]);
 
   const updateEmail = useCallback((email: string) => {
     setUserEmail(email);
@@ -616,6 +1046,7 @@ export function useChat(options: UseChatOptions = {}) {
   const sendMessage = useCallback(
     async (text: string) => {
       if (!text.trim()) return;
+      await ensureLive();
       setError(null);
 
       // Cards can send a structured payload encoded as "__SENTINEL__<json>".
@@ -634,6 +1065,7 @@ export function useChat(options: UseChatOptions = {}) {
       setMessages((prev) => enqueuMessages(prev, userMsg));
       setLoading(true);
       lastQueryRef.current = text.trim();
+      lastSuggestionRetryRef.current = null;
 
       try {
         const res: ChatResponse = await apiRef.current.sendChat(
@@ -688,6 +1120,7 @@ export function useChat(options: UseChatOptions = {}) {
       handleDailyLimit,
       handleTenantConfigError,
       options,
+      ensureLive,
     ],
   );
 
@@ -704,6 +1137,7 @@ export function useChat(options: UseChatOptions = {}) {
       setPagination(null);
       setOrderPagination(null);
       lastQueryRef.current = newText.trim();
+      lastSuggestionRetryRef.current = null;
 
       const userMsg: ChatMessage = {
         id: uuidv4(),
@@ -760,6 +1194,7 @@ export function useChat(options: UseChatOptions = {}) {
 
   const sendFilterSuggestion = useCallback(
     async (suggestion: FilterSuggestion) => {
+      await ensureLive();
       setError(null);
 
       const userMsg: ChatMessage = {
@@ -771,6 +1206,7 @@ export function useChat(options: UseChatOptions = {}) {
       setMessages((prev) => enqueuMessages(prev, userMsg));
       setLoading(true);
       lastQueryRef.current = suggestion.label;
+      lastSuggestionRetryRef.current = suggestion;
 
       try {
         const res: ChatResponse = await apiRef.current.sendChat(
@@ -826,24 +1262,73 @@ export function useChat(options: UseChatOptions = {}) {
       options,
       processChatResponse,
       focusInput,
+      ensureLive,
     ],
   );
 
-  const loadMore = useCallback(async () => {
-    if (!pagination || !pagination.has_more || !lastQueryRef.current || loading)
-      return;
+  // Where "Load More" gets its page and query from. Normally that's the hook
+  // state set by the live turn. But a product click is a full page
+  // navigation: the widget remounts and rebuilds the list from /chat/history,
+  // and the button comes back from the bot message's own stored pagination
+  // while `pagination` / `lastQueryRef` are back to null — so the click used
+  // to return silently. Fall back to the last bot message (the same one
+  // ChatWidget shows the button for) and the user turn just before it.
+  const resolveLoadMoreSource = useCallback(
+    (kind: "products" | "orders", live: PaginationData | null) => {
+      const msgs = messagesRef.current;
+      let botIdx = -1;
+      for (let i = msgs.length - 1; i >= 0; i--) {
+        if (msgs[i].role === "bot") {
+          botIdx = i;
+          break;
+        }
+      }
+      const bot = botIdx >= 0 ? msgs[botIdx] : null;
+      const stored =
+        kind === "products" ? bot?.pagination : bot?.orderPagination;
 
-    const nextPage = pagination.page + 1;
+      let query = lastQueryRef.current;
+      if (!query) {
+        for (let i = botIdx - 1; i >= 0; i--) {
+          if (msgs[i].role === "user" && msgs[i].text?.trim()) {
+            query = msgs[i].text.trim();
+            break;
+          }
+        }
+      }
+      return { pg: live ?? stored ?? null, query };
+    },
+    [],
+  );
+
+  const loadMore = useCallback(async () => {
+    if (loading) return;
+    await ensureLive();
+    const { pg, query } = resolveLoadMoreSource("products", pagination);
+    if (!pg || !pg.has_more || !query) {
+      console.warn("[MiraQ] loadMore skipped", {
+        livePagination: pagination,
+        resolvedPagination: pg,
+        query,
+      });
+      return;
+    }
+
+    const nextPage = pg.page + 1;
+    lastQueryRef.current = query;
     setLoading(true);
     setError(null);
 
     try {
       const res: ChatResponse = await apiRef.current.sendChat(
         {
-          message: lastQueryRef.current,
+          message: query,
           session_id: sessionIdRef.current,
           page: nextPage,
           platform: options.platform ?? "woocommerce",
+          ...(lastSuggestionRetryRef.current
+            ? { suggestion_retry: lastSuggestionRetryRef.current }
+            : {}),
           user_context: buildUserContext(),
         },
         sessionIdRef.current,
@@ -870,6 +1355,7 @@ export function useChat(options: UseChatOptions = {}) {
     }
   }, [
     pagination,
+    resolveLoadMoreSource,
     handleDailyLimit,
     handleTenantConfigError,
     options,
@@ -877,25 +1363,31 @@ export function useChat(options: UseChatOptions = {}) {
     buildUserContext,
     processChatResponse,
     focusInput,
+    ensureLive,
   ]);
 
   const loadMoreOrders = useCallback(async () => {
-    if (
-      !orderPagination ||
-      !orderPagination.has_more ||
-      !lastQueryRef.current ||
-      loading
-    )
+    if (loading) return;
+    await ensureLive();
+    const { pg, query } = resolveLoadMoreSource("orders", orderPagination);
+    if (!pg || !pg.has_more || !query) {
+      console.warn("[MiraQ] loadMoreOrders skipped", {
+        livePagination: orderPagination,
+        resolvedPagination: pg,
+        query,
+      });
       return;
+    }
 
-    const nextPage = orderPagination.page + 1;
+    const nextPage = pg.page + 1;
+    lastQueryRef.current = query;
     setLoading(true);
     setError(null);
 
     try {
       const res: ChatResponse = await apiRef.current.sendChat(
         {
-          message: lastQueryRef.current,
+          message: query,
           session_id: sessionIdRef.current,
           page: nextPage,
           platform: options.platform ?? "woocommerce",
@@ -925,6 +1417,7 @@ export function useChat(options: UseChatOptions = {}) {
     }
   }, [
     orderPagination,
+    resolveLoadMoreSource,
     loading,
     buildUserContext,
     processChatResponse,
@@ -932,6 +1425,7 @@ export function useChat(options: UseChatOptions = {}) {
     handleDailyLimit,
     handleTenantConfigError,
     options,
+    ensureLive,
   ]);
 
   const appendBotMessage = useCallback(
@@ -947,9 +1441,14 @@ export function useChat(options: UseChatOptions = {}) {
         metadata: { synthetic: true },
         ...overrides,
       };
-      setMessages((prev) => enqueuMessages(prev, syntheticMsg));
+      const append = () =>
+        setMessages((prev) => enqueuMessages(prev, syntheticMsg));
+      // e.g. an add-to-cart from a product card inside a past slice.
+      // Synchronous otherwise, exactly as before.
+      if (isDetached()) void ensureLive().then(append);
+      else append();
     },
-    [],
+    [isDetached, ensureLive],
   );
 
   const handleCartResult = useCallback(
@@ -1028,6 +1527,23 @@ export function useChat(options: UseChatOptions = {}) {
     loadMoreHistory,
     hasMoreHistory,
     loadingHistory,
+    // ── History search ──
+    searchHistory,
+    jumpToMessage,
+    returnToLatest,
+    loadNewerHistory,
+    hasNewerHistory: !!historyView?.hasMoreAfter,
+    loadingNewerHistory,
+    /** Showing a past slice — new turns would not land at the live end */
+    isViewingPast:
+      historyView !== null &&
+      (historyView.conversationId !== sessionIdRef.current ||
+        historyView.hasMoreAfter),
+    /** The slice belongs to a different conversation than the open session */
+    isViewingOtherConversation:
+      historyView !== null &&
+      historyView.conversationId !== sessionIdRef.current,
+    highlightedMessageId,
     dailyLimitHit,
     limitResetAt,
     tenantConfigError,

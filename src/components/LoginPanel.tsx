@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { FiX } from "react-icons/fi";
+import { pluginApiUrl } from "../utils/pluginApi";
 
 interface LoginPanelProps {
   siteOrigin: string;
@@ -45,10 +46,10 @@ export function LoginPanel({
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch(
-          `${siteOrigin}/wp-json/custom-api/v1/login-nonce`,
-          { credentials: "include", cache: "no-store" },
-        );
+        const res = await fetch(pluginApiUrl(siteOrigin, "/login-nonce"), {
+          credentials: "include",
+          cache: "no-store",
+        });
         if (!res.ok) return;
         const data = await res.json();
         if (!cancelled) setMeta(data);
@@ -77,10 +78,10 @@ export function LoginPanel({
       // the one field that expires, and a panel left open overnight would
       // otherwise POST a dead one — which process_login() rejects SILENTLY,
       // producing a button that does nothing.
-      const nRes = await fetch(
-        `${siteOrigin}/wp-json/custom-api/v1/login-nonce`,
-        { credentials: "include", cache: "no-store" },
-      );
+      const nRes = await fetch(pluginApiUrl(siteOrigin, "/login-nonce"), {
+        credentials: "include",
+        cache: "no-store",
+      });
       if (!nRes.ok) throw new Error(`login-nonce ${nRes.status}`);
       const { nonce } = await nRes.json();
 
@@ -142,7 +143,7 @@ export function LoginPanel({
           </div>
           <div className="xpert-profile-info">
             <p className="xpert-profile-label">Welcome to</p>
-            <h2 className="xpert-profile-name">Dandelion</h2>
+            <h2 className="xpert-profile-name">MiraQ Shopper</h2>
           </div>
           <button
             type="button"

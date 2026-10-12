@@ -4,6 +4,7 @@ import { ChatWidget } from "./ChatWidget";
 import type { WidgetOptions } from "./types/api";
 import { checkPlatformConfig } from "./platform/current";
 import { setIdentity } from "./utils/identity";
+import { setPluginConfig } from "./utils/pluginApi";
 
 declare global {
   interface Window {
@@ -67,6 +68,9 @@ function mountWidget(options?: WidgetOptions, assetBaseUrl?: string) {
 
   // Signed identity — the only identity the backend trusts (utils/identity.ts).
   setIdentity(options?.identityToken, options?.identityExpires, options?.wpBaseUrl);
+
+  // Where the plugin's REST routes live and what that plugin build supports.
+  setPluginConfig(options?.restBase, options?.features);
 
   console.log("Widget initialized with:", {
     apiUrl,
@@ -140,6 +144,13 @@ const DEV_LICENSE_ID = _isLocalDevBuild
   // Absolute WP origin, injected by class-widget.php (get_site_url()). Empty on
   // dev builds, where ChatWidget falls back to VITE_WP_BASE_URL / current origin.
   const wpBaseUrl = config.wpBaseUrl || script?.dataset.wpBaseUrl || "";
+  // Plugin REST base + feature flags (plugin 1.0.6+). Both absent on older
+  // plugin builds, which utils/pluginApi.ts treats as the pre-1.0.6 defaults.
+  const restBase = config.restBase || "";
+  const features =
+    config.features && typeof config.features === "object"
+      ? config.features
+      : undefined;
 
   // Tenant identifier from class-widget.php's injected config. No
   // window.location fallback: guessing a tenant is worse than failing
@@ -209,6 +220,8 @@ const DEV_LICENSE_ID = _isLocalDevBuild
       customerName,
       customerRole,
       wpBaseUrl,
+      restBase,
+      features,
       licenseId,
       identityToken,
       identityExpires,

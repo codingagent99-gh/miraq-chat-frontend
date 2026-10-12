@@ -5,6 +5,7 @@ import {
   FiMaximize2,
   FiMinimize2,
   FiLogIn,
+  FiSearch,
 } from "react-icons/fi";
 interface ChatHeaderProps {
   cartCount: number;
@@ -22,6 +23,8 @@ interface ChatHeaderProps {
    *  shopper on either platform). Opens in a new tab: navigating the page the
    *  widget lives on would tear the widget down mid-conversation. */
   loginUrl?: string;
+  /** Opens chat history search. Button is not rendered when unset. */
+  onSearch?: () => void;
 }
 
 export function ChatHeader({
@@ -35,6 +38,7 @@ export function ChatHeader({
   isExpanded,
   onToggleExpand,
   loginUrl,
+  onSearch,
 }: ChatHeaderProps) {
   // Capitalise role: "customer" → "Customer"
   const displayRole = customerRole
@@ -67,7 +71,9 @@ export function ChatHeader({
       )}
 
       <div className="xpert-chat-header-info">
-        <h3 className="xpert-chat-header-title">{headerText || "Dandelion"}</h3>
+        <h3 className="xpert-chat-header-title">
+          {headerText || "MiraQ Shopper"}
+        </h3>
         {customerName ? (
           <p className="xpert-chat-header-sub">
             Hi, {customerName}
@@ -95,6 +101,17 @@ export function ChatHeader({
             <FiLogIn size={14} />
             Log in
           </a>
+        )}
+        {onSearch && (
+          <button
+            className="xpert-icon-btn"
+            onClick={onSearch}
+            aria-label="Search chat history"
+            title="Search chat history"
+            type="button"
+          >
+            <FiSearch size={18} />
+          </button>
         )}
         {cartCount > 0 && (
           <div className="xpert-cart-badge">

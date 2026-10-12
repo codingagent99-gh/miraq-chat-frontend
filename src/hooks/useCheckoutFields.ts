@@ -4,11 +4,11 @@
  * Single /checkout-fields fetch drives both field lists and required-flag maps.
  * Replaces the two separate fetchBillingFieldMeta / fetchShippingFieldMeta calls.
  *
- * Endpoints consumed:
- *   GET /wp-json/custom-api/v1/countries
- *   GET /wp-json/custom-api/v1/reps
- *   GET /wp-json/custom-api/v1/order-types
- *   GET /wp-json/custom-api/v1/checkout-fields   ← one fetch, all groups
+ * Endpoints consumed (plugin routes — base resolved by utils/pluginApi.ts):
+ *   GET /countries
+ *   GET /reps            — client plugin build only; 404 elsewhere → no reps
+ *   GET /order-types     — client plugin build only; 404 elsewhere → none
+ *   GET /checkout-fields   ← one fetch, all groups
  */
 import { useState, useEffect } from "react";
 import {
@@ -19,6 +19,7 @@ import {
   type WpRep,
   type WpOrderTypeOption,
 } from "../services/api";
+import { pluginApiUrl } from "../utils/pluginApi";
 
 export type { WpCountry, WpRep, WpOrderTypeOption };
 
@@ -346,7 +347,7 @@ async function fetchFieldMeta(wpBase: string): Promise<FieldMeta> {
   };
 
   try {
-    const res = await fetch(`${wpBase}/wp-json/custom-api/v1/checkout-fields`);
+    const res = await fetch(pluginApiUrl(wpBase, "/checkout-fields"));
     if (!res.ok) return fallback;
 
     const data: Record<string, Record<string, RawWcField>> = await res.json();

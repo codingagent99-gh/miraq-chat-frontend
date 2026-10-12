@@ -41,7 +41,7 @@ export function HomeScreen({
           />
         </div>
         <div className="xpert-profile-info">
-          <h2 className="xpert-profile-name">Welcome to Dandelion</h2>
+          <h2 className="xpert-profile-name">Welcome to MiraQ Shopper</h2>
           <p className="xpert-profile-sub">AI Powered Assistant</p>
         </div>
 
@@ -111,7 +111,7 @@ export function HomeScreen({
           <div className="xpert-locked-state">
             <div className="xpert-locked-icon">🔒</div>
             <h3 className="xpert-locked-title">
-              Login to access the Dandelion
+              Login to access the MiraQ Shopper
             </h3>
             <p className="xpert-locked-desc">
               Please log in to your account to browse products, manage your

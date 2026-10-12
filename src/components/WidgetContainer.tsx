@@ -88,7 +88,7 @@ export function WidgetContainer({
   // Launcher mark. Once the store uploads its own logo the bundled MiraQ icon
   // must go here too — this button is the widget's most visible surface, and
   // leaving it as MiraQ was the one place the swap used to miss.
-  const MiraQIcon = logoUrl || `${assetBaseUrl}DandellionWhite.png`;
+  const MiraQIcon = logoUrl || `${assetBaseUrl}MiraQ-icon.png`;
 
   const [isMobile, setIsMobile] = useState(
     () => window.innerWidth <= MOBILE_BREAKPOINT,
