@@ -2,7 +2,7 @@ import type { Category } from "../types/api";
 
 interface CategoryGridProps {
   categories: Category[];
-  onCategoryClick: (categoryName: string) => void;
+  onCategoryClick: (categoryName: string, type?: Category["type"]) => void;
 }
 
 export function CategoryGrid({
@@ -26,7 +26,7 @@ export function CategoryGrid({
       {categories.map((category) => (
         <button
           key={category.id}
-          onClick={() => onCategoryClick(category.name)}
+          onClick={() => onCategoryClick(category.name, category.type)}
           style={{
             display: "flex",
             flexDirection: "column",

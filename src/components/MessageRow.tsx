@@ -25,6 +25,24 @@ const MARKDOWN_COMPONENTS = {
   ),
 };
 
+/** The message a category tile sends. "Sale" alone is read as "products on
+    sale" (the backend's DiscountEvaluator), so the Sale tile listed every
+    on-sale product — 20 — instead of the 8 in the Sale category. Saying
+    "category" next to the name is the backend's own signal for "this name is
+    the category" (explicit_kind_near), which also settles names that are a
+    tag and a category at once. Names that already end in "Category" /
+    "Collection" carry the signal themselves. */
+function categoryRequest(name: string, type?: "category" | "tag"): string {
+  // The catalog view lists tags next to categories; a tag tile asks for the
+  // tag ("Glossy Finish category" named no category and found the wrong items).
+  if (type === "tag") {
+    return /\b(?:tags?|tagged)\s*$/i.test(name) ? name : `${name} tag`;
+  }
+  return /\b(?:categor(?:y|ies)|collections?)\s*$/i.test(name)
+    ? name
+    : `${name} category`;
+}
+
 interface MessageRowProps {
   message: ChatMessage;
   /** True when this message is currently loaded into the input for editing */
@@ -234,7 +252,7 @@ export function MessageRow({
           {message.categories && message.categories.length > 0 && (
             <CategoryGrid
               categories={message.categories}
-              onCategoryClick={onSuggestion}
+              onCategoryClick={(name, type) => onSuggestion(categoryRequest(name, type))}
             />
           )}
 

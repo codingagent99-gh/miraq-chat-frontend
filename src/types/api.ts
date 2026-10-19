@@ -437,6 +437,8 @@ export interface Category {
   name: string;
   slug: string;
   count?: number;
+  /** "tag" for the tags the catalog view lists next to categories. */
+  type?: "category" | "tag";
 }
 
 // ============================================================================

@@ -767,6 +767,9 @@ export function ChatWidget({
               fallbackLogoUrl={`${assetBaseUrl}MiraQ-icon.png`}
               miraQIcon={widgetLogo || DandellionBlueIcon}
               onClose={() => setPanelOpen(false)}
+              // Guests chat without signing in; this is their way back to
+              // the chat after the header's back arrow brought them here.
+              onContinueAsGuest={aiEnabled ? () => setScreen("chat") : undefined}
             />
           ) : screen === "ai-opt-in" ? (
             // ── AI mode opt-in (also the "AI off" resting state) ───────────

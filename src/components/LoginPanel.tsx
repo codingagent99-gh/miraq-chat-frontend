@@ -13,6 +13,11 @@ interface LoginPanelProps {
     register: string;
   };
   onClose: () => void;
+  /** WooCommerce guests may chat without signing in. When given, a
+   *  "Continue without signing in" button takes them (back) to the chat —
+   *  without it, a guest who pressed the chat's back arrow was stuck here
+   *  for the rest of the tab (bug #30). */
+  onContinueAsGuest?: () => void;
 }
 
 interface LoginMeta {
@@ -31,6 +36,7 @@ export function LoginPanel({
   fallbackLogoUrl,
   miraQIcon,
   onClose,
+  onContinueAsGuest,
 }: LoginPanelProps) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -243,6 +249,16 @@ export function LoginPanel({
           >
             Join Our Community
           </a>
+        )}
+
+        {onContinueAsGuest && (
+          <button
+            type="button"
+            className="miraq-login-guest"
+            onClick={onContinueAsGuest}
+          >
+            Continue without signing in
+          </button>
         )}
       </div>
     </div>

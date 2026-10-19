@@ -64,6 +64,10 @@ export function ProductCards({
             role={onProductClick ? "button" : undefined}
             tabIndex={onProductClick ? 0 : undefined}
             onKeyDown={(e) => {
+              // Only when the card itself has focus: Enter/Space pressed in the
+              // quantity input or on a card button bubbles up to here and must
+              // not open the product page.
+              if (e.target !== e.currentTarget) return;
               if (onProductClick && (e.key === "Enter" || e.key === " ")) {
                 e.preventDefault();
                 onProductClick(product);

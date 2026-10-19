@@ -197,6 +197,34 @@
   background: rgba(0, 94, 184, 0.06);
 }
 
+/* Text-style action under the sign-in options. Every property the theme may
+   put on a <button> is reset so it renders the same on any WordPress theme. */
+#silfra-chat-widget-container .miraq-login-guest {
+  display: block;
+  width: 100%;
+  margin: 16px 0 0;
+  padding: 8px 0;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--color-primary);
+  text-align: center;
+  text-transform: none;
+  letter-spacing: normal;
+  background: none;
+  border: 0;
+  border-radius: 4px;
+  box-shadow: none;
+  cursor: pointer;
+}
+
+#silfra-chat-widget-container .miraq-login-guest:hover {
+  text-decoration: underline;
+  background: none;
+}
+
+#silfra-chat-widget-container .miraq-login-guest:focus-visible,
 #silfra-chat-widget-container .miraq-login-input:focus-visible,
 #silfra-chat-widget-container .miraq-login-submit:focus-visible,
 #silfra-chat-widget-container .miraq-login-register:focus-visible {
