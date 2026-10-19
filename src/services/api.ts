@@ -12,6 +12,7 @@ import type {
   HistorySearchResponse,
   HistoryWindowResponse,
   Product,
+  WelcomeResponse,
 } from "../types/api";
 
 // Helper to scrape WooCommerce session from cookies
@@ -216,6 +217,26 @@ export function createApiClient(
     return data;
   }
 
+  /* ── /chat/welcome ── */
+  // Welcome screen data for a logged-in shopper (What's new, Continue). One
+  // call, no AI. A short timeout on purpose: the screen shows a skeleton while
+  // this runs and falls back to the plain home screen if it fails or is slow,
+  // so a slow backend must never hold the shopper there.
+  async function fetchWelcome(
+    customerId?: string | number,
+    signal?: AbortSignal,
+  ): Promise<WelcomeResponse> {
+    const params = new URLSearchParams();
+    // Same local-Shopify-only fallback as fetchHistory; ignored on a live store.
+    if (customerId) params.set("customer_id", String(customerId));
+    const qs = params.toString();
+    const { data } = await client.get<WelcomeResponse>(
+      `/chat/welcome${qs ? `?${qs}` : ""}`,
+      { timeout: 8_000, signal },
+    );
+    return data;
+  }
+
   /* ── /products/:id ── */
   async function fetchProduct(id: number): Promise<Product> {
     const { data } = await client.get<{ product: Product }>(`/products/${id}`);
@@ -302,6 +323,7 @@ export function createApiClient(
     fetchHistory,
     searchHistory,
     fetchHistoryWindow,
+    fetchWelcome,
     fetchProduct,
     fetchSimilarProducts,
     saveSimilarMessage,

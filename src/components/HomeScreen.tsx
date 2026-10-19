@@ -16,21 +16,26 @@ interface HomeScreenProps {
   onToggleExpand?: () => void;
 }
 
-export function HomeScreen({
-  onStartChat,
+/** First name for greetings: first word of the display name, or undefined. */
+export function firstNameOf(customerName?: string): string | undefined {
+  return customerName?.trim().split(/\s+/)[0] || undefined;
+}
+
+interface HomeProfileCardProps {
+  onClose: () => void;
+  miraQIcon: string;
+  isExpanded?: boolean;
+  onToggleExpand?: () => void;
+}
+
+/** Header card shared by HomeScreen and WelcomeScreen. */
+export function HomeProfileCard({
   onClose,
   miraQIcon,
-  customerName,
-  isLoggedIn = true,
-  // aiMode = true,
-  // onToggleAI,
   isExpanded,
   onToggleExpand,
-}: HomeScreenProps) {
-  const firstName = customerName?.trim().split(/\s+/)[0];
-
-  // ── Shared header card ──
-  const profileCard = (
+}: HomeProfileCardProps) {
+  return (
     <div className="xpert-profile-card">
       <div className="xpert-profile-card-info">
         <div className="xpert-profile-icon">
@@ -100,6 +105,30 @@ export function HomeScreen({
       </div>
       <div className="xpert-profile-accent" aria-hidden="true" />
     </div>
+  );
+}
+
+export function HomeScreen({
+  onStartChat,
+  onClose,
+  miraQIcon,
+  customerName,
+  isLoggedIn = true,
+  // aiMode = true,
+  // onToggleAI,
+  isExpanded,
+  onToggleExpand,
+}: HomeScreenProps) {
+  const firstName = firstNameOf(customerName);
+
+  // ── Shared header card ──
+  const profileCard = (
+    <HomeProfileCard
+      onClose={onClose}
+      miraQIcon={miraQIcon}
+      isExpanded={isExpanded}
+      onToggleExpand={onToggleExpand}
+    />
   );
 
   // ── Locked state ──

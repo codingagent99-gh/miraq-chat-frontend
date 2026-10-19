@@ -5,6 +5,7 @@ import type { WidgetOptions } from "./types/api";
 import { checkPlatformConfig } from "./platform/current";
 import { setIdentity } from "./utils/identity";
 import { setPluginConfig } from "./utils/pluginApi";
+import { purgeLegacyIdentityKeys } from "./utils/storageKeys";
 
 declare global {
   interface Window {
@@ -65,6 +66,10 @@ function mountWidget(options?: WidgetOptions, assetBaseUrl?: string) {
   const brandingLogoUrl = options?.brandingLogoUrl || "";
   const brandingFooterText = options?.brandingFooterText || "";
   const licenseId = options?.licenseId || "";
+
+  // Remove storage keys older builds named after the customer ID / email,
+  // before anything in the widget reads storage (utils/storageKeys.ts).
+  purgeLegacyIdentityKeys(customerId, customerEmail);
 
   // Signed identity — the only identity the backend trusts (utils/identity.ts).
   setIdentity(options?.identityToken, options?.identityExpires, options?.wpBaseUrl);

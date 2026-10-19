@@ -37,7 +37,7 @@ export default defineConfig(({ mode }) => {
     base: "/chatbot",
     build: {
       outDir: "public/dist",
-      emptyOutDir: true,
+      emptyOutDir: false,
       lib: {
         entry: resolve(__dirname, "src/widget-entry.tsx"),
         name: libraryName,

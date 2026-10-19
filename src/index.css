@@ -3725,3 +3725,273 @@ select.bo-address__input {
   padding: 0 0.6rem 0.7rem;
   margin-top: 0.25rem;
 }
+
+/* ── Chat history search ─────────────────────────────────────────────────────
+   Overlay over .xpert-chat-body (position: relative) opened from the header
+   search icon. Buttons and inputs are reset explicitly: store themes style
+   bare <button>/<input> heavily and that bleeds into the widget. */
+#silfra-chat-widget-container .xpert-hs-panel {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-surface);
+  animation: xpert-hs-in 0.15s ease-out;
+}
+
+@keyframes xpert-hs-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: none; }
+}
+
+#silfra-chat-widget-container .xpert-hs-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 0.75rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+#silfra-chat-widget-container .xpert-hs-icon-btn,
+#silfra-chat-widget-container .xpert-hs-clear {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 6px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #4b5563;
+  cursor: pointer;
+  box-shadow: none;
+  min-width: 0;
+  min-height: 0;
+}
+
+#silfra-chat-widget-container .xpert-hs-icon-btn:hover,
+#silfra-chat-widget-container .xpert-hs-clear:hover {
+  background: #f3f4f6;
+  color: var(--color-text);
+}
+
+#silfra-chat-widget-container .xpert-hs-input-wrap {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0 0.25rem 0 0.65rem;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: #f9fafb;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+#silfra-chat-widget-container .xpert-hs-input-wrap:focus-within {
+  border-color: var(--color-primary-light);
+  box-shadow: 0 0 0 3px rgba(0, 94, 184, 0.12);
+  background: var(--color-surface);
+}
+
+#silfra-chat-widget-container .xpert-hs-input-icon {
+  color: #9ca3af;
+  flex-shrink: 0;
+}
+
+#silfra-chat-widget-container .xpert-hs-input {
+  flex: 1;
+  min-width: 0;
+  height: 36px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  box-shadow: none;
+  font: inherit;
+  font-size: var(--fs-sm);
+  color: var(--color-text);
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+/* Native clear "x" duplicates ours. */
+#silfra-chat-widget-container .xpert-hs-input::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+}
+
+#silfra-chat-widget-container .xpert-hs-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0.25rem 0 0.75rem;
+}
+
+#silfra-chat-widget-container .xpert-hs-hint {
+  margin: 1.5rem 1.25rem;
+  font-size: var(--fs-sm);
+  color: #6b7280;
+  text-align: center;
+  line-height: 1.5;
+}
+
+#silfra-chat-widget-container .xpert-hs-error {
+  margin: 0.5rem 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  background: #fef2f2;
+  color: #b91c1c;
+  font-size: var(--fs-xs);
+}
+
+#silfra-chat-widget-container .xpert-hs-link {
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--color-primary);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+#silfra-chat-widget-container .xpert-hs-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  transition: opacity 0.15s;
+}
+
+/* A newer query is in flight: keep the old hits visible but dimmed. */
+#silfra-chat-widget-container .xpert-hs-list--stale {
+  opacity: 0.55;
+}
+
+#silfra-chat-widget-container .xpert-hs-item {
+  margin: 0;
+  padding: 0.65rem 1rem;
+  border-bottom: 1px solid #f1f5f9;
+  cursor: pointer;
+}
+
+#silfra-chat-widget-container .xpert-hs-item.is-active {
+  background: #f1f7fd;
+}
+
+#silfra-chat-widget-container .xpert-hs-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.2rem;
+  font-size: var(--fs-xs);
+  line-height: 1.2;
+}
+
+#silfra-chat-widget-container .xpert-hs-who {
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+#silfra-chat-widget-container .xpert-hs-tag {
+  padding: 0.1rem 0.45rem;
+  border-radius: 10px;
+  background: #e8f1fb;
+  color: var(--color-primary-dark);
+  font-weight: 600;
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+#silfra-chat-widget-container .xpert-hs-tag--muted {
+  background: #f3f4f6;
+  color: #6b7280;
+}
+
+#silfra-chat-widget-container .xpert-hs-when {
+  margin-left: auto;
+  color: #94a3b8;
+  white-space: nowrap;
+}
+
+#silfra-chat-widget-container .xpert-hs-when .dot-loader {
+  transform: scale(0.7);
+}
+
+#silfra-chat-widget-container .xpert-hs-snippet {
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: #374151;
+  line-height: 1.45;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  word-break: break-word;
+}
+
+#silfra-chat-widget-container .xpert-hs-mark {
+  padding: 0 1px;
+  border-radius: 2px;
+  background: #fde68a;
+  color: inherit;
+}
+
+#silfra-chat-widget-container .xpert-hs-footnote {
+  margin: 0.75rem 1rem 0;
+  font-size: var(--fs-xs);
+  color: #94a3b8;
+  text-align: center;
+}
+
+/* Message a search jump landed on: brief tint so the eye finds it. */
+#silfra-chat-widget-container .xpert-search-hit {
+  border-radius: 10px;
+  animation: xpert-search-hit 2.5s ease-out;
+}
+
+@keyframes xpert-search-hit {
+  0%, 35% { background-color: rgba(253, 230, 138, 0.65); box-shadow: 0 0 0 6px rgba(253, 230, 138, 0.65); }
+  100%    { background-color: transparent; box-shadow: 0 0 0 6px transparent; }
+}
+
+/* Shown while the list is a past slice rather than the live end of the chat. */
+#silfra-chat-widget-container .xpert-history-jump-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.45rem 0.75rem 0.45rem 1rem;
+  border-top: 1px solid var(--color-border);
+  background: #f1f7fd;
+  font-size: var(--fs-xs);
+  color: #374151;
+}
+
+#silfra-chat-widget-container .xpert-history-jump-btn {
+  margin: 0;
+  padding: 0.3rem 0.75rem;
+  border: none;
+  border-radius: 14px;
+  background: var(--color-primary);
+  color: var(--color-text-light);
+  font: inherit;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  box-shadow: none;
+}
+
+#silfra-chat-widget-container .xpert-history-jump-btn:hover {
+  background: var(--color-primary-dark);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #silfra-chat-widget-container .xpert-hs-panel,
+  #silfra-chat-widget-container .xpert-search-hit {
+    animation: none;
+  }
+  #silfra-chat-widget-container .xpert-search-hit {
+    background-color: rgba(253, 230, 138, 0.4);
+  }
+}

@@ -21,9 +21,7 @@ import { createApiClient } from "../services/api";
 import { isFlowPrompt, buildFlowContext } from "../utils/flow";
 import { enqueuMessages } from "../utils/chatHistory";
 
-// 🚀 Shifted to localStorage so sessions survive tab closes
-const SESSION_KEY_PREFIX = "shop_chat_session_id";
-const EMAIL_KEY = "shop_chat_email";
+import { SESSION_KEY, markChatActive } from "../utils/storageKeys";
 
 // ── Scroll diagnostics (temporary) ─────────────────────────────────────────
 // Off unless the tester runs, in the store page's console:
@@ -205,22 +203,24 @@ interface HistoryView {
 /** Messages per /chat/history/window request around a search hit */
 const JUMP_WINDOW_SIZE = 30;
 
-function sessionKey(userId?: string | number): string {
-  return userId ? `${SESSION_KEY_PREFIX}_${userId}` : SESSION_KEY_PREFIX;
+// One conversation key per browser, with no customer ID or email in it
+// (utils/storageKeys.ts). If a different shopper signs in on this browser,
+// the backend sees the stored conversation is not theirs: /chat/history
+// returns nothing and /chat starts them a fresh conversation, whose id the
+// response carries and processChatResponse saves here.
+function loadSessionId(): string | undefined {
+  try {
+    return localStorage.getItem(SESSION_KEY) ?? undefined;
+  } catch {
+    return undefined;
+  }
 }
-
-function loadSessionId(userId?: string | number): string | undefined {
-  return localStorage.getItem(sessionKey(userId)) ?? undefined;
-}
-function saveSessionId(id: string, userId?: string | number) {
-  localStorage.setItem(sessionKey(userId), id);
-}
-
-function loadEmail(): string | undefined {
-  return localStorage.getItem(EMAIL_KEY) ?? undefined;
-}
-function saveEmail(email: string) {
-  localStorage.setItem(EMAIL_KEY, email);
+function saveSessionId(id: string) {
+  try {
+    localStorage.setItem(SESSION_KEY, id);
+  } catch {
+    // storage unavailable — the conversation just won't survive a reload
+  }
 }
 
 export interface UseChatOptions {
@@ -268,7 +268,7 @@ export function useChat(options: UseChatOptions = {}) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [userEmail, setUserEmail] = useState<string | undefined>(
-    options.customerEmail || loadEmail(),
+    options.customerEmail,
   );
 
   const [pagination, setPagination] = useState<PaginationData | null>(null);
@@ -322,7 +322,7 @@ export function useChat(options: UseChatOptions = {}) {
   >(null);
   const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const sessionIdRef = useRef<string>(loadSessionId(userId) ?? uuidv4());
+  const sessionIdRef = useRef<string>(loadSessionId() ?? uuidv4());
 
   const prevUserIdRef = useRef<string | number | undefined>(userId);
   const bottomRef = useRef<HTMLDivElement | null>(null);
@@ -453,8 +453,8 @@ export function useChat(options: UseChatOptions = {}) {
     // If the user changed (e.g., they logged in), reset the session anchor
     if (prevUserId !== userId) {
       prevUserIdRef.current = userId;
-      sessionIdRef.current = loadSessionId(userId) ?? uuidv4();
-      saveSessionId(sessionIdRef.current, userId);
+      sessionIdRef.current = loadSessionId() ?? uuidv4();
+      saveSessionId(sessionIdRef.current);
       flowRef.current = { flow_state: "idle" };
       setPagination(null);
       setOrderPagination(null);
@@ -464,7 +464,7 @@ export function useChat(options: UseChatOptions = {}) {
       setHistoryPage(1); // Reset history page
     } else {
       // Ensure the current ID is saved
-      saveSessionId(sessionIdRef.current, userId);
+      saveSessionId(sessionIdRef.current);
     }
 
     fetchLatestHistory();
@@ -722,6 +722,59 @@ export function useChat(options: UseChatOptions = {}) {
     [options.customerId, centerMessage, flashMessage, updateHistoryView],
   );
 
+  // Per-conversation client state, cleared whenever the open conversation
+  // changes (welcome screen's Continue / New chat). Same set the user-change
+  // branch of the mount effect clears. flowRef goes back to idle: the
+  // backend's flow_state on the conversation row is what counts, exactly as
+  // after a page reload.
+  const resetConversationState = useCallback(() => {
+    flowRef.current = { flow_state: "idle" };
+    setPagination(null);
+    setOrderPagination(null);
+    lastQueryRef.current = null;
+    lastSuggestionRetryRef.current = null;
+    setError(null);
+    setHistoryPage(1);
+    setHasMoreHistory(false);
+    prependAnchorRef.current = null;
+  }, []);
+
+  /**
+   * Opens an existing conversation of this shopper (welcome screen's
+   * "Continue where you left off" — possibly one started on another device).
+   * /chat/history checks ownership on the backend, so an id that is not the
+   * shopper's just loads as an empty chat. Always refetches, even for the
+   * conversation already open, so messages sent from another device since
+   * this page loaded are included.
+   */
+  const switchConversation = useCallback(
+    async (conversationId: string) => {
+      // A different conversation: clear the old one off screen so it does not
+      // show under the loading dots while the new one arrives.
+      if (conversationId !== sessionIdRef.current) setMessages([]);
+      sessionIdRef.current = conversationId;
+      saveSessionId(conversationId);
+      resetConversationState();
+      await fetchLatestHistory(); // bumps viewGenRef: any older load is dropped
+    },
+    [resetConversationState, fetchLatestHistory],
+  );
+
+  /**
+   * Starts a fresh conversation (welcome screen's "Start a new chat"). Only
+   * the client changes: /chat creates the row on the first message, so an
+   * unused "new chat" leaves nothing behind. The previous conversation stays
+   * on the backend and is still found by history search (FR-6.2).
+   */
+  const startNewConversation = useCallback(() => {
+    ++viewGenRef.current; // discard any history request still in flight
+    updateHistoryView(null);
+    sessionIdRef.current = uuidv4();
+    saveSessionId(sessionIdRef.current);
+    resetConversationState();
+    setMessages([WELCOME_MESSAGE]);
+  }, [resetConversationState, updateHistoryView]);
+
   /** Leaves a search jump and reloads the latest page of the current session. */
   const returnToLatest = useCallback(async () => {
     setHasMoreHistory(false);
@@ -898,7 +951,6 @@ export function useChat(options: UseChatOptions = {}) {
 
   const updateEmail = useCallback((email: string) => {
     setUserEmail(email);
-    saveEmail(email);
   }, []);
 
   const focusInput = useCallback(() => {
@@ -926,8 +978,11 @@ export function useChat(options: UseChatOptions = {}) {
     async (res: ChatResponse) => {
       if (res.session_id) {
         sessionIdRef.current = res.session_id;
-        saveSessionId(res.session_id, userId);
+        saveSessionId(res.session_id);
       }
+      // A turn happened: the shopper is mid-conversation, so reopening the
+      // panel returns to the chat instead of the welcome screen (FR-1.3).
+      markChatActive();
 
       flowRef.current = buildFlowContext(flowRef.current, res);
       setPagination(res.pagination || null);
@@ -1516,6 +1571,9 @@ export function useChat(options: UseChatOptions = {}) {
     appendBotMessage,
     handleCartResult,
     getSessionId: () => sessionIdRef.current,
+    // ── Sessions (welcome screen) ──
+    switchConversation,
+    startNewConversation,
     bottomRef,
     inputRef,
     scrollToBottom,

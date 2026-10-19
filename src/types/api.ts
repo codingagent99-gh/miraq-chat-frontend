@@ -339,6 +339,70 @@ export interface HistoryResponse {
   next_page: number | null;
 }
 
+/** One "What's new" card from GET /chat/welcome (services/whats_new.py _CARD_FIELDS). */
+export interface WelcomeProduct {
+  id: number;
+  name: string;
+  slug: string;
+  permalink: string;
+  type?: string;
+  price: number;
+  regular_price: number;
+  sale_price: number | null;
+  on_sale: boolean;
+  in_stock: boolean;
+  purchasable?: boolean;
+  /** At most one image URL */
+  images: string[];
+  currency_symbol?: string;
+}
+
+/** The shopper's latest website conversation (services/last_conversation.py). */
+export interface LastConversation {
+  id: string;
+  /** Last thing the shopper typed, ≤80 chars; "" when there is nothing to show */
+  preview: string;
+  /** ISO-8601 */
+  updated_at: string | null;
+}
+
+/** The cart add a Buy-again item performs — the same actions the chat emits. */
+export type BuyAgainAdd = Extract<
+  ChatAction,
+  { type: "ADD_TO_CART" } | { type: "SHOPIFY_ADD_TO_CART" }
+>;
+
+/** One "Buy again" item (services/buy_again.py). */
+export interface BuyAgainItem {
+  /** "<product>:<variation>" — unique within the list */
+  key: string;
+  product_id: number | string;
+  variation_id: number | string | null;
+  name: string;
+  /** "Glossy / 12x24"; null for a simple product */
+  variant: string | null;
+  image: string;
+  /** Only when known exactly for this variant; null otherwise */
+  price: number | string | null;
+  currency_symbol: string;
+  permalink: string;
+  /** Same variant, quantity 1. null when needs_options. */
+  add: BuyAgainAdd | null;
+  /** The bought variant no longer exists: send the shopper to pick one. */
+  needs_options: boolean;
+}
+
+/** GET /chat/welcome — sections are empty/null when there is nothing to show. */
+export interface WelcomeResponse {
+  success: boolean;
+  whats_new: WelcomeProduct[];
+  /** Picks the heading; null = hide the section */
+  whats_new_mode: "since_last_visit" | "newest" | null;
+  last_conversation: LastConversation | null;
+  /** [] = hide the section (no orders, nothing available, or store too slow) */
+  buy_again?: BuyAgainItem[];
+}
+
 /** One hit from GET /chat/history/search */
 export interface HistorySearchResult {
   message_id: number;

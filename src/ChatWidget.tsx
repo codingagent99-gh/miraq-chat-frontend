@@ -7,8 +7,11 @@ import { createApiClient } from "./services/api";
 import { WidgetContainer } from "./components/WidgetContainer";
 import { ShopifyWidgetContainer } from "./components/ShopifyWidgetContainer";
 import { HomeScreen } from "./components/HomeScreen";
+import { WelcomeScreen } from "./components/WelcomeScreen";
+import { AI_ENABLED_KEY, SCREEN_KEY, isChatActive } from "./utils/storageKeys";
 import { ChatHeader } from "./components/ChatHeader";
 import { MessageRow } from "./components/MessageRow";
+import { ChatHistorySearch } from "./components/ChatHistorySearch";
 import type { Product, WidgetOptions } from "./types/api";
 import { FiSend, FiX, FiMic, FiMicOff } from "react-icons/fi";
 import { useSpeechRecognition } from "./hooks/useSpeechRecognition";
@@ -76,8 +79,8 @@ export function ChatWidget({
   // that doesn't exist on a Shopify store) instead of failing loudly.
   const isShopify = IS_SHOPIFY;
   const Container = isShopify ? ShopifyWidgetContainer : WidgetContainer;
-  const DandellionBlueIcon = `${assetBaseUrl}DandellionBlue.png`;
-  const DandellionWhiteIcon = `${assetBaseUrl}DandellionWhite.png`;
+  const DandellionBlueIcon = `${assetBaseUrl}MiraQ-icon.png`;
+  const DandellionWhiteIcon = `${assetBaseUrl}MiraQ-icon.png`;
 
   const redirectingRef = useRef(false); // ← a navigation already committed for this page load
   // Runtime shopDomain (from Liquid data-shop-domain) is the source of truth.
@@ -133,8 +136,10 @@ export function ChatWidget({
   // on `onToggleExpand &&`, so this one value removes it from all four.
   const onToggleExpand = isMobile ? undefined : () => setIsExpanded((p) => !p);
 
-  // ── AI mode localStorage key (user-scoped) ───────────────────────────────
-  const aiStorageKey = `silfra_ai_enabled_${customerId ?? customerEmail ?? "guest"}`;
+  // ── AI mode localStorage key ─────────────────────────────────────────────
+  // One key per browser: nothing that identifies the shopper (customer ID,
+  // email) goes into browser storage — see utils/storageKeys.ts.
+  const aiStorageKey = AI_ENABLED_KEY;
 
   // ── AI enabled state — initialised from localStorage ────────────────────
   const [aiEnabled, setAiEnabled] = useState<boolean>(() => {
@@ -149,12 +154,11 @@ export function ChatWidget({
   // "ai-opt-in" → shown when not logged in (login prompt) OR when AI is off
   // "home"      → logged in + AI enabled, shows HomeScreen
   // "chat"      → active chat session
-  const screenStorageKey = `silfra_screen_${customerId ?? customerEmail ?? "guest"}`;
+  const screenStorageKey = SCREEN_KEY;
 
   const [screen, setScreen] = useState<"ai-opt-in" | "home" | "chat">(() => {
     // Restoring a saved "AI on" screen only depends on aiStorageKey/
-    // screenStorageKey, both of which already fall back to the "guest"
-    // bucket when customerId/customerEmail are absent — it never needed
+    // screenStorageKey, which are the same for every visitor — it never needed
     // isLoggedIn. Gating on isLoggedIn broke Shopify, where anonymous
     // storefront visitors (no Shopify customer account) are guests by
     // design and should still resume "chat"/"home" across a reload.
@@ -163,6 +167,17 @@ export function ChatWidget({
     // branch below), so this never mattered for them either way.
     try {
       if (localStorage.getItem(aiStorageKey) === "true") {
+        // Logged-in shopper on a fresh open → welcome screen (requirements
+        // FR-1.2), unless they are mid-conversation in this visit (FR-1.3) or
+        // this load is the widget's own cart/checkout redirect resuming —
+        // those overlays only exist on the chat screen.
+        if (
+          isLoggedIn &&
+          !isChatActive() &&
+          sessionStorage.getItem("silfra_resume_open") !== "true"
+        ) {
+          return "home";
+        }
         const saved = sessionStorage.getItem(screenStorageKey);
         if (saved === "chat" || saved === "home") return saved;
         return "chat";
@@ -262,6 +277,28 @@ export function ChatWidget({
       return false;
     }
   });
+  // ── Welcome screen on reopen (FR-1.2 / FR-1.3) ───────────────────────────
+  // Closing and reopening the panel is a fresh open: a logged-in shopper who
+  // has not chatted in this visit gets the welcome screen again. Mid-
+  // conversation, or with the cart/checkout open, the chat stays put.
+  const prevPanelOpenRef = useRef(panelOpen);
+  useEffect(() => {
+    const wasOpen = prevPanelOpenRef.current;
+    prevPanelOpenRef.current = panelOpen;
+    if (
+      !wasOpen &&
+      panelOpen &&
+      aiEnabled &&
+      isLoggedIn &&
+      screen === "chat" &&
+      !isCartOpen &&
+      !isCheckoutOpen &&
+      !isChatActive()
+    ) {
+      setScreen("home");
+    }
+  }, [panelOpen, aiEnabled, isLoggedIn, screen, isCartOpen, isCheckoutOpen]);
+
   const originalInputRef = useRef("");
 
   const [showBulkOrderBtn, setShowBulkOrderBtn] = useState(false);
@@ -388,6 +425,8 @@ export function ChatWidget({
     appendBotMessage,
     handleCartResult,
     getSessionId,
+    switchConversation,
+    startNewConversation,
     bottomRef,
     inputRef,
     scrollToBottom,
@@ -401,6 +440,15 @@ export function ChatWidget({
     loadMoreHistory,
     hasMoreHistory,
     loadingHistory,
+    searchHistory,
+    jumpToMessage,
+    returnToLatest,
+    loadNewerHistory,
+    hasNewerHistory,
+    loadingNewerHistory,
+    isViewingPast,
+    isViewingOtherConversation,
+    highlightedMessageId,
     tenantConfigError,
   } = useChat({
     apiUrl,
@@ -443,6 +491,9 @@ export function ChatWidget({
     },
   });
   onCartResultRef.current = handleCartResult;
+
+  // ── History search ──
+  const [searchOpen, setSearchOpen] = useState(false);
 
   // Voice
   const { isListening, isSupported, transcript, toggleListening } =
@@ -586,6 +637,14 @@ export function ChatWidget({
   const handleEditClick = useCallback(
     (id: string, text: string) => {
       if (loading) return;
+      // In a past slice from search, editing would rewrite a turn that is
+      // not the live one. Offer the text as a new message instead; sending
+      // it returns the chat to the latest messages first (useChat.ensureLive).
+      if (isViewingPast) {
+        setInputValue(text);
+        setTimeout(() => inputRef.current?.focus(), 50);
+        return;
+      }
       setEditingId(id);
       setInputValue(text);
       setTimeout(() => {
@@ -595,7 +654,7 @@ export function ChatWidget({
         }
       }, 50);
     },
-    [loading, inputRef],
+    [loading, inputRef, isViewingPast],
   );
 
   const handleCancelEdit = useCallback(() => {
@@ -705,7 +764,7 @@ export function ChatWidget({
             // see shopifyLoginUrl above.
             <LoginPanel
               siteOrigin={siteOrigin}
-              fallbackLogoUrl={`${assetBaseUrl}store-logo.png`}
+              fallbackLogoUrl={`${assetBaseUrl}MiraQ-icon.png`}
               miraQIcon={widgetLogo || DandellionBlueIcon}
               onClose={() => setPanelOpen(false)}
             />
@@ -717,8 +776,78 @@ export function ChatWidget({
               aiEnabled={aiEnabled}
               onToggle={handleAiToggle}
             />
+          ) : isLoggedIn ? (
+            // ── Welcome screen (logged-in shopper, AI enabled) ─────────────
+            // What's new, Continue last chat, Buy again, Start a new chat.
+            // Falls back to the HomeScreen below by itself if /chat/welcome
+            // fails.
+            <WelcomeScreen
+              loadWelcome={(signal) =>
+                apiClientRef.current.fetchWelcome(customerId, signal)
+              }
+              onContinue={(conversationId) => {
+                setEditingId(null);
+                setSearchOpen(false);
+                void switchConversation(conversationId);
+                setScreen("chat");
+              }}
+              onNewChat={() => {
+                setEditingId(null);
+                setSearchOpen(false);
+                startNewConversation();
+                setScreen("chat");
+              }}
+              onStartChat={() => setScreen("chat")}
+              // The same navigation a product card in the chat does (FR-3.2).
+              onOpenProduct={(p) => handleProductClick(p as unknown as Product)}
+              // Buy again (FR-5): the backend sends the same ADD_TO_CART /
+              // SHOPIFY_ADD_TO_CART action the chat would, and it is applied
+              // with the same addItem call useChatActions makes — but
+              // directly, so nothing is posted into a conversation.
+              onAddToCart={async (item) => {
+                const a = item.add;
+                if (!a) throw new Error("no cart action for this item");
+                if (a.type === "SHOPIFY_ADD_TO_CART") {
+                  await addItem(a.payload.variant_id, a.payload.quantity);
+                } else {
+                  await addItem(
+                    a.payload.product_id,
+                    a.payload.quantity,
+                    a.payload.variation_id,
+                    a.payload.variation,
+                  );
+                }
+              }}
+              // The chat's own variant flow picks the option (FR-5.3).
+              onChooseOptions={(item) => {
+                setEditingId(null);
+                setSearchOpen(false);
+                startNewConversation();
+                setScreen("chat");
+                void sendMessage(`I want to order ${item.name}`);
+              }}
+              onSeeOrders={() => {
+                setEditingId(null);
+                setSearchOpen(false);
+                startNewConversation();
+                setScreen("chat");
+                void sendMessage("Show my orders");
+              }}
+              // The cart panel lives on the chat screen.
+              onViewCart={() => {
+                setScreen("chat");
+                setIsCartOpen(true);
+                fetchCart();
+              }}
+              cartCount={cartCount}
+              onClose={() => setPanelOpen(false)}
+              miraQIcon={widgetLogo || DandellionBlueIcon}
+              customerName={customerName}
+              isExpanded={isExpanded}
+              onToggleExpand={onToggleExpand}
+            />
           ) : (
-            // ── Home screen (AI enabled) ───────────────────────────────────
+            // ── Home screen (Shopify guest, AI enabled) ────────────────────
             <HomeScreen
               onStartChat={() => setScreen("chat")}
               onClose={() => setPanelOpen(false)}
@@ -760,7 +889,10 @@ export function ChatWidget({
       : null;
   const activePagination = lastProductBotMessage?.pagination ?? pagination;
   const showServerLoadMore =
-    activePagination?.has_more && !loading && lastProductBotMessage != null;
+    activePagination?.has_more &&
+    !loading &&
+    lastProductBotMessage != null &&
+    !isViewingPast;
 
   const lastOrderBotMessage =
     !loading && lastBotMessage?.orders && lastBotMessage.orders.length > 1
@@ -769,7 +901,10 @@ export function ChatWidget({
   const activeOrderPagination =
     lastOrderBotMessage?.orderPagination ?? orderPagination;
   const showOrderLoadMore =
-    activeOrderPagination?.has_more && !loading && lastOrderBotMessage != null;
+    activeOrderPagination?.has_more &&
+    !loading &&
+    lastOrderBotMessage != null &&
+    !isViewingPast;
 
   return (
     <div id="silfra-chat-widget-container">
@@ -791,10 +926,11 @@ export function ChatWidget({
             onBack={() => setScreen("home")}
             onClose={() => setPanelOpen(false)}
             logoUrl={widgetLogo || DandellionWhiteIcon}
-            headerText="Dandelion"
+            headerText="MiraQ Shopper"
             isExpanded={isExpanded}
             onToggleExpand={onToggleExpand}
             loginUrl={shopifyLoginUrl}
+            onSearch={() => setSearchOpen(true)}
           />
 
           <div
@@ -811,23 +947,68 @@ export function ChatWidget({
             <div
               className="xpert-chat-messages"
               onScroll={(e) => {
+                // Start fetching older messages one screen BEFORE the top,
+                // not at 50px. On a live store the history request takes a
+                // noticeable moment (locally it's near-instant), and a fast
+                // scroll reached the top long before the messages arrived.
+                // loadMoreHistory itself refuses a second request while one
+                // is in flight.
+                const el = e.currentTarget;
                 if (
-                  e.currentTarget.scrollTop < 50 &&
+                  el.scrollTop < el.clientHeight &&
                   hasMoreHistory &&
                   !loadingHistory
                 ) {
                   loadMoreHistory();
                 }
+                // After a search jump: newer messages load the same way
+                // when the reader nears the bottom of the slice.
+                if (
+                  hasNewerHistory &&
+                  !loadingNewerHistory &&
+                  el.scrollHeight - el.scrollTop - el.clientHeight <
+                    el.clientHeight
+                ) {
+                  loadNewerHistory();
+                }
               }}
             >
+              {/* Older-history loader. The row is always there while older
+                  messages exist (only the dots come and go), so showing the
+                  loader never shifts the messages below it. */}
+              {hasMoreHistory && (
+                <div
+                  className="xpert-history-loader"
+                  role="status"
+                  aria-live="polite"
+                  aria-label={
+                    loadingHistory ? "Loading older messages" : undefined
+                  }
+                >
+                  {loadingHistory && (
+                    <span className="dot-loader" aria-hidden="true">
+                      <span />
+                      <span />
+                      <span />
+                    </span>
+                  )}
+                </div>
+              )}
               {messages.map((message, _i) => (
                 <div
                   key={message.id}
                   ref={(el) => registerMessageRef(message.id, el)}
+                  className={
+                    message.id === highlightedMessageId
+                      ? "xpert-search-hit"
+                      : undefined
+                  }
                 >
                   <MessageRow
                     message={message}
-                    isLatest={_i === messages.length - 1}
+                    // A past slice's last row is not the live turn, so its
+                    // cards stay read-only like any replayed history.
+                    isLatest={!isViewingPast && _i === messages.length - 1}
                     isBeingEdited={message.id === editingId}
                     onSuggestion={handleSuggestionClick}
                     onFilterSuggestion={sendFilterSuggestion}
@@ -854,6 +1035,25 @@ export function ChatWidget({
                   />
                 </div>
               ))}
+
+              {hasNewerHistory && (
+                <div
+                  className="xpert-history-loader"
+                  role="status"
+                  aria-live="polite"
+                  aria-label={
+                    loadingNewerHistory ? "Loading newer messages" : undefined
+                  }
+                >
+                  {loadingNewerHistory && (
+                    <span className="dot-loader" aria-hidden="true">
+                      <span />
+                      <span />
+                      <span />
+                    </span>
+                  )}
+                </div>
+              )}
 
               {showServerLoadMore && (
                 <div className="xpert-pagination-controls">
@@ -918,6 +1118,40 @@ export function ChatWidget({
 
               <div ref={bottomRef} />
             </div>
+
+            {isViewingPast && (
+              <div className="xpert-history-jump-bar">
+                <span className="xpert-history-jump-label">
+                  {isViewingOtherConversation
+                    ? "Viewing an earlier chat"
+                    : "Viewing earlier messages"}
+                </span>
+                <button
+                  type="button"
+                  className="xpert-history-jump-btn"
+                  onClick={returnToLatest}
+                >
+                  Back to latest ↓
+                </button>
+              </div>
+            )}
+
+            <ChatHistorySearch
+              open={searchOpen}
+              onClose={() => {
+                setSearchOpen(false);
+                setTimeout(
+                  () => inputRef.current?.focus({ preventScroll: true }),
+                  50,
+                );
+              }}
+              search={searchHistory}
+              onSelect={(r) => {
+                // The edited turn may not be in the slice we're jumping to.
+                setEditingId(null);
+                return jumpToMessage(r.conversation_id, r.message_id);
+              }}
+            />
 
             {editingId && (
               <div className="xpert-edit-indicator">
